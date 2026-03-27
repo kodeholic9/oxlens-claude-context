@@ -1,0 +1,388 @@
+# PLI Governor 설계 문서
+
+> 세션 컨텍스트: 2026-03-25
+> author: kodeholic (powered by Claude)
+
+---
+
+## 1. 배경 및 동기
+
+### 문제점
+- track-update 시점 변경 이후 publish 쪽에 PLI 요청 집중 → 인코더 비용 과다
+- 서버 자발적 PLI burst 3발(0/500/1500ms)도 인코더에 부담
+- subscriber 다수가 동시에 PLI → publisher에게 그대로 전달 → I-Frame 연타 → 대역폭 폭증
+
+### 업계 선례 분석
+
+| SFU | 방식 | 장점 | 단점 |
+|-----|------|------|------|
+| **LiveKit** | 레이어별 시간 스로틀 (l:500ms, m:1s, h:1s) | 간단, 레이어 차등 | 상황 무시, 고정 간격 |
+| **mediasoup** | 글로벌 1초 스로틀 (`keyFrameRequestDelay`) | 보수적, publisher 보호 확실 | 다수 동시 join 시 검은 화면 오래 지속 |
+| **Janus** | 주기적 FIR (3초) + subscriber PLI 전량 차단 | publisher 부하 완전 예측 가능 | 반응성 없음, 소규모 과잉 |
+| **mediasoup (최신)** | target layer retransmission buffer | PLI 발생 원인 자체 감소 | 모든 원인 커버 불가 |
+
+**공통 한계**: 전부 "둔탁한 칼" — 시간 기반 스로틀은 상황을 모르고, 주기적 강제는 반응성이 없음.
+
+### OxLens 차별점
+PLI를 "요청"이 아닌 "이벤트"로 취급. **인과관계 기반 판단** — "PLI 보냈다 → I-Frame 왔는가 → subscriber에게 릴레이됐는가" 관측 사실로 결정. 시간 임계치는 유실 대비 안전망으로만 사용.
+
+---
+
+## 2. 핵심 원칙
+
+1. **관측 사실 기반 판단**: 영상 콘텐츠 예측 없음. 이미 일어난 사실만 본다.
+2. **시간 임계치는 안전망**: 주(主) 판단은 상태, 시간은 유실 대비용.
+3. **레이어별 차등**: h I-Frame은 무겁고, l은 가벼움. 같은 잣대 적용 금지.
+4. **사용자 의도 보호**: 수동 선택 레이어는 Governor가 절대 상향하지 않음.
+5. **휴리스틱 아님**: 모든 파라미터는 물리적 제약에서 도출.
+
+---
+
+## 3. 상태 모델
+
+### 3.1 Publisher별 상태 (track 단위, 레이어별)
+
+```rust
+/// PLI Governor — Publisher 측 상태
+struct PliPublisherState {
+    /// 레이어별 상태 [h=0, l=1]
+    layers: [PliLayerState; 2],
+}
+
+struct PliLayerState {
+    /// publisher에게 PLI를 마지막으로 전달한 시각
+    last_pli_forwarded_at: Option<Instant>,
+    /// publisher로부터 해당 레이어 I-Frame 수신 시각
+    last_keyframe_received_at: Option<Instant>,
+    /// PLI 보냄 → I-Frame 아직 안 옴
+    pli_pending: bool,
+}
+```
+
+### 3.2 Subscriber별 상태 (subscribe_track 단위)
+
+```rust
+/// PLI Governor — Subscriber 측 상태
+struct PliSubscriberState {
+    /// 사용자 수동 선택 (long-press via SUBSCRIBE_LAYER op=51)
+    user_preferred_layer: Option<Layer>,
+    /// Governor 자동 판단
+    governor_layer: Option<Layer>,
+    /// 실제 적용 레이어 = min(user_preferred, governor)
+    effective_layer: Layer,
+
+    /// PLI 요청했으나 아직 I-Frame 미충족
+    needs_keyframe: bool,
+    /// 이 subscriber에게 I-Frame을 마지막 릴레이한 시각
+    last_keyframe_relayed_at: Option<Instant>,
+
+    /// 연속 PLI 카운트 (다운그레이드 트리거용)
+    consecutive_pli_count: u32,
+
+    /// 자동 다운그레이드 관련
+    auto_downgraded: bool,
+    downgrade_count: u32,          // 연속 다운그레이드 횟수 (백오프용)
+    downgraded_at: Option<Instant>,
+    stable_since: Option<Instant>, // 마지막 PLI 이후 경과 추적
+}
+```
+
+### 3.3 Effective Layer 결정 규칙
+
+```
+effective_layer = min(user_preferred_layer, governor_layer)
+```
+
+| user_preferred | governor | effective | 설명 |
+|:-:|:-:|:-:|---|
+| h | h | **h** | 정상 |
+| h | l | **l** | 망 나쁨 → 자동 다운 |
+| l | h | **l** | 사용자 의도 존중 |
+| l | l | **l** | 둘 다 l |
+| pause | 무관 | **pause** | 사용자 pause 최우선 |
+| None | l | **l** | 수동 선택 없음, Governor 따름 |
+| None | None | **h** | 기본값 |
+
+**핵심**: 사용자가 l을 골랐는데 Governor가 네트워크 좋아졌다고 h로 올려도 effective는 l. 구멍 차단.
+
+---
+
+## 4. 시간 임계치 (config.rs 상수)
+
+모든 시간 파라미터는 물리적 제약에서 도출.
+
+```rust
+// ── PLI Governor 레이어별 차등 ──
+
+/// PLI 유실 대비 재전송 타임아웃
+const PLI_RETRY_TIMEOUT_H: Duration     = Duration::from_millis(1500); // h I-Frame 생성 느림
+const PLI_RETRY_TIMEOUT_L: Duration     = Duration::from_millis(500);  // l I-Frame 가벼움
+
+/// 같은 publisher에게 PLI 최소 간격 (물리적 하한)
+const PLI_MIN_INTERVAL_H: Duration      = Duration::from_millis(300);  // h 인코딩 비용 큼
+const PLI_MIN_INTERVAL_L: Duration      = Duration::from_millis(100);  // l은 더 관대
+
+/// 릴레이 유실 대비 — I-Frame 왔는데 subscriber에게 안 간 경우
+const PLI_STALE_KEYFRAME_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// 자동 다운그레이드 트리거 — 연속 PLI 횟수
+const PLI_DOWNGRADE_THRESHOLD_H: u32    = 3;   // h에서 PLI 3회 연속 → l로
+const PLI_DOWNGRADE_THRESHOLD_L: u32    = 5;   // l에서도 반복이면 pause 검토
+
+/// 자동 업그레이드 복귀 — 안정 관찰 기간
+const PLI_UPGRADE_STABLE_PERIOD: Duration = Duration::from_secs(5);
+
+/// 업그레이드 백오프 (진동 방지)
+const PLI_UPGRADE_BACKOFF_BASE: Duration  = Duration::from_secs(5);
+const PLI_UPGRADE_BACKOFF_MAX: Duration   = Duration::from_secs(60);
+// 실제 대기 = min(base * 2^downgrade_count, max)
+// 1차: 5s, 2차: 10s, 3차: 20s, 4차: 40s, 5차+: 60s
+```
+
+---
+
+## 5. 판단 플로우
+
+### 5.1 Subscriber PLI 수신 시
+
+```
+subscriber로부터 PLI 수신
+│
+├─ subscriber.needs_keyframe == true?
+│   └─ YES → 이미 요청 대기 중 → DROP (중복)
+│
+├─ subscriber.last_keyframe_relayed_at이 충분히 최근?
+│   └─ YES → 이미 I-Frame 받았음 → DROP
+│
+├─ publisher.layer[target].pli_pending == true?
+│   │
+│   ├─ elapsed < RETRY_TIMEOUT (h:1.5s / l:0.5s)?
+│   │   └─ YES → PLI 보냈고 아직 기다리는 중 → DROP
+│   │
+│   └─ NO → PLI 유실 가능성 → FORWARD (재전송)
+│       └─ last_pli_forwarded_at 갱신
+│
+├─ elapsed since last forward < MIN_INTERVAL (h:300ms / l:100ms)?
+│   └─ YES → 물리적 하한 미달 → DROP
+│
+└─ 위 조건 모두 통과 → 진짜 필요 → FORWARD
+    ├─ pli_pending = true
+    ├─ last_pli_forwarded_at = now
+    └─ subscriber.needs_keyframe = true
+        subscriber.consecutive_pli_count += 1
+```
+
+### 5.2 I-Frame 도착 시 (ingress)
+
+```
+publisher로부터 I-Frame 수신
+│
+├─ publisher.layer[rid].pli_pending = false
+├─ publisher.layer[rid].last_keyframe_received_at = now
+│
+└─ 해당 레이어 subscriber 순회:
+    ├─ subscriber.needs_keyframe == true?
+    │   └─ I-Frame 릴레이 후:
+    │       ├─ needs_keyframe = false
+    │       ├─ last_keyframe_relayed_at = now
+    │       └─ consecutive_pli_count = 0 (충족됐으므로 리셋)
+    │
+    └─ needs_keyframe == false?
+        └─ 정상 릴레이, last_keyframe_relayed_at = now
+```
+
+### 5.3 서버 자발적 PLI (burst) 통합
+
+기존 `spawn_pli_burst` 3발(0/500/1500ms)을 **Governor 경유**로 변경:
+
+```
+레이어 전환 / Floor Granted / CAMERA_READY
+│
+└─ 첫 발: 즉시 → Governor에 PLI 요청 → FORWARD
+   두 번째(500ms 후): Governor 체크 → I-Frame 이미 왔으면 CANCEL
+   세 번째(1500ms 후): Governor 체크 → I-Frame 이미 왔으면 CANCEL
+```
+
+**효과**: I-Frame이 200ms 만에 오면 나머지 2발 자동 취소.
+기존에는 무조건 3발 다 발사.
+
+---
+
+## 6. 자동 레이어 전환
+
+### 6.1 다운그레이드 (h → l)
+
+```
+subscriber.consecutive_pli_count >= DOWNGRADE_THRESHOLD_H (3회)
+│
+└─ governor_layer = l
+   effective_layer 재계산 → SimulcastRewriter 정식 전환
+   auto_downgraded = true
+   downgrade_count += 1
+   downgraded_at = now
+   stable_since = now
+   consecutive_pli_count = 0
+```
+
+### 6.2 업그레이드 복귀 (l → h)
+
+**조건 (모두 충족):**
+1. `auto_downgraded == true` (Governor가 내린 것만 대상)
+2. l 레이어에서 PLI 발생 0회가 `UPGRADE_STABLE_PERIOD` (5초) 이상 지속
+3. 해당 subscriber의 loss rate가 양호
+4. 백오프 대기 시간 경과: `min(5s * 2^downgrade_count, 60s)`
+
+```
+조건 충족
+│
+└─ governor_layer = h
+   effective_layer 재계산 (user_preferred 반영!)
+   → user_preferred가 l이면 effective는 여전히 l (구멍 차단)
+   → user_preferred가 h 또는 None이면 effective = h
+   auto_downgraded = false
+```
+
+### 6.3 복귀 실패 처리
+
+```
+h 복귀 → PLI 재발 → consecutive_pli_count >= DOWNGRADE_THRESHOLD_H
+│
+└─ 다시 l로 다운그레이드
+   downgrade_count += 1 → 다음 복귀 대기 더 길어짐
+   (1차: 5s, 2차: 10s, 3차: 20s, 4차: 40s, 5차+: 60s)
+```
+
+### 6.4 카운터 리셋
+
+```
+h에서 안정적으로 UPGRADE_STABLE_PERIOD * 2 (10초) 이상 유지
+│
+└─ downgrade_count = 0 (깨끗한 상태로 복귀)
+```
+
+### 6.5 진동 방지 — 전체 라이프사이클
+
+```
+정상 (h)
+  │
+  ├─ PLI 3회 연속
+  │
+  ▼
+다운그레이드 (l) ──── 안정 관찰 ────────────┐
+  ▲                                         │
+  │                                   5/10/20/40/60초 +
+  │                                   loss rate 양호 +
+  │                                   PLI 0회
+  │                                         │
+  └── PLI 재발 ◄── 복귀 시도 (h) ◄──────────┘
+       downgrade_count++
+       백오프 시간 증가
+```
+
+---
+
+## 7. SUBSCRIBE_LAYER op=51 통합
+
+### 사용자 수동 선택 시
+
+```
+SUBSCRIBE_LAYER 수신 (layer = h | l | pause)
+│
+├─ user_preferred_layer = 요청값
+├─ effective_layer 재계산: min(user_preferred, governor_layer)
+├─ effective가 변경됐으면 → SimulcastRewriter 전환
+└─ 변경 없으면 → 무시
+```
+
+### Governor 자동 판단 변경 시
+
+```
+Governor 판단 변경 (governor_layer 갱신)
+│
+├─ effective_layer 재계산: min(user_preferred, governor_layer)
+├─ effective가 변경됐으면 → SimulcastRewriter 전환
+└─ 변경 없으면 → 무시
+```
+
+**SimulcastRewriter는 항상 `effective_layer`만 본다.**
+진입점이 둘(사용자/Governor)이지만 출구는 하나.
+기존 전환 파이프라인 수정 불필요.
+
+---
+
+## 8. 구현 위치 (예상)
+
+| 구성요소 | 파일 | 설명 |
+|---------|------|------|
+| `PliGovernor` struct | **새 파일**: `transport/udp/pli_governor.rs` | 상태 + 판단 로직 |
+| Publisher 상태 | `room/participant.rs` | `PliPublisherState` 필드 추가 |
+| Subscriber 상태 | `room/participant.rs` | `PliSubscriberState` 필드 추가 (subscribe_layers 확장) |
+| PLI 수신 처리 | `transport/udp/ingress.rs` | subscriber PLI → Governor 경유 |
+| I-Frame 감지 | `transport/udp/ingress.rs` | VP8/H264 키프레임 → Governor 통지 |
+| PLI 발사 | `transport/udp/pli.rs` | `spawn_pli_burst` → Governor 경유로 변경 |
+| 레이어 전환 | `signaling/handler/track_ops.rs` | SUBSCRIBE_LAYER에 effective_layer 적용 |
+| 임계치 상수 | `config.rs` | 모든 Duration/Threshold 상수 |
+
+---
+
+## 9. 기각된 접근법 (절대 하지 말 것)
+
+### 9.1 비대칭 마이크로 키프레임 주입 (제미나이 제안)
+- l-layer I-Frame 1개를 h SSRC로 위장 → 즉시 h P-Frame 복귀
+- **기각 사유**: 코덱 참조 프레임 체인 파괴. h P-Frame은 h I-Frame을 참조하므로 l I-Frame 삽입 후 h P-Frame 디코딩 불가. 문제를 해결한 게 아니라 한 바퀴 돌려서 지연시킨 것.
+- mediasoup/LiveKit이 이 방식을 "못 하는" 게 아니라 **안 하는** 것.
+
+### 9.2 고정 시간 스로틀만 사용
+- LiveKit/mediasoup 방식의 단순 `last_pli_at + interval` 체크
+- **기각 사유**: 상황을 모름. I-Frame이 이미 도착했는지, subscriber에게 릴레이됐는지 판단 불가.
+
+### 9.3 주기적 FIR + subscriber PLI 전량 차단
+- Janus 대규모 방식
+- **기각 사유**: 소규모(30인)에서 과잉. 아무도 안 깨졌는데 3초마다 I-Frame 낭비.
+
+---
+
+## 10. 테스트 계획
+
+### 기본 검증
+- [ ] 단일 subscriber PLI → publisher에게 1발만 전달
+- [ ] 10명 동시 PLI → publisher에게 1발만 전달 (나머지 9발 drop)
+- [ ] PLI 보낸 후 I-Frame 도착 전 추가 PLI → drop
+- [ ] PLI 보낸 후 RETRY_TIMEOUT 초과 → 재전송 허용
+
+### 서버 자발적 PLI
+- [ ] 레이어 전환 후 I-Frame 200ms 내 도착 → burst 2,3발 자동 취소
+- [ ] I-Frame 미도착 → burst 2발까지 정상 발사
+
+### 자동 다운그레이드
+- [ ] h에서 PLI 3회 연속 → l로 자동 전환
+- [ ] l에서 5초 안정 + 백오프 경과 → h로 자동 복귀
+- [ ] h 복귀 후 PLI 재발 → 즉시 l로, 백오프 시간 증가
+
+### 사용자 의도 보호
+- [ ] 사용자 l 선택 → Governor h 판단 → effective l 유지
+- [ ] 사용자 h 선택 → Governor l 판단 → effective l (네트워크 우선)
+- [ ] 사용자 pause → Governor 무관 → effective pause
+
+### 기존 기능 회귀
+- [ ] PTT Floor Granted → PLI → 화면 복구 정상
+- [ ] CAMERA_READY → PLI → 화면 복구 정상
+- [ ] Simulcast 수동 레이어 전환 → 정상 동작
+
+---
+
+## 11. 다음 세션 작업 계획
+
+1. 현재 PLI 처리 코드 전수 조사 (ingress.rs, pli.rs, egress.rs)
+2. `PliGovernor` struct + 판단 함수 구현
+3. ingress.rs에 Governor 통합 (subscriber PLI 수신 경로)
+4. ingress.rs에 I-Frame 감지 → Governor 통지 추가
+5. `spawn_pli_burst` → Governor 경유로 변경
+6. subscriber 상태에 `user_preferred_layer` / `governor_layer` / `effective_layer` 추가
+7. SUBSCRIBE_LAYER handler에서 effective_layer 적용
+8. config.rs 상수 추가
+9. 테스트
+
+---
+
+*author: kodeholic (powered by Claude)*
