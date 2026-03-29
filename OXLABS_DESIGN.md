@@ -376,7 +376,7 @@ egress_drop_max = 0
 
 ```bash
 # 단일 시나리오 실행
-oxlab run scenarios/ptt_rapid.toml
+oxlab scenario scenarios/ptt_rapid.toml
 
 # 매트릭스 실행 (시나리오 × 프로파일 전수)
 oxlab matrix --scenarios "ptt_*" --profiles "field_*,basement"
@@ -461,24 +461,28 @@ oxlab report --failed-only
 
 ## 7. 구현 우선순위
 
-### Phase 0 — 뼈대 (1주)
-- [ ] Cargo workspace 셋업 (5 crates)
-- [ ] oxlab-net: 유저스페이스 NetFilter 구현 (drop/delay/jitter/bandwidth)
-- [ ] oxlab-bot: 최소 시그널링 봇 (WS → IDENTIFY → ROOM_JOIN)
-- [ ] oxlab-cli: `oxlab run` 스켈레톤
+### Phase 0 — 뼈대 ✅ 완료 (2026-03-29)
+- [x] Cargo workspace 셋업 (5 crates)
+- [x] oxlab-net: 유저스페이스 NetFilter 구현 (drop/delay/jitter/bandwidth)
+- [x] oxlab-bot: 최소 시그널링 봇 (WS → IDENTIFY → ROOM_JOIN)
+- [x] oxlab-cli: `oxlab run` 스켈레톤
 
-### Phase 1 — 봇 미디어 (1~2주)
-- [ ] oxlab-bot: Fake VP8/Opus RTP Publisher (PLI/NACK 응답)
-- [ ] oxlab-bot: RTP Subscriber (수신 메트릭)
-- [ ] oxlab-bot: PTT 봇 (floor control 시퀀스)
-- [ ] 참가자별 NetFilter 통합
+### Phase 1 — 봇 미디어 ✅ 완료 (2026-03-29)
+- [x] oxlab-bot: Fake VP8/Opus RTP Publisher (PLI 응답)
+- [x] oxlab-bot: RTP Subscriber (수신 메트릭)
+- [x] oxlab-bot: PTT 봇 (WS floor_request/release 라운드로빈)
+- [x] 참가자별 NetFilter 통합
+- [x] TRACKS_ACK 자동 응답 (SubscriberGate 5초 → ~2초 해소)
 
-### Phase 2 — 시나리오 + 판정 (1~2주)
-- [ ] oxlab-scenario: TOML 파서 + 시간축 실행기
-- [ ] oxlab-judge: 메트릭 수집 + 임계치 판정 + JSON 리포트
-- [ ] oxlab-cli: `oxlab run scenario.toml` 완성
+### Phase 2 — 시나리오 + 판정 ✅ 완료 (2026-03-29)
+- [x] oxlab-scenario: TOML 파서 + 시간축 실행기 (8개 액션 타입)
+- [x] oxlab-judge: 메트릭 수집 + 임계치 판정 + print_summary
+- [x] oxlab-cli: `oxlab scenario <path>` 서브커맨드
+- [x] 판정 기준 TOML (default + strict)
+- [x] 시나리오 프리셋 3개 (conf_basic, ptt_rapid, network_degrade)
+- [x] exit code 반환 (0=PASS, 1=FAIL, 2=ERROR)
 
-### Phase 3 — 스냅샷 재현 + 회귀 (1주)
+### Phase 3 — 스냅샷 재현 + 회귀 ⏳ 대기
 - [ ] `oxlab replay snapshot.json` (스냅샷 → 프로파일 + 시나리오 자동 생성)
 - [ ] `oxlab matrix` (전수 테스트)
 - [ ] `oxlab regression` (이전 결과 대비)

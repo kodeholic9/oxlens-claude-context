@@ -158,6 +158,7 @@
 | 0329 | `oxlabs_phase0` | OxLabs | Phase 0: workspace + 5 crate 스켈레톤 + NetFilter + Bot 시그널링 |
 | 0329 | `oxlabs_phase1_media` | OxLabs | Phase 1 전반: 미디어 셋업 + Fake RTP + PLI 응답 + NetFilter 통합 |
 | 0329 | `oxlabs_phase1_complete` | OxLabs | Phase 1 완료: TRACKS_ACK 자동 응답 + PTT 봇 WS Floor Control |
+| 0329 | `oxlabs_quality_loop` | OxLabs | Phase 2 완료: 시나리오 엔진 + 판정기 + 품질 루프 완성 |
 
 ---
 
@@ -174,7 +175,7 @@
 
 ### 통계
 
-- **총 세션 파일**: 72개 (블로그 초안 4개 제외)
+- **총 세션 파일**: 73개 (블로그 초안 4개 제외)
 - **기간**: 2026-03-09 ~ 2026-03-29 (21일)
 - **서버 버전**: v0.6.8
 
