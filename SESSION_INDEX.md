@@ -1,6 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
-> 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, 없음 = 서버/홈/공통.
+> 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
+> 최종 업데이트: 2026-03-29
 
 ---
 
@@ -31,9 +32,9 @@
 | 0315 | `sdk_audio` | SDK | 오디오 파이프라인 |
 | 0315 | `sdk_compose` | SDK | Jetpack Compose UI |
 | 0315 | `sdk_ui_surfaceview` | SDK | SurfaceViewRenderer E2E |
-| 0315 | `sdk_server_diagnostics` | SDK | **SDK 최신**: Relay 카운터 + RTX budget + TRACKS_ACK/RESYNC |
+| 0315 | `sdk_server_diagnostics` | SDK | Relay 카운터 + RTX budget + TRACKS_ACK/RESYNC |
 
-## Phase 3: 서버 텔레메트리 + 어드민 (0313 ~ 0314)
+## Phase 3: 서버 텔레메트리 + 어드민 (0314)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
@@ -50,67 +51,132 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0320 | `pipeline_stats` | 서버+홈 | per-participant 파이프라인 카운터 7종 + 어드민 delta/trend + TelemetryBus + AggLogger 설계 |
+| 0320 | `pipeline_stats` | 서버+홈 | per-participant 파이프라인 카운터 7종 + 어드민 delta/trend + TelemetryBus + AggLogger |
 
-## Phase 6: Simulcast (0320)
+## Phase 6: Simulcast (0320 ~ 0324)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0320 | `simulcast_s1` | 서버 | Phase 0 구조 준비 + Phase 1 서버측 (rid 필터링, twcc_extmap_id, simulcast extmap) |
-| 0320 | `simulcast_s2` | 홈 | Phase 1 클라이언트측 (client-offer 전환, getStats SSRC 폴링, buildPublishRemoteAnswer) |
-| 0320 | `simulcast_s3` | 서버+홈 | **Phase 3 가상 SSRC + SimulcastRewriter + 레이어 전환** |
-| 0320 | `simulcast_s3_instructions` | 참조 | Phase 3 세션 지시사항 + 체크리스트 + 이전 실수 목록 |
+| 0320 | `simulcast_s1` | 서버 | Phase 0~1 서버측 (rid 필터링, twcc_extmap_id, simulcast extmap) |
+| 0320 | `simulcast_s2` | 홈 | Phase 1 클라이언트측 (client-offer 전환, getStats SSRC 폴링) |
+| 0320 | `simulcast_s3` | 서버+홈 | Phase 3 가상 SSRC + SimulcastRewriter + 레이어 전환 |
+| 0320 | `simulcast_s3_instructions` | 참조 | Phase 3 세션 지시사항 + 체크리스트 |
+| 0323 | `simulcast_nosim_publisher_fix` | 서버 | non-simulcast publisher와 simulcast 방 공존 수정 |
+| 0323 | `simulcast_pt_hardcoding_root_cause` | 서버 | PT 하드코딩 근본 원인 분석 → is_video_pt 제거 |
+| 0324 | `mid_extension_simulcast_video_bug` | 서버 | MID extension 파싱 버그 → 비디오 스트림 누락 수정 |
+| 0324 | `simulcast_rtp_first_redesign` | 서버+홈 | Phase A~D: stream_map 기반 RTP-First 재설계 |
 
 ## Phase 7: 기능 검증 + 버그 수정 (0320)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0320 | `verification_fixes` | 서버+홈 | PLI 유령 수정, 스냅샷 방 필터링, 좀비 정리, Simulcast PLI 자가치유, subscribe_layers purge, inactive mid 재활용, Pipeline 음수 클램프, audio NACK 노이즈 억제 |
+| 0320 | `verification_fixes` | 서버+홈 | PLI 유령, 스냅샷 필터링, 좀비 정리, Simulcast PLI 자가치유 등 |
+| 0320 | `refactor2_prep` | 서버 | handler.rs 7파일 분리 준비 |
+| 0320 | `refactor2_done` | 서버 | handler.rs → handler/ 디렉토리 분리 완료 |
 
 ## Phase 8: SDK 경계선 + 클라이언트 개선 (0320)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0320 | `sdk_boundary_refactor` | 홈 | **SDK 경계선 위반 목록 + 리팩토링 지시서** |
+| 0320 | `sdk_boundary_refactor` | 홈 | SDK 경계선 위반 목록 + 리팩토링 지시서 |
 
-## Phase 9: PTT Power State (0321)
-
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0321 | `ptt_power_state` | 홈 | **PTT Power State 4단계 설계+구현** |
-
-## Phase 10: Floor Control v2 — 우선순위 + 큐잉 (0321)
+## Phase 9: PTT Power State + Floor v2 (0321)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0321 | `floor_priority_queue` | 서버 | **Floor Control v2 설계** — 3GPP TS 24.380 기반 priority+queue+preemption |
+| 0321 | `ptt_power_state` | 홈 | PTT Power State 4단계 설계+구현 |
+| 0321 | `floor_priority_queue` | 서버 | Floor Control v2 설계 — 3GPP 기반 priority+queue+preemption |
+| 0321 | `floor_priority_queue_done` | 서버 | Floor Control v2 구현 완료 |
+| 0321 | `floor_v2_web_client` | 홈 | Floor v2 웹 클라이언트 (5-state FSM, QUEUED 추가) |
+| 0321 | `floor_v2_telemetry_done` | 서버+홈 | Floor v2 텔레메트리 통합 |
+| 0321 | `floor_v2_handoff` | 참조 | Floor v2 핸드오프 문서 |
+| 0321 | `ptt_extension_refactor` | 서버 | PTT 확장 리팩터링 |
+| 0321 | `mute_simplify_ptt_refactor` | 서버+홈 | Mute 단순화 + PTT 리팩터링 |
+| 0321 | `ptt_idle_concealment` | 홈 | PTT idle audio concealment 조사 → 조치 불필요 확인 |
+| 0321 | `2pc_ice_asymmetric_recovery` | 홈 | 2PC ICE 비대칭 사망 auto-reconnect |
+| 0321 | `local_time_reconnect` | 홈 | 메트릭 시간 로컬 통일 + 재연결 개선 |
+| 0321 | `session_summary` | 참조 | 0321 전체 세션 요약 |
 
-## Phase 11: Simulcast RTP-First 재설계 (0324)
+## Phase 10: PTT Video Freeze + Codec/Telemetry (0322 ~ 0323)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0324 | `simulcast_rtp_first_redesign` | 서버+홈 | **Phase A~C: is_video_pt 제거, stream_map 기반 라우팅, 키프레임 양쪽 시도, simulcast 속도 대폭 향상** |
+| 0322 | `ptt_video_freeze_fix` | 서버 | PTT 비디오 프리즈 근본 수정 (VP8 marker bit, dynamic ts_gap, pending compensation) |
+| 0322 | `h264_keyframe_detection` | 서버 | H264 키프레임 감지 (NAL unit parsing) |
+| 0322 | `power_fsm_3stage` | 홈 | Power FSM HOT→HOT-STANDBY→COLD 3단계 전환 |
+| 0322 | `power_fsm_audio_split` | 홈 | Power FSM audio/video 분리 복구 |
+| 0322 | `power_fsm_ensureHot` | 홈 | ensureHot() 패턴 + 카메라 복구 메트릭 |
+| 0322 | `power_fsm_ensureHot_h264_multicodec` | 서버+홈 | ensureHot + H264 + 멀티코덱 통합 |
+| 0322 | `telemetry_alignment` | 홈 | 텔레메트리 정렬 |
+| 0322 | `telemetry_nack_recovery` | 서버 | 텔레메트리 NACK 복구 메트릭 |
+| 0323 | `deep_codec_telemetry` | 서버+홈 | 코덱 심층 텔레메트리 |
+
+## Phase 11: PLI Governor + SubscriberGate (0325)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0325 | `phase4_active_speaker` | 서버 | Active Speaker Detection (RFC 6464) |
+| 0325 | `phase_d_subscriber_gate` | 서버+홈 | Phase D RTP-First 완성 + SubscriberGate (mediasoup pause/resume) |
+| 0325 | `pli_governor_design` | 서버 | PLI Governor 설계 (인과관계 기반) |
+| 0325 | `pli_governor_resync_removal` | 서버 | PLI Governor 구현 + RESYNC 영구 제거 |
+
+## Phase 12: Simulcast Graceful Switching + Conference 레이아웃 (0326)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0326 | `simulcast_graceful_switching` | 서버+홈 | Simulcast 3단계 분배 (IO: main=h, visible=l, hidden=pause) |
+| 0326 | `simulcast_sdp_telemetry` | 서버+홈 | Simulcast SDP 3원칙 확정 + SR Translation + 텔레메트리 |
+| 0326 | `conference_layout_renewal` | 홈 | Main+Thumbnail 레이아웃 전면 개편 |
+| 0326 | `pli_governor_phase2` | 서버 | PLI Governor Phase 2 — 자동 레이어 다운/업그레이드 설계 |
+
+## Phase 13: PTT 최적화 + 블로그 (0327 ~ 0328)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0327 | `ptt_floor_taken_network_optimize` | 서버+홈 | FLOOR_TAKEN 네트워크 최적화 |
+| 0328 | `blog_sfu_anatomy_series` | 블로그 | S1 "SFU 해부학" 5편 작성 |
+| 0328 | `blog_rtcp_mastery_series` | 블로그 | S2 "RTCP 완전정복" 5편 작성 |
+| 0328 | `blog_ai_coding_series` | 블로그 | S8 "AI와 함께 코딩하기" 3편+부록 작성 |
+
+## Phase 14: 웹 클라이언트 리팩터링 + 화면공유 (0328 ~ 0329)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0328 | `web_client_refactor_sdk_boundary` | 홈 | SDK/App 경계 재정립 + demo/client 6파일 모듈 분리 |
+| 0328 | `screen_share_phase1` | 서버+홈 | 화면공유 Phase 1 설계 |
+| 0329 | `screen_share_client_pipeline` | 홈 | 화면공유 클라이언트 파이프라인 |
+| 0329 | `screen_share_track_publication` | 서버 | 화면공유 트랙 발행 (intent diff, source 분리) |
+| 0329 | `screen_share_phase1` | 서버+홈 | 화면공유 Phase 1 완료 (non-sim + sim) |
+| 0329 | `screen_share_telemetry` | 홈 | 화면공유 텔레메트리 |
+
+## Phase 15: 블로그 Simulcast + OxLabs (0329)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0329 | `blog_simulcast_series` | 블로그 | S3 "Simulcast 삽질기" 4편 작성 |
+| 0329 | `oxlabs_design` | OxLabs | OxLabs 현장 재현 테스트 체계 설계 |
+| 0329 | `oxlabs_phase0` | OxLabs | Phase 0: workspace + 5 crate 스켈레톤 + NetFilter + Bot 시그널링 |
+| 0329 | `oxlabs_phase1_media` | OxLabs | Phase 1 전반: 미디어 셋업 + Fake RTP + PLI 응답 + NetFilter 통합 |
+| 0329 | `oxlabs_phase1_complete` | OxLabs | Phase 1 완료: TRACKS_ACK 자동 응답 + PTT 봇 WS Floor Control |
 
 ---
 
-### 현재 상태 요약
+### 참조 문서 (비세션)
 
-#### 서버 (v0.7.0)
-- ✅ **RTP Stream Discovery** — is_video_pt/is_audio_pt/is_rtx_pt → stream_kind 기반 (ingress 12곳)
-- ✅ **resolve_stream_kind** — Opus PT → rid → repaired-rid → intent video → RTX PT → Unknown
-- ✅ **rtp_extension.rs / stream_map.rs** — 신규 모듈
-- ✅ **키프레임 양쪽 시도** — codec 미확정 시 VP8+H264 동시 (simulcast + PTT)
-- ✅ **fanout_simulcast_video** — stream_map 기반 rid/codec 조회
+| 파일 | 용도 |
+|------|------|
+| `METRICS_GUIDE_FOR_AI.md` | 텔레메트리 스냅샷 AI 분석 가이드 |
+| `OXLABS_DESIGN.md` | OxLabs 전체 설계 문서 |
+| `QUALITY_ASSESSMENT.md` | 품질 평가 기준 |
+| `blog_s3_01~04` | Simulcast 블로그 시리즈 초안 |
 
-#### 웹 클라이언트 (oxlens-home)
-- ✅ **_sendPublishIntent** — SSRC=0 즉시 전송
-- ✅ **_parseExtmapId** — 범용 SDP extmap 파서
+---
 
-### 미해결 (다음 세션)
-- ❌ **Phase D** — getStats 폴링 삭제, TRACKS_UPDATE RTP 도착 시점 이동
-- ❌ **PTT 방치 후 영상 복구 실패** — Chrome 탭 hidden → encoder suspend
-- ❌ 시그널링 재연결 (상용 필수)
-- ❌ **SDK 경계선 리팩토링**
+### 통계
+
+- **총 세션 파일**: 72개 (블로그 초안 4개 제외)
+- **기간**: 2026-03-09 ~ 2026-03-29 (21일)
+- **서버 버전**: v0.6.8
 
 ---
 
