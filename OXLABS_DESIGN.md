@@ -4,6 +4,7 @@
 >
 > author: kodeholic (powered by Claude)
 > created: 2026-03-29
+> updated: 2026-03-30 — 2계층 판정 체계 반영
 
 ---
 
@@ -33,7 +34,35 @@
 
 ---
 
-## 2. Cargo Workspace 구조
+## 2. 판정 철학 — MVS vs OxLabs
+
+### MVS(2008)의 검증 모델
+- **프로토콜 적합성**: 수신 메시지 필드를 expected value와 1:1 비교
+- **결정론적**: match면 PASS, mismatch면 FAIL. 정답이 있다
+- **시험항목 폭발**: 프로토콜 × 메시지 × 파라미터 조합 → 3000+ 항목 누적
+- **16자리 detail 벡터**: R_READY, R_TIMER, R_ORDER, R_SECTION 등 실패 원인 다차원 분류
+
+### OxLabs(2026)의 본질적 차이
+- SFU는 미디어를 *생성*하지 않고 *릴레이*한다
+- "loss가 몇 %면 OK인가?" → **정답이 없다** (네트워크 열화를 일부러 주입하고 있으므로)
+- 봇의 fake RTP와 실기기의 libwebrtc는 동작이 다르다 (NetEQ, jitter buffer, FEC 없음)
+- 통계 기반 임계치("loss < 5%")는 경계값이 자의적
+
+### 해법: 2계층 판정 체계
+
+**"품질이 좋은가?"가 아니라 "SFU가 자기 일을 올바르게 했는가?"를 검증한다.**
+
+| 계층 | 성격 | 정답 유무 | 누적 가치 | 용도 |
+|:---|:---|:---|:---|:---|
+| **Layer 1: SFU 행동 검증** | 결정론적 (binary) | ✅ 있음 | 높음 (기능별 누적) | 실기기 시험 전 gate |
+| **Layer 2: 열화 내성 검증** | 상대적 (회귀 감지) | 상대적 | 장기 누적 | 코드 수정 후 회귀 감지 |
+
+**Layer 1이 OxLabs의 핵심이다.** 실기기 시험 전에 Layer 1 전항목 PASS가 필수 gate.
+Layer 2는 보조 — 절대 기준 없이 "이전보다 나빠졌는가"만 감지.
+
+---
+
+## 3. Cargo Workspace 구조
 
 oxlens-sfu-labs 안에 crate로 구성.
 SFU 서버의 프로토콜 타입/상수를 공유하기 위해 oxlens-sfu-server를 path dependency로 참조.
@@ -70,9 +99,9 @@ oxlens-sfu-labs/
 
 ---
 
-## 3. 모듈 상세 설계
+## 4. 모듈 상세 설계
 
-### 3.1 oxlab-net — 유저스페이스 네트워크 필터
+### 4.1 oxlab-net — 유저스페이스 네트워크 필터
 
 **역할**: 봇의 RTP 송수신 레이어에서 패킷 레벨 열화 주입. OS 의존성 없음.
 
@@ -103,95 +132,52 @@ loss_percent = 15.0
 delay_ms = 150
 jitter_ms = 100
 bandwidth_kbps = 1000
-corrupt_percent = 0.0
-duplicate_percent = 0.0
-
-[conditions.burst]
-enabled = true
-p_loss = 0.15
-p_recovery = 0.70
-
-# 시간에 따른 변화 (시나리오에서 참조)
-[[phases]]
-at_sec = 0
-loss_percent = 2.0
-delay_ms = 30
-
-[[phases]]
-at_sec = 30
-loss_percent = 15.0
-delay_ms = 150
-
-[[phases]]
-at_sec = 60
-loss_percent = 2.0
-delay_ms = 30
 ```
 
 #### 핵심 구조
 
 ```rust
 pub struct NetFilter {
-    config: Conditions,
+    config: FilterConfig,
     rng: SmallRng,
-    token_bucket: Option<TokenBucket>,  // 대역폭 제한
-    delay_queue: VecDeque<(Instant, Vec<u8>)>,  // 지연 버퍼
-    burst_state: BurstState,  // Gilbert-Elliott 상태
+    token_bucket: Option<TokenBucket>,
 }
 
 impl NetFilter {
-    /// 패킷 전송 전 필터링 — drop이면 None, 통과면 Some(지연 후 전송 시각)
-    pub fn filter(&mut self, packet: &[u8]) -> FilterResult;
-
-    /// 조건 동적 전환 (시나리오 엔진이 호출)
-    pub fn update(&mut self, conditions: &Conditions);
+    pub fn filter(&mut self, packet_len: usize) -> FilterResult;
+    pub fn update(&mut self, config: FilterConfig);  // 런타임 동적 전환
 }
 
 pub enum FilterResult {
     Drop,
-    Send { delay: Duration },
+    Pass { delay: Duration },
 }
 ```
 
 ---
 
-### 3.2 oxlab-bot — 트래픽 생성 봇
+### 4.2 oxlab-bot — 트래픽 생성 봇
 
 **역할**: OxLens SFU에 접속하는 가짜 참가자. 시그널링 + RTP 송수신.
-
-#### 봇 구조
-
-```
-oxlab-bot
-├── signal/
-│   ├── adapter.rs        # trait SignalAdapter (향후 타 SFU 확장 대비)
-│   └── oxlens.rs         # OxLens opcode 구현 (현재)
-├── rtp_pub.rs            # Fake RTP Publisher (VP8 keyframe + Opus)
-├── rtp_sub.rs            # RTP Subscriber (수신 + 메트릭 수집)
-├── ptt_bot.rs            # PTT 전용 봇 (floor_request/release 시퀀스)
-├── net_filter.rs         # oxlab-net 통합 (참가자별 필터)
-└── metrics.rs            # 봇 자체 수신 메트릭
-```
 
 #### 봇이 하는 일
 
 **Publisher 봇**:
-1. WS 연결 → IDENTIFY → ROOM_JOIN → PUBLISH_TRACKS
-2. Fake VP8 RTP 스트림 전송 (키프레임 주기 3초, 설정 가능)
-3. Fake Opus RTP 전송 (silence 또는 tone 패턴)
-4. PLI 수신 시 즉시 키프레임 재전송
-5. NACK 수신 시 RTX 응답
-6. **네트워크 필터 통과 후 UDP send** (참가자별 프로파일 적용)
+1. WS 연결 → IDENTIFY → ROOM_JOIN → PUBLISH_TRACKS (Phase D intent)
+2. STUN + DTLS + SRTP 셋업 (pub/sub 양쪽)
+3. Fake VP8 RTP 전송 (MID extension, 33ms, 2초 keyframe)
+4. Fake Opus RTP 전송 (silence, 20ms)
+5. PLI 수신 → force_keyframe 플래그 → 키프레임 즉시 재전송
+6. TRACKS_UPDATE 수신 → TRACKS_ACK 자동 응답 (SubscriberGate 해소)
+7. **네트워크 필터 통과 후 UDP send** (참가자별 프로파일 적용)
 
 **Subscriber 봇**:
-1. WS 연결 → IDENTIFY → ROOM_JOIN → TRACKS_ACK
-2. RTP 수신 + seq/ts 기반 loss/jitter/delay 계산
-3. freeze 감지 (N ms 이상 패킷 미수신)
+1. RTP 수신 + per-SSRC 메트릭 (RFC 3550 jitter, seq gap loss, OOO)
+2. RecvMetricsStore: Arc<Mutex<HashMap>> 스레드 안전
 
 **PTT 봇**:
-1. FLOOR_REQUEST → FLOOR_TAKEN 대기 → RTP 전송 → FLOOR_RELEASE
-2. 시나리오에서 지정한 타이밍/순서로 동작
-3. 경합 시뮬레이션: 여러 봇이 동시에 FLOOR_REQUEST
+1. WS floor_request(priority) → FLOOR_TAKEN 대기 → RTP 전송 → floor_release
+2. MBCP 메서드 준비 (send_mbcp_freq, send_mbcp_frel)
 
 #### 시그널링 어댑터 (향후 타 SFU 확장 대비)
 
@@ -204,116 +190,16 @@ pub trait SignalAdapter: Send + Sync {
     async fn publish_tracks(&self, tracks: &[TrackIntent]) -> LiveResult<()>;
     async fn floor_request(&self) -> LiveResult<()>;
     async fn floor_release(&self) -> LiveResult<()>;
-    // ...
 }
-
-// 현재 구현
-pub struct OxLensSignal { /* OxLens opcode */ }
-
-// 향후 확장 (제품화 시)
-// pub struct JanusSignal { /* Janus JSON API */ }
-// pub struct LiveKitSignal { /* protobuf */ }
 ```
 
-#### 참가자 정의 (다양한 조합 지원)
-
-```toml
-[[participants]]
-id = "cam_pub_1"
-type = "bot"              # bot | sdk
-publish = ["video", "audio"]
-subscribe = []
-profile = "field_lte"     # 이 참가자에게만 적용되는 네트워크 프로파일
-
-[[participants]]
-id = "audio_only_pub"
-type = "bot"
-publish = ["audio"]
-subscribe = []
-profile = "pristine"
-
-[[participants]]
-id = "viewer_1"
-type = "bot"
-publish = []
-subscribe = ["video", "audio"]
-profile = "basement"      # 이 리스너만 지하 환경
-
-[[participants]]
-id = "android_device_1"
-type = "sdk"              # 실기기 — 봇이 상대방 역할
-publish = ["video", "audio"]
-subscribe = ["video", "audio"]
-# sdk는 네트워크 필터 미적용 (실제 네트워크 사용)
-```
-
-SFU 검증 시 봇이 100% 커버 (SFU는 패킷 헤더만 보므로).
-SDK 검증 시 봇이 상대방 역할 (pre-encoded IVF/OGG로 유효한 미디어 전송).
+현재는 common::SignalingSession 직접 사용. Phase 3에서 trait 추출 예정.
 
 ---
 
-### 3.3 oxlab-scenario — 시나리오 엔진
+### 4.3 oxlab-scenario — 시나리오 엔진
 
 **역할**: 프로파일 + 봇 + 시간축 액션을 하나의 시나리오로 묶어 실행.
-
-#### 시나리오 TOML 포맷
-
-```toml
-# scenarios/ptt_rapid.toml
-[meta]
-name = "ptt_rapid"
-description = "PTT 빠른 화자 전환 (3초 간격, 10회)"
-duration_sec = 60
-judgement = "default"
-
-[[participants]]
-id = "speaker_a"
-type = "bot"
-publish = ["video", "audio"]
-subscribe = ["video", "audio"]
-profile = "field_lte"
-role = "PttSpeaker"
-
-[[participants]]
-id = "speaker_b"
-type = "bot"
-publish = ["video", "audio"]
-subscribe = ["video", "audio"]
-profile = "field_lte_poor"
-role = "PttSpeaker"
-
-[[participants]]
-id = "listener_1"
-type = "bot"
-publish = []
-subscribe = ["video", "audio"]
-profile = "basement"
-role = "PttListener"
-
-# 시간축 액션
-[[actions]]
-at_sec = 0
-type = "all_join"
-
-[[actions]]
-at_sec = 3
-type = "ptt_alternate"
-actors = ["speaker_a", "speaker_b"]
-interval_sec = 3.0
-count = 10
-
-[[actions]]
-at_sec = 30
-type = "network_transition"
-target = "listener_1"
-profile = "handover"         # 리스너 1만 핸드오버 시뮬
-
-[[actions]]
-at_sec = 35
-type = "network_transition"
-target = "listener_1"
-profile = "basement"         # 복구
-```
 
 #### 시나리오 엔진 동작
 
@@ -322,57 +208,99 @@ profile = "basement"         # 복구
 2. 봇 N개 spawn (tokio tasks), 각 봇에 개별 NetFilter 할당
 3. 시간축 타이머 시작
 4. 각 at_sec 시점에 해당 액션 실행
-   - all_join: 전체 봇 입장
-   - ptt_request/release: 특정 봇에 PTT 명령
-   - network_transition: 특정 봇의 NetFilter 조건 동적 전환
-   - kill_bot: 특정 봇 강제 종료 (좀비 시뮬레이션)
+   - all_join, ptt_request/release, network_transition, kill_bot 등 8종
 5. duration 도달 시 전체 봇 정지
 6. 메트릭 수집 → oxlab-judge로 전달
 ```
 
 ---
 
-### 3.4 oxlab-judge — 판정기
+### 4.4 oxlab-judge — 2계층 판정기
 
-**역할**: 시나리오 실행 결과를 정량 기준으로 pass/fail 판정.
+**역할**: 시나리오 실행 결과를 2계층으로 판정.
 
-#### 판정 기준 TOML
+#### Layer 1: SFU 행동 검증 (결정론적, binary pass/fail)
 
-```toml
-# judgements/default.toml
-[thresholds]
-max_video_freeze_count = 1
-max_video_freeze_ms = 500
-max_audio_gap_ms = 200
-max_jb_delay_ms = 150
-max_loss_rate_percent = 5.0
-max_e2e_latency_ms = 300
-max_floor_grant_latency_ms = 500
-max_speaker_switch_ms = 1000
+SFU가 **자기 일을 올바르게 했는가**. pristine 환경에서 측정. 정답이 있다.
 
-[contract]
-rr_generated_min = 1
-rr_consumed_min = 1
-sr_relay_min = 1
-egress_drop_max = 0
-```
+| ID | 검증 포인트 | 기대값 | 판정 | 카테고리 |
+|:---|:---|:---|:---|:---|
+| L1-01 | subscriber RR → publisher 릴레이 차단 | 0건 도착 | binary | RTCP Terminator |
+| L1-02 | SR NTP timestamp 원본 유지 | 완전 일치 | binary | SR Translation |
+| L1-03 | SR RTP ts 연속성 (구독 레이어) | offset 일관 | binary | SR Translation |
+| L1-04 | PTT 비발화자 RTP gating | 0패킷 통과 | binary | PTT Relay |
+| L1-05 | PTT silence flush | 3프레임 도착 | binary | PTT Relay |
+| L1-06 | PTT 화자 전환 → 첫 패킷 keyframe | VP8 keyframe | binary | PTT Relay |
+| L1-07 | SSRC rewriting 정합성 | virtual SSRC 일관 | binary | PTT Relay |
+| L1-08 | ts_gap 연속성 (idle 후 복귀) | gap = elapsed | binary | PTT Relay |
+| L1-09 | PLI → keyframe 응답 | T 이내 도착 | binary | PLI Governor |
+| L1-10 | PLI burst 자동 취소 (keyframe 도착 시) | 잔여 PLI 미발사 | binary | PLI Governor |
+| L1-11 | SubscriberGate 동작 | ACK 전 video 0패킷 | binary | SubscriberGate |
+| L1-12 | SubscriberGate 해제 → GATE:PLI | ACK 후 PLI 발사 | binary | SubscriberGate |
+| L1-13 | fan-out 무결성 (pristine) | 전원 동일 seq 수신 | binary | Core Relay |
+| L1-14 | floor_request → grant 순서 | priority 순 | binary | Floor Control |
+| L1-15 | preemption → revoke 도착 | binary | | Floor Control |
+| L1-16 | 큐 위치 정합성 | queue_pos 일치 | binary | Floor Control |
+| L1-17 | 좀비 정리 | T 이내 cleanup | binary | Lifecycle |
+| L1-18 | Simulcast layer switch → SSRC 전환 | 새 레이어 SSRC | binary | Simulcast |
+| L1-19 | Simulcast layer switch → ts 연속성 | offset 유지 | binary | Simulcast |
+| L1-20 | Simulcast layer switch → keyframe 선행 | I-frame 먼저 | binary | Simulcast |
+| L1-21 | screen share → non-simulcast relay | 원본 SSRC 유지 | binary | Screen Share |
 
-#### 판정 출력 (JSON)
+**기능 추가 시 L1 항목이 누적된다.** 새 기능마다 "SFU가 이걸 올바르게 하는가?"를 binary 체크포인트로 등록.
 
-```json
-{
-  "scenario": "ptt_rapid",
-  "timestamp": "2026-03-24T14:32:00+09:00",
-  "verdict": "FAIL",
-  "summary": "video_freeze 초과 (listener_1: 1200ms)",
-  "participants": { ... },
-  "contract": { ... }
+**이것이 실기기 시험 전 gate다.** Layer 1 하나라도 FAIL이면 실기기에 안 간다.
+
+**누적 전망**: 기능축 ~15 × 조건축 ~7 × 규모축 ~4 = ~420 조합. 스냅샷 재현 누적 포함 수백~수천.
+
+#### Layer 2: 열화 내성 검증 (상대적, 회귀 감지)
+
+절대 기준이 아니라 **이전 실행 대비 회귀**를 감지.
+
+| 메트릭 | 회귀 기준 | 판정 |
+|:---|:---|:---|
+| loss_rate | 이전 대비 +2% 이상 | REGRESS |
+| jitter | 이전 대비 +50% 이상 | REGRESS |
+| ooo_count | 이전 대비 +100% 이상 | REGRESS |
+| floor_grant_latency | 이전 대비 +100ms 이상 | REGRESS |
+
+- 같은 시나리오 + 같은 프로파일에서만 비교
+- 코드 수정 없이 돌리면 동일 결과 (재현성 확인)
+- 정답은 없지만 **나빠졌는지**는 안다
+
+#### 판정 출력 구조
+
+```rust
+pub struct JudgeReport {
+    pub scenario: String,
+    pub timestamp: String,
+
+    // Layer 1: SFU 행동 (binary)
+    pub checkpoints: Vec<CheckpointResult>,
+    pub layer1_verdict: Verdict,  // 하나라도 FAIL → FAIL
+
+    // Layer 2: 열화 내성 (통계 + 회귀)
+    pub participants: Vec<ParticipantVerdict>,
+    pub regression: Option<RegressionResult>,
+    pub layer2_verdict: Verdict,
+
+    // 최종
+    pub overall: Verdict,         // L1 AND L2
+    pub summary_code: String,     // MVS detail 벡터 스타일
+}
+
+pub struct CheckpointResult {
+    pub id: String,               // "L1-01"
+    pub name: String,             // "subscriber RR relay blocked"
+    pub category: String,         // "RTCP Terminator"
+    pub verdict: Verdict,
+    pub detail: String,           // "0 RR packets relayed" or "3 RR packets leaked"
 }
 ```
 
 ---
 
-### 3.5 oxlab-cli — 통합 CLI
+### 4.5 oxlab-cli — 통합 CLI
 
 ```bash
 # 단일 시나리오 실행
@@ -390,11 +318,14 @@ oxlab regression
 # 리포트 조회
 oxlab report --latest
 oxlab report --failed-only
+
+# 직접 실행 (시나리오 파일 없이)
+oxlab run --server 127.0.0.1 --port 1974 --room test --bots 3 --media --mode ptt --hold 10
 ```
 
 ---
 
-## 4. 스냅샷 → 재현 파이프라인 (핵심 차별화)
+## 5. 스냅샷 → 재현 파이프라인 (핵심 차별화)
 
 업계 어디에도 없는 기능. OxLens 텔레메트리 체계가 있기에 가능.
 
@@ -424,11 +355,11 @@ oxlab report --failed-only
 
 ---
 
-## 5. 네트워크 프로파일 프리셋
+## 6. 네트워크 프로파일 프리셋
 
 | 프로파일 | loss | delay | jitter | bw | 현실 상황 |
 |:---------|:----:|:-----:|:------:|:--:|:----------|
-| pristine | 0% | 1ms | 0ms | ∞ | 이상적 (기준선) |
+| pristine | 0% | 1ms | 0ms | ∞ | 이상적 (기준선, Layer 1 필수) |
 | office_wifi | 0.5% | 5ms | 10ms | 50mbps | 사무실 Wi-Fi |
 | field_lte | 2% | 50ms | 30ms | 10mbps | 현장 LTE 양호 |
 | field_lte_poor | 8% | 100ms | 80ms | 3mbps | 현장 LTE 열악 |
@@ -439,27 +370,30 @@ oxlab report --failed-only
 
 ---
 
-## 6. 시나리오 프리셋
+## 7. 시나리오 프리셋
 
-| 시나리오 | 설명 | 핵심 검증 |
-|:---------|:-----|:---------|
-| conf_basic | N명 Conference, 5분 | 기본 fan-out |
-| conf_full_30 | 30명 풀방 | RPi 한계 부하 |
-| conf_churn | 입퇴장 반복 | cleanup, 좀비 방지 |
-| ptt_rapid | 화자 전환 3초 × 10회 | rewriter, keyframe, silence flush |
-| ptt_contention | 5명 동시 floor_request | priority queue, preemption |
-| ptt_long_talk | 60초 연속 발화 | ts 누적, SR translation |
-| ptt_idle_resume | 5분 idle → 재발화 | dynamic ts_gap |
-| simulcast_switch | h↔l 반복 전환 | SimulcastRewriter, PLI |
-| network_degrade | 양호→열악→복구 | BWE 적응 |
-| network_handover | 500ms blackout | ICE 복구 |
-| zombie_kill | 강제 kill × 3명 | zombie reaper |
-| endurance_1h | 1시간 연속 | 메모리 릭, ts overflow |
-| endurance_8h | 8시간 교대근무 | 장시간 누적 |
+| 시나리오 | 설명 | 핵심 검증 | Layer 1 체크포인트 |
+|:---------|:-----|:---------|:---|
+| conf_basic | N명 Conference, 5분 | 기본 fan-out | L1-13 |
+| conf_full_30 | 30명 풀방 | RPi 한계 부하 | L1-13, L1-17 |
+| conf_churn | 입퇴장 반복 | cleanup, 좀비 방지 | L1-17 |
+| ptt_rapid | 화자 전환 3초 × 10회 | rewriter, keyframe, silence | L1-04~08 |
+| ptt_contention | 5명 동시 floor_request | priority queue, preemption | L1-14~16 |
+| ptt_long_talk | 60초 연속 발화 | ts 누적, SR translation | L1-02, L1-03 |
+| ptt_idle_resume | 5분 idle → 재발화 | dynamic ts_gap | L1-08 |
+| simulcast_switch | h↔l 반복 전환 | SimulcastRewriter, PLI | L1-18~20 |
+| network_degrade | 양호→열악→복구 | BWE 적응 | Layer 2 전용 |
+| network_handover | 500ms blackout | ICE 복구 | Layer 2 전용 |
+| zombie_kill | 강제 kill × 3명 | zombie reaper | L1-17 |
+| screen_share | 화면공유 시작/종료 | non-sim relay | L1-21 |
+| endurance_1h | 1시간 연속 | 메모리 릭, ts overflow | L1-13, Layer 2 |
+| rtcp_terminator | RR차단 + SR변환 전용 | RTCP 무결성 | L1-01~03 |
+| pli_governor | PLI 발사 + 취소 전용 | 인과관계 판정 | L1-09~10 |
+| subscriber_gate | gate pause/resume 전용 | 타이밍 검증 | L1-11~12 |
 
 ---
 
-## 7. 구현 우선순위
+## 8. 구현 우선순위
 
 ### Phase 0 — 뼈대 ✅ 완료 (2026-03-29)
 - [x] Cargo workspace 셋업 (5 crates)
@@ -468,11 +402,12 @@ oxlab report --failed-only
 - [x] oxlab-cli: `oxlab run` 스켈레톤
 
 ### Phase 1 — 봇 미디어 ✅ 완료 (2026-03-29)
-- [x] oxlab-bot: Fake VP8/Opus RTP Publisher (PLI 응답)
-- [x] oxlab-bot: RTP Subscriber (수신 메트릭)
-- [x] oxlab-bot: PTT 봇 (WS floor_request/release 라운드로빈)
-- [x] 참가자별 NetFilter 통합
-- [x] TRACKS_ACK 자동 응답 (SubscriberGate 5초 → ~2초 해소)
+- [x] oxlab-bot: Fake VP8/Opus RTP Publisher (MID extension, PLI 응답)
+- [x] oxlab-bot: RTP Subscriber (per-SSRC jitter/loss/OOO 메트릭)
+- [x] oxlab-bot: PTT 봇 (WS floor_request/release + MBCP 메서드)
+- [x] 참가자별 NetFilter 통합 (publish 경로)
+- [x] TRACKS_ACK 자동 응답 (SubscriberGate 5초 → ~2초)
+- [x] .env 공통 설정 (dotenvy + clap env)
 
 ### Phase 2 — 시나리오 + 판정 ✅ 완료 (2026-03-29)
 - [x] oxlab-scenario: TOML 파서 + 시간축 실행기 (8개 액션 타입)
@@ -482,6 +417,12 @@ oxlab report --failed-only
 - [x] 시나리오 프리셋 3개 (conf_basic, ptt_rapid, network_degrade)
 - [x] exit code 반환 (0=PASS, 1=FAIL, 2=ERROR)
 
+### Phase 2.5 — 2계층 판정 체계 리팩터링 ⏳ 예정
+- [ ] Layer 1 CheckpointResult 구조체 + 체크포인트 레지스트리
+- [ ] 봇에 Layer 1 관측 포인트 추가 (subscriber RR 감지, SR NTP 비교, gating 카운터 등)
+- [ ] Layer 2 회귀 비교 (이전 결과 JSON 로드 + diff)
+- [ ] JudgeReport 통합 출력 (L1 binary + L2 regression + summary_code)
+
 ### Phase 3 — 스냅샷 재현 + 회귀 ⏳ 대기
 - [ ] `oxlab replay snapshot.json` (스냅샷 → 프로파일 + 시나리오 자동 생성)
 - [ ] `oxlab matrix` (전수 테스트)
@@ -489,7 +430,7 @@ oxlab report --failed-only
 
 ---
 
-## 8. 기술 결정
+## 9. 기술 결정
 
 | 결정 | 선택 | 이유 |
 |:-----|:-----|:-----|
@@ -498,10 +439,11 @@ oxlab report --failed-only
 | 네트워크 열화 | 유저스페이스 NetFilter | 크로스 플랫폼, 참가자별 개별, sudo 불필요 |
 | 시그널링 | trait SignalAdapter | 현재 OxLens 전용, 향후 Janus/LiveKit 확장 |
 | 외부 도구 | 미사용 | 프로토콜 정밀도, 유연성, 오프라인 운용 |
+| 판정 체계 | 2계층 (L1 binary + L2 regression) | SFU 행동은 정답 있음, 품질은 상대 비교 |
 
 ---
 
-## 9. 업계 선례 참조
+## 10. 업계 선례 참조
 
 | 도구 | 업체 | 특징 | OxLabs와 차이 |
 |:-----|:-----|:-----|:-------------|
@@ -512,24 +454,27 @@ oxlab report --failed-only
 | KITE | CoSMo/Google | SFU 비교 벤치마크 | 일회성 벤치, 회귀 없음 |
 | testRTC | Cyara | 상용 SaaS, 브라우저 기반 | 독자 프로토콜 미지원, 비용 |
 
-**OxLabs 차별화**: 스냅샷→재현 파이프라인 + 유저스페이스 네트워크 필터 + 참가자별 프로파일 + 자동 회귀
+**OxLabs 차별화**: 2계층 판정 + 스냅샷→재현 파이프라인 + 유저스페이스 네트워크 필터 + 자동 회귀
 
 ---
 
-## 10. 현장 운용 시나리오
+## 11. 현장 운용 시나리오
 
 ```
+코드 수정 → oxlab regression → Layer 1 전항목 PASS → 실기기 시험 진행
+                              → Layer 1 하나라도 FAIL → 실기기 시험 안 함
+
 "고객사에서 전화: PTT 누르면 소리가 1초 뒤에 나와요"
 
 1. 어드민 → 해당 시점 스냅샷 export → snapshots/에 저장
 2. $ oxlab replay snapshots/customer_a_20260401.json
    → 자동: lossRate 8%, jitter 75ms, jbDelay 280ms 추출
    → 프로파일 자동 생성 → 시나리오 자동 생성 → 실행
-   → FAIL (audio_gap 850ms > 200ms)
+   → Layer 1 PASS, Layer 2 baseline 기록
 3. 코드 수정
-4. $ oxlab run → PASS (audio_gap 140ms)
-5. $ oxlab regression → 기존 시나리오 전수 PASS
-6. 배포 + 리포트 전달
+4. $ oxlab regression → Layer 1 전항목 PASS + Layer 2 회귀 없음
+5. 배포 + 리포트 전달
+6. 해당 시나리오 → 영구 회귀 테스트로 편입
 ```
 
 ---

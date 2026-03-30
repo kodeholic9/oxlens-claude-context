@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-03-29
+> 최종 업데이트: 2026-03-30
 
 ---
 
@@ -160,6 +160,15 @@
 | 0329 | `oxlabs_phase1_complete` | OxLabs | Phase 1 완료: TRACKS_ACK 자동 응답 + PTT 봇 WS Floor Control |
 | 0329 | `oxlabs_quality_loop` | OxLabs | Phase 2 완료: 시나리오 엔진 + 판정기 + 품질 루프 완성 |
 
+## Phase 16: OxLabs 판정 체계 설계 (0330)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0330 | `oxlabs_layer_judgement` | OxLabs | 2계층 판정 체계 확정: Layer 1 SFU 행동검증(binary) + Layer 2 열화내성(회귀) |
+| 0330 | `oxlabs_phase25_judge_refactor` | OxLabs | Phase 2.5: 2계층 판정 구조체 전면 재작성 + L1-13 fan-out integrity 체크포인트 |
+| 0330 | `oxlabs_phase25_complete` | OxLabs | Phase 2.5 완료: L2 baseline + eval 21 + 봇 관측 19/21 + bot.rs 리팩토링 |
+| 0330 | `oxlabs_phase3_live_test` | OxLabs | Phase 3 첫 실 테스트: conf_basic PASS, ptt_rapid FAIL(L1-04/08/13) |
+
 ---
 
 ### 참조 문서 (비세션)
@@ -175,8 +184,8 @@
 
 ### 통계
 
-- **총 세션 파일**: 73개 (블로그 초안 4개 제외)
-- **기간**: 2026-03-09 ~ 2026-03-29 (21일)
+- **총 세션 파일**: 76개 (블로그 초안 4개 제외)
+- **기간**: 2026-03-09 ~ 2026-03-30 (22일)
 - **서버 버전**: v0.6.8
 
 ---
