@@ -228,4 +228,4 @@ Unknown fallback이 있으니 예상 못한 브라우저가 들어와도 당장 
 
 ---
 
-*이 글은 [OxLens](https://github.com/kodeholic) — Rust로 만드는 경량 SFU 서버 프로젝트를 개발하면서 배운 것들을 정리한 시리즈입니다.*
+*이 글은 [OxLens](https://oxlens.com) — Rust로 만드는 경량 SFU 서버 프로젝트를 개발하면서 배운 것들을 정리한 시리즈입니다.*

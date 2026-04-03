@@ -219,4 +219,4 @@ SSRC 참조 경로 체크리스트
 
 ---
 
-*이 글은 [OxLens](https://github.com/kodeholic) — Rust로 만드는 경량 SFU 서버 프로젝트를 개발하면서 배운 것들을 정리한 시리즈입니다.*
+*이 글은 [OxLens](https://oxlens.com) — Rust로 만드는 경량 SFU 서버 프로젝트를 개발하면서 배운 것들을 정리한 시리즈입니다.*

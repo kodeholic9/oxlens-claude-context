@@ -273,6 +273,11 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 | `nack_pub_not_found` | NACK 수신, publisher 못 찾음 | PTT: 화자 전환 직후 이전 화자에 대한 NACK → 정상 |
 | `rtx_budget_exceeded` | RTX 전송 예산 초과 | 네트워크 loss 심각 |
 | `rtx_cache_miss` | NACK 요청 패킷 캐시에 없음 | RTP gap 후 복귀 시 발생 가능 |
+| `track:registered user=X ssrc=0xN kind=K pt=P rid=R` | 스트림 등록 (문제없음) | 입장 시 참가자당 2~6회 정상 |
+| `track:promoted user=X ssrc=0xN kind=K mid=M` | Unknown→확정 승격 (intent 늦게 도착 후 MID로 해결) | RTP-before-intent였으나 복구됨 |
+| `track:unknown user=X ssrc=0xN pt=P` | **RTP-before-intent: intent 미도착 상태에서 RTP 도착** | 다수 발생 시 타이밍 악화 징후 |
+| `track:rid_inferred user=X ssrc=0xN rid=l` | PROMOTED 경로에서 rid=l 보정 (2중 notify 방지) | 정상 보정 동작 |
+| `track:ack_mismatch user=X expected=N client=M missing=[..] extra=[..]` | **TRACKS_ACK SSRC 불일치** | 반복 발생 시 subscribe PC 불안정 |
 
 ### 2.14 CONTRACT CHECK
 
@@ -304,6 +309,46 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 | `encoder_healthy` | 중간 | 비발화자 bandwidth 제한은 정상일 수 있음 |
 | `video_freeze` | 중간 | 화자 전환 시 1회는 정상 |
 | `rtp_gap` | **높음** | 비발화자 video 중단 감지. false positive |
+
+### 2.15 TRACK IDENTITY (신규)
+
+서버 스냅샷(`roomsSnapshot`)의 participant별 트랙 정합성 대조표.
+
+```
+[INTENT:U438] received=true rid_ext=10 mid_ext=4 audio_mid=0 sources=[camera(mid=1,pt=109,rtx=114,sim=true,codec=H264,duplex=full)]
+[SMAP:U438] audio:0x0000AABB | video:0x0000CCDD(h) | video:0x00003344(l) | rtx:0x0000DDEE
+[TRACKS:U438] audio(ssrc=43707,pt=0,codec=Vp8,duplex=full) video(ssrc=52445,pt=109,codec=H264,duplex=full,rid=h,src=camera)
+  ⚠ video_pt_zero: ssrc=0x0000CCDD has actual_pt=0
+```
+
+- `[INTENT]`: PUBLISH_TRACKS에서 받은 의도 정보. `received=false`이면 intent 미도착.
+- `[SMAP]`: stream_map의 현재 SSRC↔kind/rid 매핑. intent에는 있는데 SMAP에 없으면 RTP 미도착.
+- `[TRACKS]`: participant.tracks[]의 등록 상태. actual_pt, codec, duplex 포함.
+- `⚠ 줄`: track_issues — 자동 감지된 불일치 (이것이 있으면 최우선 확인).
+
+### 2.16 PLI GOVERNOR (신규)
+
+Publisher별 PLI Governor 레이어 상태.
+
+```
+[GOV:U170] h:pending=false pli=1200ms kf=800ms | l:pending=true pli=3100ms kf=- ⚠
+```
+
+- `pending=true` + pli > 2000ms: **Governor 고착 의심** (PLI를 보냈는데 키프레임이 안 옴)
+- `kf=-`: 해당 레이어 키프레임 미수신
+- 고착 시 반드시 ingress.rs PLI relay 경로 + Governor 타임아웃 확인
+
+### 2.17 SUBSCRIBER GATE (신규)
+
+Subscriber별 per-publisher video gate 상태.
+
+```
+[GATE:U170] U435=open U736=open U871=PAUSED(track_discovery,2300ms) ⚠
+```
+
+- `PAUSED` + 3000ms+: **gate 미해제 의심** (TRACKS_ACK 안 오거나 지연)
+- `open`: 정상 상태 (비디오 릴레이 허용)
+- 5초 타임아웃 이후 자동 해제되지만, 3~5초 구간에서는 해당 subscriber에게 영상이 안 나감
 
 ---
 
@@ -438,20 +483,31 @@ fan_out: avg=3.0 min=2 max=4
 ### 5.1 "화면이 안 나온다" (video freeze / fps=0)
 
 ```
-1. 모드 확인
+1. ⭐ TRACK IDENTITY 확인
+   ├─ intent 미등록       → PUBLISH_TRACKS 미전송 or 타이밍
+   ├─ stream_map 미등록   → RTP 미도착 or rid 파싱 실패
+   ├─ codec/PT 불일치     → PT normalization 오류 or SDP 불일치
+   ├─ rid 이상 (중복/오독) → extmap 충돌 or fallback 문제
+   ├─ intent 늦게 도착    → RTP-before-intent 타이밍 문제
+   ├─ 전부 정상           → 2로 진행
+   └─ video_pt_zero     → actual_pt 미설정 (트랙 등록 경로 버그)
+2. PLI Governor 확인
+   ├─ pending=true + 2초+ → Governor 고착 (키프레임 요청 안 나감)
+   └─ 정상 → 3으로 진행
+3. 모드 확인
    ├─ PTT + floor=idle → 정상 (비발화 중)
    └─ Conference 또는 PTT 발화 중 →
-      2. subscribe fps 확인
+      4. subscribe fps 확인
          ├─ fps=0 →
-         │   3. publish fps 확인
+         │   5. publish fps 확인
          │      ├─ pub fps=0 → 인코더 사망 (encoder_impl? tab hidden? track ended?)
          │      └─ pub fps>0 → SFU 릴레이 문제
-         │         4. Pipeline Stats 확인
+         │         6. Pipeline Stats 확인
          │            ├─ sub_rtp_relayed_d=0 → egress 문제 (egress_drop? PC failed?)
          │            └─ sub_rtp_relayed_d>0 → subscriber 디코더 문제 (decoder_stall? freeze?)
          └─ fps>0 but freeze → 키프레임 손실
-            5. pli_sent 확인 → 서버가 PLI 보냈는지
-            6. nack/rtx 확인 → 패킷 복구 되는지
+            7. pli_sent 확인 → 서버가 PLI 보냈는지
+            8. nack/rtx 확인 → 패킷 복구 되는지
 ```
 
 ### 5.2 "소리가 안 들린다"
@@ -538,17 +594,20 @@ fan_out: avg=3.0 min=2 max=4
 ## 7. 분석 체크리스트 (AI가 스냅샷을 받으면 이 순서로)
 
 1. **모드 확인** — PTT DIAGNOSTICS의 `mode=` 확인. PTT면 섹션 1의 "정상 목록" 적용
-2. **PTT floor 상태** — `floor=idle`이면 전원 비발화. 서버/클라이언트 지표 대부분 0은 정상
-3. **Contract Check 훑기** — FAIL/WARN 항목 확인. PTT 오탐 목록(섹션 2.14)과 대조
-4. **Publish 핵심** — fps, bitrate, avgQP, qualityLimitReason, enc-sent gap, huge
-5. **Subscribe 핵심** — recv_delta, lost_delta, loss_rate, jb_delay, freeze, fps
-6. **Loss Cross-Reference** — A→SFU vs SFU→B 분리. 어디서 손실이 발생하는지
-7. **SFU 서버** — egress_drop(0 필수), decrypt timing, rr_generated(>0 필수), tokio busy
-8. **Timeline** — 이벤트 순서로 인과관계 추적
-9. **Pipeline Stats trend** — delta 추이로 안정/불안정 판단
-10. **종합 판단** — 문제 발견 시 섹션 5의 진단 플로우 적용
+2. **⭐ Track Identity 확인** — TRACK IDENTITY 섹션에서 intent/stream_map/tracks 대조. track_issues에 ⚠가 있으면 최우선 원인. "영상 안 나옴/정지/음성 늘어짐" 증상의 6~7할은 여기서 원인 발견. 네트워크/디코더를 의심하기 전에 반드시 먼저 확인.
+3. **PLI Governor 확인** — PLI GOVERNOR 섹션에서 pending=true + 2초+ 경과 여부. 고착 시 영상 정지의 주요 원인.
+4. **PTT floor 상태** — `floor=idle`이면 전원 비발화. 서버/클라이언트 지표 대부분 0은 정상
+5. **Contract Check 훑기** — FAIL/WARN 항목 확인 (track_identity, governor_health, gate_health 포함). PTT 오탐 목록(섹션 2.14)과 대조
+6. **AGG LOG 트랙 이벤트** — `track:` 접두사 이벤트 확인. track:unknown(RTP-before-intent), track:ack_mismatch, track:rid_inferred가 있으면 시점+src로 코드 대조
+7. **Publish 핵심** — fps, bitrate, avgQP, qualityLimitReason, enc-sent gap, huge
+8. **Subscribe 핵심** — recv_delta, lost_delta, loss_rate, jb_delay, freeze, fps
+9. **Loss Cross-Reference** — A→SFU vs SFU→B 분리. 어디서 손실이 발생하는지
+10. **SFU 서버** — egress_drop(0 필수), decrypt timing, rr_generated(>0 필수), tokio busy
+11. **Timeline** — 이벤트 순서로 인과관계 추적
+12. **Pipeline Stats trend** — delta 추이로 안정/불안정 판단
+13. **종합 판단** — 문제 발견 시 섹션 5의 진단 플로우 적용
 
 ---
 
 *author: kodeholic (powered by Claude)*
-*최종 갱신: 2026-03-23*
+*최종 갱신: 2026-04-03*

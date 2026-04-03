@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-03-31
+> 최종 업데이트: 2026-04-01
 
 ---
 
@@ -193,13 +193,49 @@
 | `QUALITY_ASSESSMENT.md` | 품질 평가 기준 |
 | `blog_s3_01~04` | Simulcast 블로그 시리즈 초안 |
 
+## Phase 19: PTT 실기기 비디오 프리즈 디버깅 (0401)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0401 | `ptt_video_freeze_rpi_test` | 서버+홈 | RTX SSRC 오등록 버그 발견 + non-sim/sim 패스 분리 수정 (register_nonsim_tracks) |
+
+## Phase 20: OxQue 사업 아이디어 발굴 + 트랙 duplex 설계 (0401)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0401 | `oxque_brainstorm` | Biz+설계 | OxQue(질서 있는 소통 플랫폼) 시장 조사 + 트랙 단위 duplex(full/half)+priority 설계 확정 |
+
+## Phase 21: PT Mismatch 근본 수정 — Conference + Simulcast + PTT 전체 PASS (0402)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0402 | `pt_mismatch_fix` | 서버+홈 | PT 전달 경로 4개 전수 수정 + 서버 PTT fan-out PT rewrite. Conference/Simulcast/PTT 전체 PASS |
+
+## Phase 22: 실기기 테스트 + RTP-first 근본 수정 + 트랙 Duplex 설계 구현 (0402 야간)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0402 | `realdevice_test_duplex_design` | 서버 | PTT+Conference 실기기 4대 테스트 분석, non-sim RTP-first 차단(simulcast_enabled 가드), PT 누락 agg_log 4종, DuplexMode 데이터 모델(6파일), track_duplex 핫패스 전파 |
+| 0402 | `duplex_phase2_ingress_migration` | 서버 | ingress.rs 14곳 + track_ops.rs 1곳 room.mode→track_duplex 전환 완료. PTT dead code 30줄 제거 |
+| 0402 | `code_reading_L01_L04` | 학습 | Phase 1 코드 리딩 완료 (config→error→state/main→room/participant) |
+| 0402 | `conference_nonsim_video_pt_fix` | 서버+홈 | Conference 비심방 PT normalization 전면 제거 설계 |
+| 0402 | `pt_mismatch_fix` | 서버+홈 | PT 전달 경로 4개 전수 수정 + PTT fan-out PT rewrite |
+
+## Phase 23: PLI Governor 고착 + rid 오독 + PROMOTED 2중 notify + 데모 시나리오 설계 (0403)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0403 | `pli_governor_rid_fix` | 서버 | PLI Governor 영구 고착 수정 + rid 오독 수정 + DuplexMode 업계 조사 |
+| 0403 | `demo_scenario_design_review` | 설계+서버 | 데모 시나리오 10종 + 역할 프리셋 8개 + simulcast 트랙 속성 + SDK API + 데모앱 구조 + PROMOTED 2중 notify 수정 |
+| 0403 | `telemetry_track_identity` | 서버+홈+문서 | 텔레메트리 고도화: Track Identity 스냅샷 + PLI Governor/Gate 상태 + AggLogger 트랙 이벤트 6종 + Contract Check 3개 + METRICS_GUIDE 프로토콜 수정 |
+
 ---
 
 ### 통계
 
-- **총 세션 파일**: 79개 (블로그 초안 4개, 사업 구상 1개 별도)
-- **기간**: 2026-03-09 ~ 2026-03-31 (23일)
-- **서버 버전**: v0.6.8
+- **총 세션 파일**: 91개
+- **기간**: 2026-03-09 ~ 2026-04-03 (26일)
+- **서버 버전**: v0.6.13-dev (텔레메트리 Track Identity + PLI Governor/Gate 스냅샷 + AggLogger 트랙 이벤트)
 
 ---
 

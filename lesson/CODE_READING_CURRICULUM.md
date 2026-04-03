@@ -536,10 +536,10 @@
 
 | 회차 | 날짜 | Phase | 주제 | 상태 | 비고 |
 |------|------|-------|------|------|------|
-| L01 | | P1 | config.rs — 설정과 상수 | ⬜ | |
-| L02 | | P1 | error.rs — 에러 처리 체계 | ⬜ | |
-| L03 | | P1 | state/main/startup — 서버 부팅 | ⬜ | |
-| L04 | | P1 | room/participant — 핵심 자료구조 | ⬜ | |
+| L01 | 2026-04-01 | P1 | config.rs — 설정과 상수 | ✅ | enum, const, fn, 클로저, Duration, PT 하드코딩 현장 확인 |
+| L02 | 2026-04-01 | P1 | error.rs — 에러 처리 체계 | ✅ | Result/Option, ? 연산자, impl &self, LightResult 패턴 |
+| L03 | 2026-04-02 | P1 | state/main/startup — 서버 부팅 | ✅ | Arc, pub(crate), Option, 제네릭, &str vs String, 부팅 흐름 |
+| L04 | 2026-04-02 | P1 | room/participant — 핵심 자료구조 | ✅ | 3중 인덱스, 2PC 세션, PipelineStats, RtpCache 링버퍼 |
 | L05 | | P2 | opcode/message — 패킷 정의 | ⬜ | |
 | L06 | | P2 | handler/mod — WS 디스패치 | ⬜ | |
 | L07 | | P2 | room_ops — 방 입장/퇴장 | ⬜ | |
