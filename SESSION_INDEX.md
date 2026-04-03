@@ -225,17 +225,30 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0403 | `pli_governor_rid_fix` | 서버 | PLI Governor 영구 고착 수정 + rid 오독 수정 + DuplexMode 업계 조사 |
+| 0403 | `pli_governor_timeout_rid_misparse` | 서버 | PLI Governor 영구 고착 수정 + rid 오독 수정 + DuplexMode 업계 조사 |
 | 0403 | `demo_scenario_design_review` | 설계+서버 | 데모 시나리오 10종 + 역할 프리셋 8개 + simulcast 트랙 속성 + SDK API + 데모앱 구조 + PROMOTED 2중 notify 수정 |
 | 0403 | `telemetry_track_identity` | 서버+홈+문서 | 텔레메트리 고도화: Track Identity 스냅샷 + PLI Governor/Gate 상태 + AggLogger 트랙 이벤트 6종 + Contract Check 3개 + METRICS_GUIDE 프로토콜 수정 |
+
+## Phase 24: Simulcast 트랙 속성 전환 (0403~0404)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0403 | `simulcast_track_attribute` | 서버 | room.simulcast_enabled → Track.simulcast 전환. 7파일 수정, 혼합 시나리오(full+half duplex) 지원 |
+| 0403 | `screenshare_mute_bug_analysis` | 클라이언트+분석 | hasVideo transceiver 기반 수정, 에러 2005 근본 원인=서버 intent 소실(stream_map.clear), 프리셋에서 해결 예정 |
+
+## Phase 25: RoomMode 완전 제거 + 좀비 2단계 설계 (0403 야간)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0403 | `roommode_removal_zombie_design` | 서버 전역 | RoomMode enum+room.mode+simulcast_enabled 완전 제거(14파일). has_half_duplex_tracks/has_simulcast_tracks 헬퍼. 좀비 2단계(Suspect 20s/Zombie 35s/5s체크) 설계 확정 |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 91개
+- **총 세션 파일**: 94개
 - **기간**: 2026-03-09 ~ 2026-04-03 (26일)
-- **서버 버전**: v0.6.13-dev (텔레메트리 Track Identity + PLI Governor/Gate 스냅샷 + AggLogger 트랙 이벤트)
+- **서버 버전**: v0.6.15-dev (RoomMode 제거, 방은 빈 그릇)
 
 ---
 
