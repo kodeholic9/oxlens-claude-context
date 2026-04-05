@@ -2,19 +2,44 @@
 
 > **이 문서의 목적**: 텔레메트리 스냅샷을 분석할 때, 이 문서를 context에 함께 넣어 오진을 방지한다.
 > **소비자**: Claude (AI). 인간이 아닌 AI가 읽고 판단하기 위한 레퍼런스.
-> **핵심 원칙**: 모드(Conference/PTT)를 먼저 확인하라. PTT에서 정상인 것을 Conference에서는 이상으로, 그 역도 마찬가지.
+> **핵심 원칙**: duplex(트랙 단위 full/half)를 먼저 확인하라. half-duplex 트랙이 있으면 PTT 동작, 없으면 Conference 동작. PTT에서 정상인 것을 Conference에서는 이상으로, 그 역도 마찬가지.
 
 ---
 
-## 1. 최우선 규칙: 모드 판별
+## 0. 분석 전 준비 — 이것부터 읽어라
 
-스냅샷 분석의 **첫 번째 행동**은 모드 확인이다.
+스냅샷 분석을 시작하기 **전에** 반드시 아래 순서로 context를 로딩한다.
+
+### 0.1 이 가이드 (METRICS_GUIDE_FOR_AI.md)
+- 방법론: "어떻게 분석하는가" — 체크리스트, 정상/이상 판별 기준, 진단 플로우
+- 이 가이드를 안 읽고 분석하면 PTT 정상 동작을 오진하고, 알려진 제한사항을 새 버그로 보고한다
+
+### 0.2 최신 세션 컨텍스트
+- 사실: "지금 뭘 알고 있는가" — 최근 세션에서 확인된 버그, 의도적 설계, 미해결 이슈
+- 가이드에는 방법론만 있고, 세션에서 확인된 사실은 세션 컨텍스트에만 있다
+- 최소 최근 2~3개 세션 파일을 읽어야 같은 오진을 반복하지 않는다
+
+### 0.3 섹션 8 "알려진 오탐 및 확인된 사실" 확인
+- 세션에서 확인된 사실 중 반복 오진 위험이 높은 것을 이 가이드에 환류한 목록
+- 스냅샷 분석 중 해당 항목을 만나면 즉시 참조
+
+> **이 순서를 안 지키면 반드시 같은 실수를 반복한다.** 실제로 연속 3개 세션에서 가이드/컨텍스트를 안 읽고 분석해서 동일한 오진(pt=0 버그 주장, 환경 탓, SR relay 문제 주장)을 반복했다.
+
+---
+
+## 1. 최우선 규칙: duplex 판별
+
+스냅샷 분석의 **첫 번째 행동**은 duplex 확인이다.
 
 ### 확인 방법
-- `--- PTT DIAGNOSTICS ---` 섹션의 `mode=ptt` 또는 `mode=conference`
-- 방 정보 라인에 `PTT` 배지가 있으면 PTT 모드
+- `--- PTT DIAGNOSTICS ---` 섹션의 `duplex=half` 또는 `duplex=full`
+- `duplex=half`인 참가자가 1명이라도 있으면 해당 방은 PTT 동작 포함
+- room 단위 mode는 제거됨 — 트랙 단위 duplex로 판단
 
-### PTT 모드에서 반드시 정상으로 판단해야 하는 것
+> **주의**: 같은 방에 full-duplex(conference) + half-duplex(PTT) 참가자가 공존 가능 (혼합 시나리오).
+> full-duplex 참가자는 Conference 정상 목록, half-duplex 참가자는 PTT 정상 목록 적용.
+
+### half-duplex 트랙에서 반드시 정상으로 판단해야 하는 것
 
 | 현상 | 이유 |
 |------|------|
@@ -28,10 +53,14 @@
 | `rtp_gap_detected > 0` (SFU) | 비발화자 video 중단을 gap으로 감지. PTT false positive |
 | `floor=idle` + 모든 지표 0 | 전원 비발화 중. 완전히 정상 |
 | `pli_burst` (floor granted 직후) | 카메라 웜업 → PLI 3연발은 설계된 동작 |
+| `video track add/remove 반복` (AGG LOG) | video_radio 프리셋: 발화 시 addVideoTrack, 해제 시 removeVideoTrack. 매 사이클 SSRC 변경은 정상 동작 |
+| `ack_mismatch` 반복 (PTT video remove 후) | video virtual SSRC가 subscribe SDP에 잔류. tolerate 처리됨. 기능 문제 아님 |
+| `sfu_tracks_mismatch` (PTT video remove 후) | video remove 직후 expected/client SSRC 수 불일치. tolerate 처리됨 |
+| `encoder_qp_spike` (발화 시작 시) | BWE cold start → 인코더 QP 급등 → 수렴 후 정상화 |
 | `video_freeze` 1회 (화자 전환 시) | 키프레임 대기 중 발생하는 정상 freeze |
 | `quality_limit_change` bandwidth→none (발화 시작 시) | BWE 수렴 과정 |
 
-### Conference 모드에서 이상으로 판단해야 하는 것
+### full-duplex 트랙에서 이상으로 판단해야 하는 것
 
 | 현상 | 의미 |
 |------|------|
@@ -55,7 +84,7 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 ```
 
 - `timestamp`: 스냅샷 캡처 시각 (로컬 타임존)
-- `room`: 선택된 방 이름 + 모드 배지 + room_id 앞 8자 + 참여자수/정원
+- `room`: 선택된 방 이름 + room_id 앞 8자 + 참여자수/정원
 - `(all rooms)`: 특정 방 미선택 시 전체
 
 ### 2.2 SDP STATE
@@ -191,7 +220,7 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 ### 2.10 PTT DIAGNOSTICS
 
 ```
-[user1:state] mode=ptt floor=idle ptt_audio=? ptt_video=? video_off=false tab=visible
+[user1:state] duplex=half floor=idle ptt_audio=? ptt_video=? video_off=false tab=visible
 [user1:track:audio] enabled=true readyState=live muted=false label=Default Audio
 [user1:track:video] enabled=false readyState=live muted=false label=FaceTime HD Camera
 [user1:sender:audio] hasTrack=true active=true readyState=live maxBitrate=none
@@ -273,7 +302,13 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 | `nack_pub_not_found` | NACK 수신, publisher 못 찾음 | PTT: 화자 전환 직후 이전 화자에 대한 NACK → 정상 |
 | `rtx_budget_exceeded` | RTX 전송 예산 초과 | 네트워크 loss 심각 |
 | `rtx_cache_miss` | NACK 요청 패킷 캐시에 없음 | RTP gap 후 복귀 시 발생 가능 |
-| `track:registered user=X ssrc=0xN kind=K pt=P rid=R` | 스트림 등록 (문제없음) | 입장 시 참가자당 2~6회 정상 |
+| `track:publish_intent user=X tracks=[...]` | PUBLISH_TRACKS(add) 수신 기록. 클라이언트가 보낸 트랙 목록 | 입장/비디오 토글 시 발생 |
+| `track:registered user=X ssrc=0xN kind=K ... src=S` | 트랙 등록 완료. **key에 kind 포함 → audio/video 별도 행** | 입장 시 참가자당 2~6회 정상 |
+| | `src=track_ops:register_nonsim` — HalfNonSim/FullNonSim 사전등록 (시그널링 시점) | |
+| | `src=ingress:register_and_notify` — FullSim RTP-first discovery (RTP 도착 시점) | |
+| `track:publish_remove user=X tracks=[...]` | PUBLISH_TRACKS(remove) 수신 기록. 클라이언트가 보낸 제거 요청 | 비디오 토글 OFF, 화면공유 중지 시 |
+| `track:removed user=X ssrc=0xN kind=K source=S` | 트랙 실제 제거 완료 | publish_remove 직후 발생해야 정상 |
+| `track:cleanup user=X count=N tracks=[...]` | leave/disconnect 시 트랙 정리 | `src=room_ops:leave` 또는 `src=room_ops:disconnect` |
 | `track:promoted user=X ssrc=0xN kind=K mid=M` | Unknown→확정 승격 (intent 늦게 도착 후 MID로 해결) | RTP-before-intent였으나 복구됨 |
 | `track:unknown user=X ssrc=0xN pt=P` | **RTP-before-intent: intent 미도착 상태에서 RTP 도착** | 다수 발생 시 타이밍 악화 징후 |
 | `track:rid_inferred user=X ssrc=0xN rid=l` | PROMOTED 경로에서 rid=l 보정 (2중 notify 방지) | 정상 보정 동작 |
@@ -301,7 +336,7 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 [WARN] tab_visibility: tab hidden
 ```
 
-**PTT 모드 Contract Check 오탐 주의**:
+**half-duplex 트랙 Contract Check 오탐 주의**:
 
 | 항목 | PTT에서 오탐 가능성 | 설명 |
 |------|---------------------|------|
@@ -494,9 +529,9 @@ fan_out: avg=3.0 min=2 max=4
 2. PLI Governor 확인
    ├─ pending=true + 2초+ → Governor 고착 (키프레임 요청 안 나감)
    └─ 정상 → 3으로 진행
-3. 모드 확인
-   ├─ PTT + floor=idle → 정상 (비발화 중)
-   └─ Conference 또는 PTT 발화 중 →
+3. duplex 확인
+   ├─ half-duplex + floor=idle → 정상 (비발화 중)
+   └─ full-duplex 또는 half-duplex 발화 중 →
       4. subscribe fps 확인
          ├─ fps=0 →
          │   5. publish fps 확인
@@ -513,9 +548,9 @@ fan_out: avg=3.0 min=2 max=4
 ### 5.2 "소리가 안 들린다"
 
 ```
-1. 모드 확인
-   ├─ PTT + floor=idle → 정상 (비발화 중)
-   └─ Conference 또는 PTT 발화 중 →
+1. duplex 확인
+   ├─ half-duplex + floor=idle → 정상 (비발화 중)
+   └─ full-duplex 또는 half-duplex 발화 중 →
       2. subscribe audio recv_delta 확인
          ├─ recv_delta=0 → 패킷 미도착
          │   3. publish audio pkts_delta 확인
@@ -581,33 +616,119 @@ fan_out: avg=3.0 min=2 max=4
 1. **H264 subscribe avgQP=0**: Mac VideoToolbox가 inbound-rtp qpSum을 보고하지 않음. VP8에서만 유효.
 2. **delta 첫 tick null**: 입장 직후 첫 3초는 prevStats 없어서 delta 기반 지표(avgQP, encMs/f 등)가 null.
 3. **PTT sourceUser `__virtual__`**: 가상 SSRC → resolveSourceUser()가 floor speaker로 치환하지만, 비발화 시 `__virtual__` 표시됨.
-4. **RTP_GAP PTT false positive**: 비발화자 video 중단을 gap으로 감지. PTT 모드에서 `rtp_gap_detected > 0`은 무시.
-5. **sr_relay PTT FAIL**: Contract Check가 PTT 모드에서 sr_relay=0을 FAIL로 판정. 모드별 분기 미구현 — 무시.
+4. **RTP_GAP PTT false positive**: 비발화자 video 중단을 gap으로 감지. half-duplex 트랙에서 `rtp_gap_detected > 0`은 무시.
+5. **sr_relay PTT FAIL**: Contract Check가 sr_relay=0을 FAIL로 판정. half-duplex 트랙에서는 SR 중단 설계이므로 정상 — 무시.
 6. **audio_gap PTT 정상**: AGG LOG의 `audio_gap`은 비발화 구간 idle 시간. 수초~수백초 gap도 **정상**. 발화 중 gap만 문제.
-7. **노트북 1대 크롬 3개 테스트**: CPU throttling으로 loss 14~18% 발생. 테스트 환경 자체의 문제이지 SFU 문제가 아님. 최소 2대 별도 기기 필요.
+7. **노트북 1대 크롬 3개 테스트**: CPU throttling으로 loss 14~18% 발생. 테스트 환경 자체의 문제이지 SFU 문제가 아님. 최소 2대 별도 기기 필요. **단, 같은 환경에서 Conference는 정상인데 PTT만 문제(저해상도/음성 왔곡)면 환경 탓이 아니라 PTT 코드 문제** (BWE cold start + NetEQ deception).
 8. **rr_relayed는 0이 정상**: subscriber RR은 publisher에게 릴레이하지 않는 것이 설계. >0이면 Terminator 우회 버그.
 9. **target bitrate 단위 주의**: 스냅샷에서 `target=1200000`은 bps(1.2Mbps). `bitrate=850kbps`는 kbps. 단위 다름.
 10. **fan_out과 참여자 수**: fan_out avg ≈ 방 참여자 수 - 1. 3명이면 fan_out ≈ 2.
+11. **PTT 음성 늦어짐/빨라짐**: 화자 전환 시 NetEQ가 seq 불연속을 대량 손실로 오판 → RTX storm → 버퍼 꼬임 → 늦어졌다가 catch-up. `loss_burst` + `lost=N`이 근거. **알려진 미해결 — NetEQ deception, libwebrtc custom build 필요**.
+12. **PTT 영상 초저해상도**: PTT gating 구간에서 BWE가 "available_bitrate=0"으로 추정 → 발화 복귀 시 cold start → 60~100kbps로 인코딩. `available_bitrate < 200kbps` + `quality_limit=bandwidth`가 근거. Conference에서는 연속 송출이라 BWE가 정상 수렴. **환경 탓 아님**.
 
 ---
 
 ## 7. 분석 체크리스트 (AI가 스냅샷을 받으면 이 순서로)
 
-1. **모드 확인** — PTT DIAGNOSTICS의 `mode=` 확인. PTT면 섹션 1의 "정상 목록" 적용
-2. **⭐ Track Identity 확인** — TRACK IDENTITY 섹션에서 intent/stream_map/tracks 대조. track_issues에 ⚠가 있으면 최우선 원인. "영상 안 나옴/정지/음성 늘어짐" 증상의 6~7할은 여기서 원인 발견. 네트워크/디코더를 의심하기 전에 반드시 먼저 확인.
+0. **⭐ 분석 전 준비** — 이 가이드(방법론) + 최신 세션 컨텍스트(확인된 사실) + 섹션 8(알려진 오탐) 로딩. 이걸 안 하면 같은 오진 반복
+1. **duplex 확인** — PTT DIAGNOSTICS의 `duplex=` 확인. `half`이면 섹션 1의 "PTT 정상 목록" 적용. 혼합 시나리오(같은 방에 full+half)에서는 참가자별로 구분 적용
+2. **⭐⭐⭐⭐⭐ Track Identity 확인** — TRACK IDENTITY 섹션에서 intent/stream_map/tracks 대조. track_issues에 ⚠가 있으면 최우선 원인. "영상 안 나옴/정지/음성 늘어짐" 증상의 6~7할은 여기서 원인 발견. 네트워크/디코더를 의심하기 전에 반드시 먼저 확인.
 3. **PLI Governor 확인** — PLI GOVERNOR 섹션에서 pending=true + 2초+ 경과 여부. 고착 시 영상 정지의 주요 원인.
 4. **PTT floor 상태** — `floor=idle`이면 전원 비발화. 서버/클라이언트 지표 대부분 0은 정상
 5. **Contract Check 훑기** — FAIL/WARN 항목 확인 (track_identity, governor_health, gate_health 포함). PTT 오탐 목록(섹션 2.14)과 대조
-6. **AGG LOG 트랙 이벤트** — `track:` 접두사 이벤트 확인. track:unknown(RTP-before-intent), track:ack_mismatch, track:rid_inferred가 있으면 시점+src로 코드 대조
+6. **AGG LOG 트랙 lifecycle** — `track:` 접두사 이벤트 확인. 정상 lifecycle: `publish_intent → registered(audio) + registered(video) → ... → publish_remove → removed → cleanup`. track:unknown(RTP-before-intent), track:ack_mismatch가 있으면 시점+src로 코드 대조. `publish_intent`에 video가 있는데 `registered(video)`가 없으면 등록 실패 — 서버 로그 확인
 7. **Publish 핵심** — fps, bitrate, avgQP, qualityLimitReason, enc-sent gap, huge
 8. **Subscribe 핵심** — recv_delta, lost_delta, loss_rate, jb_delay, freeze, fps
 9. **Loss Cross-Reference** — A→SFU vs SFU→B 분리. 어디서 손실이 발생하는지
 10. **SFU 서버** — egress_drop(0 필수), decrypt timing, rr_generated(>0 필수), tokio busy
 11. **Timeline** — 이벤트 순서로 인과관계 추적
 12. **Pipeline Stats trend** — delta 추이로 안정/불안정 판단
-13. **종합 판단** — 문제 발견 시 섹션 5의 진단 플로우 적용
+13. **종합 판단** — 문제 발견 시 섹션 5의 진단 플로우 적용. **"코드 경로" = 서버 코드 + 클라이언트 코드 모두 포함.** 서버 릴레이 정상+클라이언트 수신 정상이면 클라이언트 렌더링 코드 경로로 전환.
+
+---
+
+## 8. 알려진 오탐 및 세션에서 확인된 사실
+
+> **이 섹션의 목적**: 세션 컨텍스트에서 확인된 사실 중, 스냅샷 분석 시 반복 오진 위험이 높은 것을 환류. 가이드만 읽으면 방법론은 알지만 "이미 확인된 사실"을 모르므로 같은 실수를 반복한다.
+
+### 8.1 스냅샷 표시 오탐 (버그가 아닌 것)
+
+| 스냅샷 표시 | 왜 버그가 아닌가 | 확인 세션 |
+|---|---|---|
+| `TRACKS: audio(pt=0, codec=VP8)` | **의도적.** `VideoCodec` enum에 Opus 없음. `actual_pt=111` 넣으면 PT 정규화가 Opus를 VP8(96)으로 변조. ingress.rs 주석 참조 | 0405 세션1 |
+| `INTENT received=false` (마지막 입장자) | **snapshot↔runtime mismatch.** AGG LOG에 `track:publish_intent` 찍혀 있으면 intent는 실제 도착함. admin snapshot 생성 타이밍 이슈 | 0404~0405 3개 세션 반복 확인 |
+| `TRACKS`에 video 없음 (서버 내부 등록 확인) | **동일 mismatch.** 서버 로그에서 `[TRACK:REG]` 정상, agg-log에서도 `track:registered` 정상이면 기능 문제 아님 | 0404~0405 반복 확인 |
+| `sources=[]` (intent에 video source 없음) | **동일 mismatch.** intent 구조체의 sources 표현 문제. publish_intent agg-log에 video 있으면 정상 | 0404~0405 |
+
+### 8.2 CONTRACT CHECK 오탐 (PTT 모드)
+
+| 항목 | PTT에서의 올바른 판정 | 이유 |
+|---|---|---|
+| `sr_relay: 0` → FAIL | **무시** | PTT SR 중단 설계. NTP↔RTP drift 방지 |
+| `encoder_healthy: quality limited` | **확인 필요하지만 오탐 가능** | BWE cold start (가이드 §6-12). 발화 시작 시 bandwidth→none 반복은 PTT 정상 |
+| `video_freeze` | **화자 전환 1회는 정상** | 키프레임 대기 중 freeze. 누적 횟수 ≈ 화자 전환 횟수면 정상 |
+
+### 8.3 미해결 이슈 (원인 파악됨, 수정 미완)
+
+| 이슈 | 증상 | 근본 원인 | 스냅샷 근거 | 상태 |
+|---|---|---|---|---|
+| **NetEQ deception** | PTT 화자 전환 시 음성 4~5초 늘어짐 → 빨라짐 | seq 불연속 → NetEQ 대량 손실 오판 → RTX storm → 버퍼 꼬임 | `loss_burst`, `lost=N`, `nack_burst` | libwebrtc custom build 필요 |
+| **BWE cold start** | PTT 발화 시 영상 초저해상도 | gating 구간 BWE "available=0" 추정 → 발화 복귀 시 cold start | `available_bitrate < 200kbps`, `quality_limit=bandwidth` | **환경 탓 아님.** Conference는 동일 환경 정상 |
+| **ts_gap drift** | 장시간 세션 jb_delay 누적 | 매 화자 전환 +43ms 일방향 drift | 서버 로그에서만 확인 가능 | 미착수 |
+| **snapshot↔runtime mismatch** | INTENT/TRACKS 스냅샷이 실제 상태 미반영 | admin snapshot 생성 타이밍 or 갱신 미구현 | INTENT received=false, TRACKS video 누락 | 미착수 |
+| **transceiver 누수 (video_radio)** | PTT 사이클마다 ghost transceiver 누적 | addTransceiver 매번 새로 호출, replaceTrack 미사용 | `sender:unknown hasTrack=false` 다수 | 클라이언트 수정 필요 |
+
+### 8.4 환류 규칙
+- 세션에서 새 사실 확인 시 이 섹션에 추가
+- 미해결 이슈가 해결되면 이 섹션에서 제거하고 "완료" 세션 컨텍스트에 기록
+- **스냅샷 분석 중 이 섹션 항목을 만나면 즉시 참조 — "이미 확인된 사실"을 새로 분석하지 않는다**
+
+---
+
+## 9. 삽질 패턴 목록 — 같은 실수를 반복하지 않기 위한 안티패턴
+
+> **이 섹션의 목적**: 실제 디버깅 세션에서 반복된 오진 패턴을 기록. 분석 중 자기 자신이 이 패턴에 빠져있는지 자가 점검.
+
+### 패턴 A: 상상 먼저, 사실 나중
+- **증상**: 코드를 읽기 전에 결론을 내림. "stream_map.clear()가 범인이다" → 호출처 없음(dead code)
+- **교정**: 가설을 세우기 전에 데이터(스냅샷/AGG LOG/서버 로그)를 먼저 확인
+
+### 패턴 B: 동작하는 것과 비교하지 않음 (A/B 디버깅 미수행)
+- **증상**: "video가 안 된다" → 서버 로그만 뒤짐. audio는 되는데 비교 안 함
+- **교정**: "비슷한 Y는 되는가?" → "X와 Y의 코드 차이점이 원인". audio↔video, Conference↔PTT 비교
+
+### 패턴 C: 실행 파일을 확인하지 않음
+- **증상**: `demo/client/ptt-ui.js` 수정 → 로그 안 찍힘 → 실행되는 건 `demo/components/ptt-panel.js`
+- **교정**: 수정 후 로그가 안 찍히면 **첫 번째 의심은 "실행되는 파일이 맞는가"**
+
+### 패턴 D: 환경 탓
+- **증상**: "노트북 1대 3크롬이라서 저해상도" → 같은 환경에서 Conference는 정상
+- **교정**: **동일 환경에서 Conference도 문제되는 데이터를 먼저 제시**. 못 하면 PTT 코드 문제
+
+### 패턴 E: 패치(교정)에 집착, 제거를 안 함
+- **증상**: 잘못된 값을 넣는 코드 → "나중에 교정하자" → merge_intent 교정 코드 추가
+- **교정**: **"이 코드가 있어야 할 이유"를 먼저 묻는다.** 이유가 없으면 **삭제**가 답
+
+### 패턴 F: 설계 원칙에서 역추적 안 함
+- **증상**: "non-sim audio = track_ops 책임" 원칙을 알면서, ingress PT=111 블록을 문제로 못 짚음
+- **교정**: 원칙을 알면 위반 코드를 발견했을 때 **"이건 원칙 위반 → 삭제 대상"**이라고 즉시 판단
+
+### 패턴 G: 부수 작업과 근본 추적 혼합
+- **증상**: agg-log 추가(30분) → ssrc serde 수정(15분) → key 충돌(15분) → ... 근본 원인은 2줄 삭제(5분)
+- **교정**: 관측 도구 개선(가치 있음)과 근본 원인 추적을 **시간적으로 분리**. "이건 나중에"
+
+### 패턴 H: 가이드/컨텍스트를 안 읽고 분석 시작
+- **증상**: METRICS_GUIDE에 "PTT sr_relay=0은 정상"이라고 적혀 있는데 FAIL로 보고. 세션 컨텍스트에 "pt=0 의도적"이라고 적혀 있는데 버그로 보고
+- **교정**: **섹션 0의 순서를 지킨다.** 가이드 → 세션 컨텍스트 → 분석
+
+### 자가 점검 질문 (분석 중 수시로)
+1. 지금 내가 코드를 읽기 전에 결론을 내리고 있진 않은가? (A)
+2. 동작하는 비슷한 경로와 비교했는가? (B)
+3. 이 현상이 PTT 정상 목록에 있진 않은가? (D, H)
+4. "교정하자"가 아니라 "왜 존재하는가"를 먼저 물었는가? (E, F)
+5. 지금 하는 작업이 근본 추적인가, 부수 작업인가? (G)
 
 ---
 
 *author: kodeholic (powered by Claude)*
-*최종 갱신: 2026-04-03*
+*최종 갱신: 2026-04-05 v2 (섹션 0 분석 전 준비, 섹션 8 알려진 오탐/확인된 사실, 섹션 9 삽질 패턴 목록, video_radio PTT 정상 패턴 추가, 체크리스트 항목 0 추가)*

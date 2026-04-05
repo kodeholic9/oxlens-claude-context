@@ -10,7 +10,7 @@
 ## 1. 배경
 
 데모 시나리오 설계 (20260403_demo_scenario_design_review.md)에서 확정된 트랙 단위 duplex + simulcast 속성.
-`room.simulcast_enabled`는 방 전체에 일괄 적용되어 혼합 시나리오(full-duplex camera sim=on + half-duplex bodycam sim=off)를 지원 불가.
+`room.simulcast_enabled`는 방 전체에 일괄 적용되어 혼합 시나리오(full-duplex camera sim=on + half-duplex video_radio sim=off)를 지원 불가.
 
 ## 2. 핵심 변경
 

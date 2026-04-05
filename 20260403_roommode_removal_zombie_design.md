@@ -110,7 +110,7 @@ session:recovered user=U170 room=R001 suspect_duration_ms=8420
 
 ## 3. 화면공유 / source 하드코딩 검토
 
-핫패스에서 source 문자열("screen", "bodycam" 등) 참조 **없음** — 전부 `track.duplex`/`track.simulcast` 속성만 봄.
+핫패스에서 source 문자열("screen" 등) 참조 **없음** — 전부 `track.duplex`/`track.simulcast` 속성만 봄.
 
 **1곳만 남아있음**: track_ops.rs intent 수신 시 sim 파생:
 ```rust
@@ -118,7 +118,7 @@ let sim = if duplex == DuplexMode::Half || src == "screen" { false } else { true
 ```
 → 프리셋 작업 시 `TrackInfo.simulcast: Option<bool>` 추가로 제거 예정
 
-bodycam/cctv 등 새 source 추가 시 핫패스 변경 불필요 확인 완료.
+새 source 추가 시 핫패스 변경 불필요 확인 완료.
 
 ---
 

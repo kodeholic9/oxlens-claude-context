@@ -38,7 +38,7 @@
 ### 왜 방 단위가 아니라 트랙 단위인가
 - **이미 그렇게 동작**: screen=non-sim, camera=sim (하드코딩을 속성으로 올리는 것)
 - **duplex와 같은 레이어**: 둘 다 "이 트랙을 어떻게 송출할 것인가"의 속성
-- **방 단위의 모순**: bodycam(half) + presenter(full) 공존 시, 방 단위 sim on/off가 답 없음
+- **방 단위의 모순**: video_radio(half) + presenter(full) 공존 시, 방 단위 sim on/off가 답 없음
 
 ### 파생 규칙 (독립 속성이 아님)
 ```
@@ -88,8 +88,8 @@ track = duplex(full/half) + simulcast(on/off) + priority(0~N)
 |--------|-------|-------|--------|
 | talker | full | full, sim=on | - |
 | viewer | off | off | - |
-| radio | half | off | - |
-| bodycam | half | half, sim=off | - |
+| voice_radio | half | off | - |
+| video_radio | half | half, sim=off | - |
 | presenter | full | full, sim=on | full, sim=off |
 | caster | full | off | full, sim=off |
 | monitor | off | full, sim=off | - |
@@ -102,13 +102,13 @@ track = duplex(full/half) + simulcast(on/off) + priority(0~N)
 | Conference | 화상회의 | talker × N | 업계 동등 |
 | Conference | 발표+토론 | presenter × 1 + talker × N | 업계 동등 |
 | Conference | 웨비나 | presenter × 1~2 + viewer × N | 업계 동등 |
-| PTT | 음성 무전 | radio × N | MCPTT 동등 |
-| PTT | 영상 무전 | bodycam × N | MCPTT 동등 |
-| **혼합** | **디스패치** | dispatch × 1~2 + bodycam × N | **업계 전례 없음** |
-| **혼합** | **CCTV+지휘** | dispatch × 1 + monitor × N + radio × M | **업계 전례 없음** |
-| **혼합** | **교육/훈련** | presenter × 1 + talker × 1~2 + radio × N | **업계 전례 없음** |
-| **혼합** | **원격지원** | caster × 1 + bodycam × 1 | **업계 전례 없음** |
-| **혼합** | **사회자+패널** | talker × 1 + radio × N | **업계 전례 없음** |
+| PTT | 음성무전 | voice_radio × N | MCPTT 동등 |
+| PTT | 영상무전 | video_radio × N | MCPTT 동등 |
+| **혼합** | **디스패치** | dispatch × 1~2 + video_radio × N | **업계 전례 없음** |
+| **혼합** | **CCTV+지휘** | dispatch × 1 + monitor × N + voice_radio × M | **업계 전례 없음** |
+| **혼합** | **교육/훈련** | presenter × 1 + talker × 1~2 + voice_radio × N | **업계 전례 없음** |
+| **혼합** | **원격지원** | caster × 1 + video_radio × 1 | **업계 전례 없음** |
+| **혼합** | **사회자+패널** | talker × 1 + voice_radio × N | **업계 전례 없음** |
 
 혼합 6개가 "방 분리 없이 트랙 속성만으로" 가능하다는 것이 6월 데모 핵심 메시지.
 
@@ -118,8 +118,8 @@ track = duplex(full/half) + simulcast(on/off) + priority(0~N)
 |--------|-------------|---------|
 | conference | 화상회의, 발표+토론 | Main+Thumb (기존) |
 | webinar | 웨비나 | Main + 청중 목록 |
-| radio | 음성 무전 | 참가자 리스트 + PTT |
-| dispatch | 디스패치, CCTV+지휘, 영상 무전 | 그리드 + PTT |
+| voice_radio | 음성무전 | 참가자 리스트 + PTT |
+| dispatch | 디스패치, CCTV+지휘, 영상무전 | 그리드 + PTT |
 | classroom | 교육, 사회자+패널 | Main(강사) + 학생 목록 |
 | remote-support | 원격지원 | 1:1 split |
 
@@ -142,7 +142,7 @@ client.publishTrack({
 ```javascript
 // 프리셋 JSON 정의 (앱 레이어)
 const PRESETS = {
-  bodycam: {
+  video_radio: {
     audio: { duplex: 'half', priority: 0 },
     video: { duplex: 'half', simulcast: false, priority: 0 },
     screen: null
