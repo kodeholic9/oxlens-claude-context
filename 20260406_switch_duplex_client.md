@@ -45,14 +45,22 @@ SDK 코어 3파일 수정. media-session.js 변경 불필요.
 
 ## 미구현 (다음 세션)
 
-- 데모앱 UI: voice_radio/dispatch에 "양방향 전환" 버튼
-- Phase 2: full → half 역전환 (PttRewriter 재초기화 필요)
+- Phase 2: full → half 역전환 (서버 PttRewriter 재초기화 선행 필요) → btn-f-half 활성화
+- 어드민 타임라인 ptt_granted/released uid 누락 버그 (GlobalMetrics 카운터에 user_id 없음 → floor_ops.rs에서 어드민 WS per-event 알림 추가 필요)
+- PTT idle 상태 audio_concealment 이벤트 노이즈 필터링
+
+## 버그 수정
+
+- **스피커 on/off 미동작**: SDK 동적 audio element(`audio[data-uid]`) mute 누락 — 4개 시나리오 일괄 수정
+  - dispatch(현장요원), voice_radio, video_radio, support(전문가+기사)
+  - conference, dispatch(관제사)는 이미 정상
 
 ## 기각 후보
-- (없음 — 전 세션 설계 그대로 구현)
+- (없음)
 
 ## 지침 후보
 - **duplex_changed는 media-session 경유 없이 client.js 직접 처리**: subscribe re-nego가 불필요한 순수 알림은 media-session을 거치지 않는다
+- **스피커 mute는 반드시 `audio[data-uid]` 포함**: SDK 동적 audio element를 놓치면 스피커 버튼이 동작하지 않음
 
 ## 커밋 메시지
 
@@ -65,6 +73,17 @@ feat(sdk): add SWITCH_DUPLEX op=52 client — runtime half→full duplex transit
 - client.js: _onSwitchDuplexOk() — audioDuplex change + PTT detach + audio enable
 - client.js: _onTracksUpdate duplex_changed action — subscribeTracks update + emit
 - No media-session.js changes needed — existing TRACKS_UPDATE(add) handles re-nego
+
+feat(dispatch): duplex switch UI for field role
+
+- PTT 영역 좌상단 "양방향" 플로팅 버튼 (stopPropagation 버블링 차단)
+- full-duplex 뷰: "단방향" disabled 버튼 (Phase 2 대비)
+- PTT→양방향 UI 전환 (touch area → 통화 뷰, 긴급발언 → 마이크 토글)
+
+fix(speaker): add audio[data-uid] muting to all scenarios
+
+- dispatch/field, voice_radio, video_radio, support/expert+field
+- SDK dynamic audio elements were not muted by speaker toggle
 ```
 
 ---
