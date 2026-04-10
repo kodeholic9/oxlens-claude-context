@@ -387,6 +387,30 @@ Subscriber별 per-publisher video gate 상태.
 
 ---
 
+### 2.18 HUB GATEWAY (신규 v1.1)
+
+Hub(oxhubd) WS 게이트웨이 운영 지표.
+
+```
+[hub:ws] connected=3 admin=1 connect=3 disconnect=0 dup_kick=0 hb_timeout=0
+[hub:flow] ack_timeout=0 pending_ovf=0 rate_limit=0 msg_large=0 tx_full=0
+[hub:grpc] connected=yes handle=45 error=0 reconnect=0/0 latency=avg=0.12ms max=0.45ms count=45
+[hub:auth] verify_fail=0 token_expired=0 token_refresh=0
+[hub:msg] recv=150 broadcast=30 unicast=12 parse_err=0
+[hub:stream] event_recv=200 admin_recv=50 reconnect=0
+```
+
+- `[hub:ws]`: WS 연결 상태. connected/admin_connected는 gauge(현재값), 나머지는 3초 카운터
+- `[hub:flow]`: 흐름제어. ack_timeout/pending_ovf > 0이면 클라이언트 ACK 처리 지연
+- `[hub:grpc]`: sfud gRPC 연결. connected=no이면 sfud 미접속 — 심각. latency는 gRPC Handle 호출 시간
+- `[hub:auth]`: 인증. verify_fail > 0이면 잘못된 토큰 시도
+- `[hub:msg]`: 메시지 처리량. parse_err > 0이면 잘못된 JSON 수신
+- `[hub:stream]`: sfud 이벤트 스트림. reconnect > 0이면 sfud 연결 끊김 이력
+
+(각 카운터 상세는 섹션 3.6 참조)
+
+---
+
 ## 3. SFU 서버 카운터 전수 사전
 
 ### 3.1 타이밍 (AtomicTimingStat)
@@ -398,6 +422,8 @@ Subscriber별 per-publisher video gate 상태.
 | `lock_wait` | DashMap 락 대기 시간 | avg<0.5ms | avg>2ms (경합 심각) |
 
 ### 3.2 RTCP/미디어 카운터 (3초 윈도우, swap 후 0 리셋)
+
+> **v1.1 JSON 키 변경**: 서버 JSON이 카테고리별 nested 구조로 변경됨 (`pli.sent`, `rtcp.sr_relayed`, `relay.egress_drop` 등). nack만 flat merge 유지 (`nack_received`, `nack_rtx_sent` 등). 스냅샷 텍스트 레이블은 기존과 동일.
 
 | 카운터 | 의미 | 정상 | 위험/비고 |
 |--------|------|------|-----------|
@@ -426,7 +452,6 @@ Subscriber별 per-publisher video gate 상태.
 | `egress_rtcp_relayed` | SFU→subscriber RTCP 릴레이 성공 | >0 | — |
 | `rtx_budget_exceeded` | RTX 전송 예산 초과 드롭 | 0 | >0이면 NACK storm |
 | `tracks_ack_mismatch` | TRACKS_ACK SSRC set 불일치 | 입장 직후 1회 정상 | 지속 발생이면 시그널링 버그 |
-| `tracks_resync_sent` | TRACKS_RESYNC 전송 (mismatch 후속) | mismatch만큼 | — |
 | `pt_normalized` | PT 정규화 (client PT → 서버 표준 PT) | H264+VP8 혼재 시 >0 | — |
 | `nack_suppressed` | NACK storm protection으로 억제 | 0 | >0이면 L1 발동 |
 | `pli_throttled` | PLI throttle (publisher당 3초 1회 제한) | 0 | >0이면 PLI 폭풍 |
@@ -473,6 +498,67 @@ fan_out: avg=3.0 min=2 max=4
 | `io_ready` | I/O 완료 이벤트 | 트래픽에 비례 | — |
 | `blocking_threads` | 블로킹 스레드 수 | 1~2 | >4이면 블로킹 코드 과다 |
 | `W[n] busy` | 개별 worker busy | <95% | >95% skew면 작업 편중 |
+
+### 3.6 Hub Gateway 카운터 (신규 v1.1)
+
+> Hub(oxhubd) WS 게이트웨이 카운터. `type: "hub_metrics"` JSON으로 3초마다 flush.
+
+#### ws (WS 연결)
+
+| 카운터 | 의미 | 정상 | 위험 |
+|--------|------|------|------|
+| `connected` | 현재 WS 클라이언트 수 (gauge) | 참여자 수와 일치 | — |
+| `admin_connected` | 현재 어드민 WS 수 (gauge) | 0~소수 | — |
+| `connect_total` | WS 접속 누적 | — | — |
+| `disconnect_total` | WS 해제 누적 | connect와 비례 | — |
+| `duplicate_kick` | 중복 연결 킥 (last-in-wins) | 0 | >0이면 재접속 포풍 |
+| `heartbeat_timeout` | heartbeat 타임아웃 | 0 | >0이면 클라이언트 무응답 |
+
+#### flow (흐름제어)
+
+| 카운터 | 의미 | 정상 | 위험 |
+|--------|------|------|------|
+| `ack_timeout` | OutboundQueue ACK 타임아웃 | 0 | >0이면 클라이언트 ACK 처리 지연 |
+| `pending_overflow` | pending 큐 초과 | 0 | >0이면 클라이언트 처리 못 따라옴 |
+| `rate_limit_hit` | WS rate limit 발동 | 0 | >0이면 클라이언트 메시지 폭주 |
+| `msg_too_large` | WS 메시지 크기 초과 | 0 | >0이면 비정상 페이로드 |
+| `event_tx_full` | 이벤트 채널 포화 (bounded) | 0 | >0이면 subscriber 이벤트 처리 병목 |
+
+#### grpc (sfud 연결)
+
+| 카운터 | 의미 | 정상 | 위험 |
+|--------|------|------|------|
+| `connected` | sfud gRPC 연결 상태 (gauge) | true | **false면 심각** — 모든 시그널링 실패 |
+| `handle_total` | gRPC Handle 호출 수 | 트래픽에 비례 | — |
+| `handle_error` | gRPC Handle 실패 | 0 | >0이면 sfud 오류 |
+| `reconnect_attempt` | sfud 재접속 시도 | 0 | >0이면 sfud 연결 끊김 이력 |
+| `reconnect_success` | sfud 재접속 성공 | attempt와 일치 | 불일치면 재접속 실패 중 |
+| `latency` | gRPC Handle 레이턴시 (TimingStat) | avg<5ms | avg>10ms이면 sfud 과부하 |
+
+#### auth (인증)
+
+| 카운터 | 의미 | 정상 | 위험 |
+|--------|------|------|------|
+| `verify_fail` | 토큰 검증 실패 | 0 | >0이면 잘못된 토큰 시도 |
+| `token_expired` | 토큰 만료 강제 종료 | 0 | >0이면 클라이언트 갱신 미구현 |
+| `token_refresh` | 토큰 갱신 성공 | — | — |
+
+#### msg (메시지 처리량)
+
+| 카운터 | 의미 | 정상 | 위험 |
+|--------|------|------|------|
+| `received` | WS 메시지 수신 수 | 트래픽에 비례 | — |
+| `broadcast` | 방 브로드캐스트 수 | — | — |
+| `unicast` | 단일 유저 전송 수 | — | — |
+| `parse_error` | JSON 파싱 실패 | 0 | >0이면 클라이언트 버그 |
+
+#### stream (sfud 이벤트 스트림)
+
+| 카운터 | 의미 | 정상 | 위험 |
+|--------|------|------|------|
+| `event_received` | sfud 클라이언트 이벤트 수신 | >0 | 0이면 sfud 마비 |
+| `admin_received` | sfud 어드민 이벤트 수신 | >0 | 0이면 어드민 데이터 미수신 |
+| `reconnect` | sfud 스트림 재접속 | 0 | >0이면 sfud 연결 불안정 |
 
 ---
 
@@ -730,5 +816,5 @@ fan_out: avg=3.0 min=2 max=4
 
 ---
 
-*author: kodeholic (powered by Claude)*
-*최종 갱신: 2026-04-05 v2 (섹션 0 분석 전 준비, 섹션 8 알려진 오탐/확인된 사실, 섹션 9 삽질 패턴 목록, video_radio PTT 정상 패턴 추가, 체크리스트 항목 0 추가)*
+*작성: kodeholic (powered by Claude)*
+*최종 갱신: 2026-04-10 v1.1 (섹션 2.18 Hub Gateway 스냅샷, 섹션 3.6 Hub 카운터 사전, SFU JSON nested 키 매핑 반영, tracks_resync_sent 제거, server_metrics→sfu_metrics)*

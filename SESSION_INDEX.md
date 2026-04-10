@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-04-04
+> 최종 업데이트: 2026-04-09
 
 ---
 
@@ -303,14 +303,106 @@
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
 | 0407 | `20260407_annotation_mediafilter` | 클라이언트+설계 | **annotation-layer.js**(단방향, 2초fade, readOnly). **MediaFilter 1단계 구현**(media-filter.js: Canvas+rVFC+Web Audio, client.js API, GainNode 마이그레이션). **RadioVoiceFilter**(voice_radio 토글). **설계 통합**(cross-room fanout+STALLED+FANOUT_CONTROL 정합성 검증, 기각 보완) |
+| 0407 | `20260407_cross_room_fanout_and_market` | 설계+시장조사 | **Cross-Room Fan-out 설계**(2PC유지, 서버단위PC, FANOUT_CONTROL op=53 deny리스트, transceiver PTT/Conf 논리분리). **STALLED 감지 설계**(SendStats+RR, 오진방지5조건, 복구FSM). **국내경쟁사조사**(아이페이지온/사이버텔브릿지/티아이스퀘어). 웹브라우저PTT=국내유일 |
+| 0407 | `design/20260407_cross_room_fanout_design` | 설계 | Cross-Room Fan-out 설계 토론 기록 |
+| 0407 | `design/20260407_stalled_detection_impl_guide` | 설계 | STALLED 감지 구현 가이드 (서버감지+시그널링+클라이언트복구FSM, 3단계 구현순서) |
+
+## Phase 34: Cross-Room Transceiver 아키텍처 논의 (0408)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0408 | `design/20260408_crossroom_transceiver_architecture` | 설계 | **Cross-Room Transceiver 아키텍처**: WebRTC 캡처→네트워크 파이프라인 학습, Transceiver=m-line=SSRC 등가 확인, 방별 Transceiver 분리로 duplex 전환 간섭 원천 해소, SSRC 재사용 금지 원칙, 네이티브(클라이언트 주도) vs 브라우저(hub fan-out) 플랫폼별 전략, sfud 라우팅 로직 변경 없음 확정, 업계 SFU cascading 조사(현 단계 불필요), 미검증: cloneTrack 인코딩 횟수 |
+| 0408 | `202604/20260408_stalled_detection_impl` | 구현 | **STALLED 감지 1~3단계 전체**: 서버 7파일(감지+agg-log+op=106) + 클라이언트 3파일(Recovery FSM: SYNC→RENEGO→RECONNECT→GIVE_UP), 정상 3인 Conference 오진 없음 확인, 비정상 테스트는 실운영 스냅샷으로 대체 |
+
+## Phase 35: Cargo workspace 전환 + config 설계 (0408)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0408 | `20260408_workspace_config_design` | 서버 | Cargo workspace 전환(common/oxsfud/oxhubd), system.toml+policy.toml config 체계 Phase 0~4 전부 완료. ArcSwap 런타임 교체 인프라. dotenvy/.env 제거. 잔여: config.rs 43개 상수 점진 전환 |
+
+## Phase 36: oxhubd 구현 + hub↔sfud gRPC E2E (0408)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0408 | `20260408_oxhubd_implementation` | 서버 | oxhubd 완성(Axum+REST+WS+JWT+gRPC client+dispatch+event consumer+shadow). oxsfud gRPC 서버(RoomService 실배선). proto v1 codegen. hub→sfud ListRooms E2E 검증 |
+
+## Phase 37: oxhubd 코드 품질 + gRPC 이벤트 인프라 (0408)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0408 | `20260408_oxhubd_quality_event_infra` | 서버 | oxhubd 코드품질(dispatch 5파일 분리, opcode/error_code/role 상수화, HubPolicy, 예외처리, anonymous uuid). sfud EventService 실배선(BroadcastStream+RawWsEvent). broadcast 이중경로 헬퍼. JoinRoom gRPC 진입 준비 완료 |
+
+## Phase 38: ws_tx Option 전환 + gRPC 전면 실배선 (0408)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0408 | `20260408b_ws_tx_option_joinroom_grpc` | 서버 | Participant.ws_tx → Option + send_ws() (17곳). gRPC 21 RPC 전체 실배선(stub 제로). proto 확장(PublishTrackItem 13필드). do_publish_tracks/do_tracks_ack 추출. broadcast+send_ws 이중경로 전체 완성(19곳). UdpTransport event_tx. tasks 5함수 event_tx 배선. AdminEventService telemetry_bus streaming |
+
+## Phase 39: oxhubd 전체 opcode dispatch 완성 (0409)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0409 | `20260409_oxhubd_full_dispatch` | 서버 | hub dispatch 전체 opcode 커버(ROOM_LIST/CREATE/SWITCH_DUPLEX/ANNOTATE 추가). proto SwitchDuplex+Annotate RPC. sfud gRPC 실구현. hub state get/clear_client_room. **disconnect→즉시LeaveRoom 기각**(모바일 reconnect 패턴, sfud zombie=UDP latch 기반 확정) |
+
+## Phase 40: Moderated Floor Control 설계 (0409)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|---------|------|
+| 0409 | `20260409_moderated_floor_design` | 설계 | **Moderated Floor Control 설계**: PTT와 별개 도메인(진행자 기반 발언 제어). Hub 중심(phase/queue/speaker 상태 머신), sfud 변경 제로(기존 FloorRequest/Release 활용). Phase 4종(Announcement→Collecting→Speaking→Transition). op=70/170 단일opcode+action. 큐 이중구조(Hub hand_queue+sfud floor). 복수 진행자(동등권한). sfud 이벤트 병행(tap&enrich, 141/142/143 원본+170 추가). SDK 투명 파이프(상태머신 없음, interface만). Hub=실행기 Client=정책 원칙 |
+| 0409 | `design/20260409_moderated_floor_design` | 설계 | Moderated Floor Control 상세 설계서 |
+
+## Phase 41: oxhubd E2E — WsSession 도입 + 아키텍처 리팩터링 (0409)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0409 | `20260409b_hub_e2e_ws_session` | 서버 | **oxhubd E2E 연결 성공 + WsSession 근본 도입**. WS URL/pid+ok/response_json 연결 문제 해결. WsSession(user_id, room_id, server_pid) — sfud Session 대응, Claims/payload injection 전면 제거. dispatch 시그니처 Claims→WsSession. gRPC keepalive 15s/5s + lazy reconnect(double-check). Event consumer reconnect loop(backoff 2→15초) + sfud 없이 시작. REST helpers 중복 제거. handle_annotate SRP 수정. ADMIN_SNAPSHOT/METRICS/NOT_IN_ROOM 상수. heartbeat timeout 미완(MCP 타임아웃). broadcast_to_room O(N) 미착수 |
+| 0409 | `20260409c_hub_refactor_weak_points` | 서버 | **oxhubd 9건 완료**: 약한고리 4(①broadcast O(K) ②disconnect→LeaveRoom ③ArcSwap ④admin JWT) + 설계서 5(⑤Last-in-wins ⑥크기/rate ⑦Event Intent ⑧Reconnect ⑨Token Renewal). 우선순위(4ch) 구현후 원복(흐름제어 없이 무의미). 흐름제어=MQTT v5 Receive Maximum 모델 확정, 설계 미완(큐 구조+락+타이머) |
+
+## Phase 42: WS 흐름제어 — OutboundQueue + 채널 분리 (0409)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0409 | `20260409d_ws_flow_control_impl` | common+oxhubd | **WS 흐름제어 전체 구현**: SCF FMQueue→OutboundQueue(우선순위4단계+슬라이딩윈도우8), event_tx/reply_tx 채널 분리, EVENT_ACK(op=2), pid per-connection, P3 fire-and-forget. 11파일 수정, 빌드 성공 |
+| 0409 | `design/20260409_ws_flow_control` | 설계 | WS 흐름제어 상세 설계서 (SCF 참조, Option B 확정, OutboundQueue 구조, ACK 프로토콜, 구현순서) |
+| 0410 | `20260410_ws_flow_control_dispatch_fix` | 전체 | **hub dispatch 전수 점검 6건 수정**: EVENT_ACK pid, TRACKS_ACK ssrcs, SUBSCRIBE_LAYER rid, MUTE_UPDATE kind, FLOOR_REQUEST 응답 포맷, ROOM_SYNC response_json. proto SyncRoomResponse response_json 추가. admin URL/JWT. STALLED PTT 오탐 발견(미해결) |
+
+## Phase 43: STALLED 오탐 근본 수정 + HealthMonitor 단순화 (0410)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0410 | `20260410b_stalled_false_positive_fix` | oxsfud+oxlens-home | **STALLED PTT 오탐 근본 수정**: record_stalled_snapshot이 half-duplex 트랙 원본 SSRC 등록 → PTT는 가상 SSRC로만 relay → 원본 send_stats 영원히 0 → 오탐. 원본 SSRC 등록 skip으로 해결. **HealthMonitor 단순화**: Phase 2(sendTracksAck 무의미)/Phase 3(leave→rejoin=UI 이탈)/_checkMediaFlow(전체합산 부정확) 전부 제거. STALLED→ROOM_SYNC 1회+토스트만. 4파일 수정 |
+
+## Phase 44: gRPC v2 — JSON Passthrough (0410)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0410 | `20260410c_grpc_v2_passthrough` | proto+전체 | **gRPC 7서비스→1서비스 JSON passthrough 전면 개편**. proto 440→36줄. hub 투명 프록시화(dispatch 5파일→1파일). 클라이언트 room_id 필수화(7곳). WsPacket::wrap ok 덮어쓰기 버그 수정. SubscribeAdmin에 3초 주기 room snapshot 병합. ~2000줄+ 삭제 |
+
+## Phase 45: Hub Telemetry (HubMetrics) (0410)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0410 | `design/20260410_hub_metrics` | 설계 | Hub 텔레메트리 설계서 (6카테고리, 카운터 22+게이지 3+TimingStat 1) |
+| 0410 | `20260410d_hub_metrics` | oxhubd+oxlens-home | **Hub 텔레메트리 설계+구현+대시보드**: HubMetrics(AtomicU64 lock-free), 8파일 22곳 카운터 삽입, server_metrics 감지→hub_metrics flush 병합. 어드민 대시보드 Hub Gateway 섹션(WS/흐름제어/gRPC/처리량). ufrag 4→8자리. hub 파일 로깅 추가 |
+
+---
+
+## Phase 46: Standalone 모드 제거 리팩토링 (0410)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0410 | `20260410e_standalone_removal` | oxsfud | **Standalone WS 완전 제거**: Session→DispatchContext, ws_tx/send_ws 삭제, broadcast 단일화(emit_to_hub만), WS route 삭제, IDENTIFY/ROOM_LIST/ROOM_CREATE 삭제, admin WS handler 삭제, cleanup 함수 삭제. 13개 파일 수정 |
+| 0410 | `20260410f_packet_unify` | common+oxsfud+oxhubd | **Packet/WsPacket common 통합** + **is_video_pt/is_audio_pt 삭제** + **A5 .env 파서 삭제**(dead code, 이미 policy.toml 이관 완료) + **common::telemetry Phase 1**(Counter/Gauge/TimingStat + Registry + metrics_group! 매크로). 설계서 `design/20260410_telemetry_framework.md` |
+| 0410 | `20260410g_globalmetrics_to_sfumetrics` | oxsfud | **Telemetry Phase 4 Step 2: GlobalMetrics → SfuMetrics 전환 완료**. 60+곳 `fetch_add→.inc()` 전환. Arc<GlobalMetrics> 전 경로 제거(UdpTransport/AppState/tasks/egress). GlobalMetrics struct 삭제. flush() JSON 카테고리 nested 구조. 11파일 수정, ~200줄 삭제 |
+| 0410 | `20260410h_hub_metrics_common_admin_keymap` | oxhubd+oxsfud+oxlens-home | **Telemetry Phase 5: HubMetrics 공통 전환 + 네이밍 통일**. HubMetrics→metrics_group! 6카테고리. `server_metrics`→`sfu_metrics` type 변경. 어드민 대시보드 flat key→nested category key 매핑 수정(5파일). 영상무전 스냅샷 검증 완료 |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 116개
-- **기간**: 2026-03-09 ~ 2026-04-07 (30일)
-- **서버 버전**: v0.6.16-dev (SWITCH_DUPLEX op=52)
+- **총 세션 파일**: 139개
+- **기간**: 2026-03-09 ~ 2026-04-10 (33일)
+- **서버 버전**: v0.6.16-dev (Telemetry Phase 5 완료, sfu_metrics 네이밍 통일)
 
 ---
 
