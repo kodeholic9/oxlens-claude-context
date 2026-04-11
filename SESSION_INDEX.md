@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-04-09
+> 최종 업데이트: 2026-04-11
 
 ---
 
@@ -395,14 +395,48 @@
 | 0410 | `20260410f_packet_unify` | common+oxsfud+oxhubd | **Packet/WsPacket common 통합** + **is_video_pt/is_audio_pt 삭제** + **A5 .env 파서 삭제**(dead code, 이미 policy.toml 이관 완료) + **common::telemetry Phase 1**(Counter/Gauge/TimingStat + Registry + metrics_group! 매크로). 설계서 `design/20260410_telemetry_framework.md` |
 | 0410 | `20260410g_globalmetrics_to_sfumetrics` | oxsfud | **Telemetry Phase 4 Step 2: GlobalMetrics → SfuMetrics 전환 완료**. 60+곳 `fetch_add→.inc()` 전환. Arc<GlobalMetrics> 전 경로 제거(UdpTransport/AppState/tasks/egress). GlobalMetrics struct 삭제. flush() JSON 카테고리 nested 구조. 11파일 수정, ~200줄 삭제 |
 | 0410 | `20260410h_hub_metrics_common_admin_keymap` | oxhubd+oxsfud+oxlens-home | **Telemetry Phase 5: HubMetrics 공통 전환 + 네이밍 통일**. HubMetrics→metrics_group! 6카테고리. `server_metrics`→`sfu_metrics` type 변경. 어드민 대시보드 flat key→nested category key 매핑 수정(5파일). 영상무전 스냅샷 검증 완료 |
+| 0410 | `20260410i_symmetric_flow_control` | common+oxhubd+oxsfud+oxlens-home | **양방향 대칭 흐름제어**: EVENT_ACK(op=2) 삭제, fire-and-forget 제거, 모든 메시지 ok 필드 기반 ACK 통일. 클라이언트 OutboundQueue 추가(슬라이딩 윈도우+우선순위3단계). TELEMETRY ok 응답 추가. sendDirect 바이패스. 7파일 수정 |
+
+---
+
+## Phase 47: Moderated Floor Control (0410)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0410 | `20260410j_moderated_floor` | common+oxsfud+oxhubd+oxlens-home | **Moderated Floor Control v2**: Hub moderate/ 3파일 + SDK moderate.js 신규 + media-session publishAudioTrack/removeAudioTrack. grant(kinds)/revoke → SDK 자동 audio/video=half 생성/제거, 실제 발언은 기존 PTT 그대로, sfud 연동 제로. v1→v2 재설계(자격 관리 모델) |
+| 0410 | `20260410k_moderate_role_video` | oxsfud+oxlens-home | **role: u8 역할 체계**: sfud Participant.role 저장/릴레이(ROOM_JOIN/SYNC/EVENT), 프리셋 moderator(role:1)/audience(role:10), 참가자 목록 역할 배지+Grant 필터링. **영상무전 시도**: grant(audio+video), 레이아웃 추가했으나 floor 이벤트 제어 혼란. `_onAuthorized` duplex 순서 버그 발견+수정. **코드 정리 필요** |
+| 0410 | `20260410l_track_api_refactor_moderate_layout` | oxlens-home | **Track API 리팩토링**: `_sendPublishIntent` full-snapshot → `_sendFullIntent`+`_publishTracks`+`_unpublishTracks` incremental 분리. `sdk.addAudioTrack()`/`removeAudioTrack()` 공개 API 추가. moderate.js 내부 접근 6곳→0. `joinRoom({hasAudio:false})` subscribe-only. **Moderate 레이아웃 v2**: 캐러셀 기반 영상, 진행자 카메라/화면공유, 청중 PTT 토글, Grant full/half 선택. 서버 변경 제로 |
+
+---
+
+## Phase 47: Moderated Floor Control (0411)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0411 | `20260411a_moderate_ux_carousel_duplex` | oxhubd+oxlens-home | **Moderate UX 대규모 개선**: 캐러셀 IntersectionObserver+swipe pause+scroll-padding. **Grant duplex 전달** session→handler→moderate→app 전경로. **Subscribe-only SDP 버그** lazy pubPc. **`__ptt__` 제거** isPtt 플래그. **ontrack 타이밍** _pendingTracks 큐. **슬라이드 정리** speakers+tracks:update. **floor 이벤트** 진행자 idle 복귀. **goSlide** scrollIntoView→scrollTo 변경. **speakers 정리** local/ptt 슬라이드 보호. 7파일 |
+| 0411 | `20260411b_track_mount_design` | SDK 설계 | **Track Mount/Unmount 설계 방향 확정**: SDK가 video element 소유, app은 mount()로 element 받아서 DOM에 넣고 빼기만. Conference/PTT/Moderate 전 시나리오 동일 패턴. PTT slide hidden/display 버그 원인 분석 (snap scroll + indicator 불일치). LiveKit track.attach() 패턴 조사. SDK/app 경계 재정립 논의 |
+
+---
+
+## Phase 48: SDK API 설계 — Endpoint/Pipe 모델 (0411)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0411 | `20260411c_sdk_api_design` | SDK 설계 | **SDK API 설계 v1**: LiveKit/Sendbird 분석→Endpoint/Pipe/Push/Pull 용어 확정. Room/Endpoint/Pipe 3-tier 모델. 나=ep 행위, 남=pipe 조작. pushAudioPipe/pushVideoPipe 분리. mount/unmount 패턴(자원 소유). pipe:showReady/hideReady(판단=SDK, 실행=App). room.config() runtime 설정(app>server>기본값). 총 74개 API 표면. 설계서 `design/20260411_sdk_api_design.md` |
+| 0411 | `20260411_sdk_entity_phase1` | SDK 구현 | **SDK 엔티티 Phase 1**: Room/Endpoint/Pipe 클래스 + mount/unmount(LiveKit 내부구조 참조) + freeze masking Pipe 이관. `_allPipes` trackId 기반 단일 Map. `join:data`+`tracks:update` 순서 변경(SDP nego 전 발행). conference/voice_radio/video_radio 데모 전환. **껍데기만 씌웠고 내부 의존관계 정리 미완료** |
+| 0411 | `20260411_sdk_entity_phase2` | SDK 구현+설계 | **SDK 엔티티 Phase 2**: Pipe 생명주기 Endpoint 단일 책임(v1.2 코딩 완료). audio auto-mount(client.js _remoteAudios 제거). 버그 3건(FLOOR_TAKEN d.speaker, video:suspended source, pipe:duplex 타입). OxLensClient→Engine 리네이밍. **v1.3 설계**: desired(Pipe)/applied(MediaSession) state 분리, callback provider, 디버깅 장치 5종. **구조적 한계: Room은 아직 engine 래퍼. engine 책임 점진적 Room 이관 필요** |
+| 0411 | `20260411_sdk_entity_phase2_v13` | SDK 구현 | **v1.3 완료 + Room 이관**: applied state 캐슐화(28곳). Mute Phase 1(Pipe.duplex 분기). Reconnect Pipe 기반. Filter/PTT/device API 확장. 디버깅 3종. client.js shim. **데모 새로 만들 예정** |
+| 0411 | `20260411_core_v2_refactor` | SDK 리팩터 | **Core SDK v2 처음부터 다시 만들기**: 설계 3회 검토→rev.3 확정. **Engine→Room→Endpoint→Pipe** 4계층. PC=Engine 소유(cross-room 대비). PttController 삭제→Floor=Room+Power=Engine. media-session.js 해체→SdpNegotiator(30KB)+Pipe. 공개 API 100% 호환(media 프록시). Step 1~7 구현 완료. 6파일 신규+2파일 수정. E2E 검증 미완료. 설계서 `design/20260411_core_v2_architecture.md` |
+
+| 0411 | `20260411_core_v2_e2e_freeze_masking` | 데모+SDK | **Core v2 E2E 검증 + PTT Video Freeze Masking 근본 수정**: conference/voice_radio/video_radio 3시나리오 Engine 직접 사용 전환. PTT video 정지화면 문제 — display:none/visibility/rVFC 5차 시도 후 **left:-9999px + overflow:hidden + rVFC 이중 조건** 확정. 숨김=시그널링(floor:state) 즉각, 표시=listening AND rVFC. track.onmute는 보조. PowerManager _userVideoOff 연동 |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 139개
-- **기간**: 2026-03-09 ~ 2026-04-10 (33일)
-- **서버 버전**: v0.6.16-dev (Telemetry Phase 5 완료, sfu_metrics 네이밍 통일)
+- **총 세션 파일**: 151개
+- **기간**: 2026-03-09 ~ 2026-04-11 (34일)
+- **서버 버전**: v0.6.16-dev (Core SDK v2 E2E 검증 완료, freeze masking 확정)
 
 ---
 
