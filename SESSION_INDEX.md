@@ -429,14 +429,28 @@
 | 0411 | `20260411_core_v2_refactor` | SDK 리팩터 | **Core SDK v2 처음부터 다시 만들기**: 설계 3회 검토→rev.3 확정. **Engine→Room→Endpoint→Pipe** 4계층. PC=Engine 소유(cross-room 대비). PttController 삭제→Floor=Room+Power=Engine. media-session.js 해체→SdpNegotiator(30KB)+Pipe. 공개 API 100% 호환(media 프록시). Step 1~7 구현 완료. 6파일 신규+2파일 수정. E2E 검증 미완료. 설계서 `design/20260411_core_v2_architecture.md` |
 
 | 0411 | `20260411_core_v2_e2e_freeze_masking` | 데모+SDK | **Core v2 E2E 검증 + PTT Video Freeze Masking 근본 수정**: conference/voice_radio/video_radio 3시나리오 Engine 직접 사용 전환. PTT video 정지화면 문제 — display:none/visibility/rVFC 5차 시도 후 **left:-9999px + overflow:hidden + rVFC 이중 조건** 확정. 숨김=시그널링(floor:state) 즉각, 표시=listening AND rVFC. track.onmute는 보조. PowerManager _userVideoOff 연동 |
+| 0411 | `20260411_core_v2_refactor_room_endpoint` | core SDK+데모 | **Engine 리팩토링 4단계(1315→863줄 -34%)**. Step1: Room.applyTracksUpdate/applyDuplexSwitch/calcSyncDiff/resolveOnTrack(stale recycle 버그 수정). Step2: Room.hydrate. Step3: Endpoint에 engine 참조 주입(LiveKit 패턴)+publishAudio/Video/mute 이관. Step4: Mute→Endpoint. **Pipe.showVideo/hideVideo** freeze masking 캡슐화(voice_radio/video_radio 40→2줄). **Dispatch v2 전환**(OxLens.createRoom→Engine). **SWITCH_DUPLEX 수정2건**: ensureHot선행+발언중차단. **SDP m-line 순서 버그** mid 정렬로 해결 확정. 미해결: MUTE_UPDATE track_id 전환, showVideo 안전성 재검토 |
+| 0411 | `20260411_dispatch_duplex_bugs` | core SDK+데모 | **Dispatch duplex 전환 버그 3건**: ①PttPanel up mouseleave 스퓨리어스→floor 상태 가드. ②btn-f-duplex mouseup/touchend stopPropagation. ③**★ensureHot→applyDuplexSwitch 순서 버그**(Pipe.duplex 'full' 변경 후 PowerManager._audioSender() null→audio 미복원→pkts_delta=0). 스냅샷 sender:unknown+pkts_delta=0으로 진단. **PWA manifest/apple-mobile-web-app 제거**(5파일). 8파일 |
+| 0412 | `20260412_moderate_v2_dispatch_bugs` | core SDK+데모 | **Moderate v2 전환**: OxLensClient→Engine, pipe.mount(), 인디케이터 삭제. **★room:joined emit 순서 변경**(슬라이드 여전히 사라짐(Hub unauthorized 정책), full duplex grant 패널 미생성. 12파일 |
+| 0412 | `20260412b_moderate_slide_lifecycle` | core SDK+데모 | **Moderate 슬라이드 생명주기 전면 재설계**: authorized/unauthorized 기반(트랙 기반 아님). diff 기반 슬라이드 생성/제거, 아바타↔비디오 전환, glow 효과. **★_publishCamera resume에서 항상 publishTracks 재전송**. **★unauthorized에서 unpublishTracks 추가**. **★subscribe mid 설계**: m-line 누적 근본원인=클라이언트 mid 자체할당. mediasoup/LiveKit 조사→서버 주도 mid 할당 설계서 작성(`design/20260412_subscribe_mid_design.md`). 3파일+설계서 |
+| 0412 | `20260412c_subscribe_mid_impl` | 서버+SDK | **Subscribe MID 서버 주도 할당 구현**: per-subscriber MidPool(kind별 분리)+WsBroadcast per_user_payloads 인프라. TRACKS_UPDATE add/remove 전부 per-user 전환(track_ops/ingress/room_ops/tasks). 클라이언트 assignMids 서버 passthrough+mid 기반 pipe 재활용. **5개 시나리오 E2E 통과**(Conference 7회+반복/Video Radio/Voice Radio/Dispatch/Moderate). 미해결: Moderate PTT video relay(별도 이슈). 서버10파일+클라이언트2파일 |
+| 0412 | `20260412d_moderate_reauthorize_black_screen` | SDK+데모 | **Moderate 2차 authorize PTT video 검은 화면**: 서버 build_remove_tracks track_id 변환, 클라이언트 pipe.unmount() 추가, mount() 레거시 freeze masking 삭제(3건 완료). **★미해결: 2차 authorize 검은 화면** — Chrome transceiver inactive→active 재활용 시 렌더 파이프라인 미연결. srcObject 재할당/play()/업계 표준 attach-detach 전부 실패. Twilio#931 동일 증상. 다음: e.streams[0] 패턴/element 재생성/media-internals 분석 |
+| 0412 | `20260412e_floorfsm_always_slide_nav_rules` | SDK+데모 | **FloorFsm 항상 생성 + Moderate 슬라이드 네비게이션 규칙화**: FloorFsm Room생성시 항상 생성(PowerManager 분리). raw→공개 이벤트 전환. PTT 버튼 floor:state 동기화. 청중 발화시 로컬 카메라(half/full). **슬라이드 네비게이션 2규칙**: 규칙1(authorization기반 goToNearestAuthorized) + 규칙2(active:speakers 2초 debounce). 4파일 |
+| 0413 | `20260413_moderate_ux_active_speakers` | 데모 UX | **Moderate UX 개선 + active:speakers 연동**: speakerSlideId/slideLabel 헬퍼, speaking-glow(::after z-index:20), _currentFloorSpeaker(PTT↔active:speakers 충돌 방지), debounce 동일화자 타이머유지. 슬라이드 라벨(진행자/청중/내카메라). 고정 aud-slide-mod→동적 슬라이드(다중 진행자). **청중 2단 구조**(상단:진행자 5, 하단:청중 5). audTarget() 라우팅. 빈 상태 안내. w-[55%] h-[85%]. 참가자 영역 버튼 제거. **★미해결: 2차 authorize 검은 화면(half+full 동일)**. 3파일 |
+
+---
+
+| 0413 | `20260413_moderate_reauthorize_root_cause` | SDK+분석 | **★★★ Moderate 2차 authorize 검은 화면 근본 원인 확정**: Chrome transceiver inactive→active 재사용 + 동일 SSRC/msid = 렌더 파이프라인 미재연결. 범인: moderate.js _onUnauthorized에서 unpublishTracks 호출 (mute 패턴으로 pub transceiver 살려놓고 서버에는 트랙 제거 알림 → subscriber m-line inactive 경유). clone()/srcObject 재할당 전부 실패 확인. 정공법: unpublishTracks 제거 (카메라 토글과 동일 패턴). 부수 발견: sendTracksAck premature SSRC (Pipe 참조 mutation) |
+| 0413b | `20260413b_moderate_reauthorize_fix` | 서버+SDK | **★★★ Moderate re-grant 검은 화면 해결 (full+half)**: full=pub transceiver 퇴역(새 SSRC), half=서버 ptt-video remove broadcast 생략(subscriber m-line 유지). 핵심 통찰: "unpublish가 나가기처럼 동작" — half-duplex virtual track은 방 레벨 자원, 개별 unpublish가 subscriber m-line 바꾸면 안 됨. 서버 track_ops.rs 3줄 수정 > 클라이언트 꼼수. moderate/app.js 로컬 카메라 full 조건 제거. 미해결: half 2차 PTT 시 내 카메라 프리뷰 미표시 |
+| 0413c | `20260413c_moderate_ux_rest_tracksack` | 전체 | **Moderate UX 완성**: pub 통일(transceiver 퇴역 full/half 동일), 내 카메라 영상무전 패턴(_localCamEl+floor:state), REST authorized API(`GET /:room_id/moderate/authorized`), TRACKS_ACK SSRC 데이터 제거(클라이언트 완료/서버 미완). ACTIVE_SPEAKERS 로그 제거. 2차 PTT 내 카메라 미표시 해결 |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 151개
-- **기간**: 2026-03-09 ~ 2026-04-11 (34일)
-- **서버 버전**: v0.6.16-dev (Core SDK v2 E2E 검증 완료, freeze masking 확정)
+- **총 세션 파일**: 162개
+- **기간**: 2026-03-09 ~ 2026-04-13 (36일)
+- **서버 버전**: v0.6.16-dev (Moderate UX 완성, REST authorized API)
 
 ---
 
