@@ -1,8 +1,8 @@
-# 20260413d — TRACKS_ACK 서버 단순화 + 배포 스크립트 개선 + nginx WS 경로 수정
+# 20260413d — TRACKS_ACK 서버 단순화 + 배포 스크립트 개선 + nginx WS 경로 수정 + SDK 문서 Phase 1
 
 ## 요약
 
-서버 do_tracks_ack SSRC 비교/mismatch 경로 전량 제거 (190→83줄). 배포 스크립트 전면 개선 (oxsfud+oxhubd 이중 바이너리 관리). RPi 배포 시 nginx WS 프록시 경로 불일치 발견 및 수정.
+서버 do_tracks_ack SSRC 비교/mismatch 경로 전량 제거 (190→83줄). 배포 스크립트 전면 개선 (oxsfud+oxhubd 이중 바이너리 관리). RPi 배포 시 nginx WS 프록시 경로 불일치 발견 및 수정. SDK 공개 API 문서 Phase 1 작성 (Quick Start + API Reference + Presets).
 
 ---
 
@@ -36,7 +36,14 @@
 ### 5. nginx WS 프록시 경로 수정 (RPi)
 - 문제: hub base_path="/media"로 WS가 `/media/ws`에 마운트 → nginx `/ws` → `localhost:1974/ws` (404)
 - 수정: nginx `proxy_pass http://localhost:1974/media/ws;`
-- oxlens.com 서버 블록만 수정 (jjangnan.xyz는 별도)
+- oxlens.com 서버 블록만 수정
+
+### 6. SDK Documentation Phase 1 (oxlens-home)
+- `docs/index.html` 신규 — 단일 HTML, 데모 사이트와 동일한 다크 테마
+- 내용: Quick Start (Conference + PTT), API Reference (메서드 30개, 이벤트 30종, 프로퍼티 7개), Presets 12개, Concepts (Architecture, Pipe Lifecycle, Freeze Masking)
+- 사이드바 내비게이션 (IntersectionObserver 기반 active 추적)
+- `demo/index.html`에 "SDK Docs" 링크 추가 (상단 네비 + 하단 카드)
+- 원격지원 카드 → `showComingSoon` 토스트로 변경
 
 ---
 
@@ -49,20 +56,24 @@
 | `crates/oxsfud/src/metrics/sfu_metrics.rs` | ack_mismatch 제거 | ✅ |
 | `deploy-oxlens.sh` | 전면 개선 (2 바이너리, 로그 로테이션 등) | ✅ |
 | RPi `/etc/nginx/sites-enabled/oxlens.com` | proxy_pass /media/ws 경로 수정 | ✅ |
+| `docs/index.html` (oxlens-home) | SDK 문서 Phase 1 신규 생성 | ✅ |
+| `demo/index.html` (oxlens-home) | SDK Docs 링크 + 원격지원 준비중 토스트 | ✅ |
 
 ---
 
 ## 교훈
 
-- **bash `if !` 함정**: `if ! func; then`으로 호출하면 함수 내부에서 `set -e`가 비활성화됨. `cargo build | tail` 파이프 실패가 무시되어 빌드 실패인데도 "빌드 완료" 출력. 바이너리 존재 여부로 이중 확인 필요
-- **PID 파일명 마이그레이션**: 구 스크립트 `oxsfu.pid` → 신 스크립트 `oxsfud.pid`. is_running()이 못 찾아서 프로세스 미정지 → `Text file busy`. 일회성이라 수동 처리
-- **nginx proxy_pass 경로**: hub의 WS가 `/media` 하위에 nest되어 실제 경로가 `/media/ws`. 정석은 WS를 루트에 merge하는 것이나, nginx 수정으로 빠르게 해결
-- **로그 이중 생성**: nohup stdout 리다이렉트 + tracing-appender 자체 파일 로깅 = 이중. nohup 쪽은 startup 에러 안전망
+- **bash `if !` 함정**: `if ! func; then`으로 호출하면 함수 내부에서 `set -e`가 비활성화됨. 빌드 실패인데도 계속 진행. 바이너리 존재 여부로 이중 확인 필요
+- **PID 파일명 마이그레이션**: 구 스크립트 `oxsfu.pid` → 신 스크립트 `oxsfud.pid`. is_running()이 못 찾아서 프로세스 미정지 → `Text file busy`
+- **nginx proxy_pass 경로**: hub의 WS가 `/media` 하위에 nest되어 실제 경로가 `/media/ws`. nginx에서 `proxy_pass http://localhost:1974/media/ws`로 수정
+- **SDK 문서는 단일 HTML이 가장 빠름**: VitePress 등 빌드 도구 없이 Tailwind CDN + 정적 HTML로 바로 서빙. 데모 사이트와 동일한 디자인 체계 재사용
 
 ## 기각된 접근법
 
-- **서버 WS 루트 마운트 (`merge` 대신 `nest`)** — 정석이지만 빌드+배포 필요. nginx 수정이 더 빠르고 서버 변경 없음. 향후 정리 시 전환 가능
-- **`{ synced: true }` 응답 제거** — 클라이언트 signaling.js에서 console.log만 찍고 있어 제거 가능했으나, 부장님 판단으로 유지
+- **서버 WS 루트 마운트 (`merge` 대신 `nest`)** — 정석이지만 빌드+배포 필요. nginx 수정이 더 빠르고 서버 변경 없음
+- **`{ synced: true }` 응답 제거** — 클라이언트에서 console.log만 찍고 있어 제거 가능했으나, 부장님 판단으로 유지
+- **SDK 문서 VitePress/Docusaurus** — 빌드 도구 도입 비용 대비 현재 단계에서는 단일 HTML이 적절
+- **SDK 문서 Markdown → HTML 변환** — 빌드 파이프라인 필요. 정적 HTML 직접 작성이 더 빠름
 
 ---
 

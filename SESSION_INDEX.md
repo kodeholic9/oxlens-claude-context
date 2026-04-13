@@ -443,14 +443,15 @@
 | 0413 | `20260413_moderate_reauthorize_root_cause` | SDK+분석 | **★★★ Moderate 2차 authorize 검은 화면 근본 원인 확정**: Chrome transceiver inactive→active 재사용 + 동일 SSRC/msid = 렌더 파이프라인 미재연결. 범인: moderate.js _onUnauthorized에서 unpublishTracks 호출 (mute 패턴으로 pub transceiver 살려놓고 서버에는 트랙 제거 알림 → subscriber m-line inactive 경유). clone()/srcObject 재할당 전부 실패 확인. 정공법: unpublishTracks 제거 (카메라 토글과 동일 패턴). 부수 발견: sendTracksAck premature SSRC (Pipe 참조 mutation) |
 | 0413b | `20260413b_moderate_reauthorize_fix` | 서버+SDK | **★★★ Moderate re-grant 검은 화면 해결 (full+half)**: full=pub transceiver 퇴역(새 SSRC), half=서버 ptt-video remove broadcast 생략(subscriber m-line 유지). 핵심 통찰: "unpublish가 나가기처럼 동작" — half-duplex virtual track은 방 레벨 자원, 개별 unpublish가 subscriber m-line 바꾸면 안 됨. 서버 track_ops.rs 3줄 수정 > 클라이언트 꼼수. moderate/app.js 로컬 카메라 full 조건 제거. 미해결: half 2차 PTT 시 내 카메라 프리뷰 미표시 |
 | 0413c | `20260413c_moderate_ux_rest_tracksack` | 전체 | **Moderate UX 완성**: pub 통일(transceiver 퇴역 full/half 동일), 내 카메라 영상무전 패턴(_localCamEl+floor:state), REST authorized API(`GET /:room_id/moderate/authorized`), TRACKS_ACK SSRC 데이터 제거(클라이언트 완료/서버 미완). ACTIVE_SPEAKERS 로그 제거. 2차 PTT 내 카메라 미표시 해결 |
+| 0413d | `20260413d_tracks_ack_simplify_deploy` | 서버+운영+문서 | **TRACKS_ACK 서버 단순화**: do_tracks_ack SSRC 비교/mismatch 전량 제거(190→83줄). ack_mismatch 메트릭/agg-log 삭제. **deploy-oxlens.sh 전면 개선**: oxsfud+oxhubd 이중 바이너리, .env→--config-dir, 빌드실패 이중확인, 로그 7일 로테이션. **nginx WS 경로**: proxy_pass /media/ws. **SDK 문서 Phase 1**: docs/index.html(Quick Start+API Ref+Presets+Concepts). 데모 허브에 SDK Docs 링크+원격지원 준비중 토스트. 서버3+스크립트1+웹1+데모1 |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 162개
+- **총 세션 파일**: 163개
 - **기간**: 2026-03-09 ~ 2026-04-13 (36일)
-- **서버 버전**: v0.6.16-dev (Moderate UX 완성, REST authorized API)
+- **서버 버전**: v0.6.16-dev (TRACKS_ACK 단순화, 배포 스크립트, SDK 문서 Phase 1)
 
 ---
 
