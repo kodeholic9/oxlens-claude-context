@@ -444,12 +444,13 @@
 | 0413b | `20260413b_moderate_reauthorize_fix` | 서버+SDK | **★★★ Moderate re-grant 검은 화면 해결 (full+half)**: full=pub transceiver 퇴역(새 SSRC), half=서버 ptt-video remove broadcast 생략(subscriber m-line 유지). 핵심 통찰: "unpublish가 나가기처럼 동작" — half-duplex virtual track은 방 레벨 자원, 개별 unpublish가 subscriber m-line 바꾸면 안 됨. 서버 track_ops.rs 3줄 수정 > 클라이언트 꼼수. moderate/app.js 로컬 카메라 full 조건 제거. 미해결: half 2차 PTT 시 내 카메라 프리뷰 미표시 |
 | 0413c | `20260413c_moderate_ux_rest_tracksack` | 전체 | **Moderate UX 완성**: pub 통일(transceiver 퇴역 full/half 동일), 내 카메라 영상무전 패턴(_localCamEl+floor:state), REST authorized API(`GET /:room_id/moderate/authorized`), TRACKS_ACK SSRC 데이터 제거(클라이언트 완료/서버 미완). ACTIVE_SPEAKERS 로그 제거. 2차 PTT 내 카메라 미표시 해결 |
 | 0413d | `20260413d_tracks_ack_simplify_deploy` | 서버+운영+문서 | **TRACKS_ACK 서버 단순화**: do_tracks_ack SSRC 비교/mismatch 전량 제거(190→83줄). ack_mismatch 메트릭/agg-log 삭제. **deploy-oxlens.sh 전면 개선**: oxsfud+oxhubd 이중 바이너리, .env→--config-dir, 빌드실패 이중확인, 로그 7일 로테이션. **nginx WS 경로**: proxy_pass /media/ws. **SDK 문서 Phase 1**: docs/index.html(Quick Start+API Ref+Presets+Concepts). 데모 허브에 SDK Docs 링크+원격지원 준비중 토스트. 서버3+스크립트1+웹1+데모1 |
+| 0413e | `20260413_hook_system_design` | 설계 | **Hook System 설계**: Webhook(14종 이벤트)+REST API+RoomStore trait. 업계 조사(LiveKit 12종 webhook+RoomService, Twilio StatusCallback). 데이터 소유 원칙(hub=static, sfud=dynamic, oxcccd=텔레메트리, oxtapd=녹음). RoomStore trait(Memory→SQLite→Redis 전환 무혼란). 분산 Hub Redis 시나리오. 데몬별 자체 REST API(hub 경유 금지). oxcccd 경고→hub webhook 중계. AI 업체 텔레메트리 API 연동 관문. Labs 냉동(성능 시험용 유지, 봇 코드 oxtapd 재활용). 설계서: `design/20260413_hook_system_design.md` |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 163개
+- **총 세션 파일**: 164개
 - **기간**: 2026-03-09 ~ 2026-04-13 (36일)
 - **서버 버전**: v0.6.16-dev (TRACKS_ACK 단순화, 배포 스크립트, SDK 문서 Phase 1)
 
