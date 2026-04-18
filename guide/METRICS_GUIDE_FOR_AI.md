@@ -245,7 +245,8 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 [server] nack_recv=3 nack_seqs=5 rtx_sent=5 rtx_miss=0 pli_sent=0 sr_relay=4 rr_relay=0 twcc_fb=12 twcc_rec=450 remb=0 pt_norm=0 nack_sup=0 pli_thrt=0 rtp_gap=0
 [server:rtx_diag] cache_stored=1200 pub_not_found=0 no_rtx=0 lock_fail=0 egress_drop=0
 [server:ptt] gated=500 rewritten=800 audio_rw=600 video_rw=200 vid_skip=0 kf_pending_drop=3 kf_arrived=1 granted=1 released=1 revoked=0 switches=1 nack_remap=2
-[server] env: v0.6.4 build=release bwe=twcc workers=4 log=info
+[server:dc] sctp_rx=45 sctp_tx=12 dcep_open=1 dcep_ack=1 mbcp_rx=8 mbcp_tx=6 mbcp_ack_rx=3 mbcp_floor_req=4 mbcp_floor_rel=2 dc_broadcast=6 dc_send_fail=0 dc_pending_buf=0 dc_pending_drain=1 dc_unknown_svc=0 dc_unknown_label=0 dc_retransmit=0 dc_retransmit_fail=0 dc_retransmit_cancel=2 assoc_lost=0
+[server] env: v0.6.16 build=release bwe=twcc workers=4 log=info
 [tokio] busy=12.3% alive_tasks=45 global_queue=0 budget_yield=2 io_ready=150 blocking=1
 [tokio:W0] busy=15.2% polls=8500 steals=120 noops=50
 ```
@@ -312,7 +313,9 @@ room: 테스트방 PTT (a1b2c3d4…) 3/30
 | `track:promoted user=X ssrc=0xN kind=K mid=M` | Unknown→확정 승격 (intent 늦게 도착 후 MID로 해결) | RTP-before-intent였으나 복구됨 |
 | `track:unknown user=X ssrc=0xN pt=P` | **RTP-before-intent: intent 미도착 상태에서 RTP 도착** | 다수 발생 시 타이밍 악화 징후 |
 | `track:rid_inferred user=X ssrc=0xN rid=l` | PROMOTED 경로에서 rid=l 보정 (2중 notify 방지) | 정상 보정 동작 |
-| `track:ack_mismatch user=X expected=N client=M missing=[..] extra=[..]` | **TRACKS_ACK SSRC 불일치** | 반복 발생 시 subscribe PC 불안정 |
+| `track:ack_mismatch user=X expected=N client=M missing=[..] extra=[..]` | **TRACKS_ACK 불일치** (SSRC 비교 제거됨, 단순화) | 반복 발생 시 subscribe PC 불안정 |
+| `ptt:virtual_remove_skipped user=X kind=K` | PTT virtual track remove 생략 (같은 kind half-duplex 보유자 잔존) | **정상 동작**. 생략하지 않으면 subscriber 영상 영구 미표시 |
+| `dc:unknown_label label=X` | 미지의 DataChannel label 수신. ACK 미전송 | DC 클라이언트 버그 가능 |
 
 ### 2.14 CONTRACT CHECK
 
@@ -411,6 +414,25 @@ Hub(oxhubd) WS 게이트웨이 운영 지표.
 
 ---
 
+### 2.19 DC STATE (신규 v1.2)
+
+DataChannel(SCTP over DTLS) 상태. 어드민 스냅샷의 `dc` 카테고리.
+
+```
+[server:dc] sctp_rx=45 sctp_tx=12 dcep_open=1 dcep_ack=1 mbcp_rx=8 mbcp_tx=6 mbcp_ack_rx=3 mbcp_floor_req=4 mbcp_floor_rel=2 dc_broadcast=6 dc_send_fail=0 dc_pending_buf=0 dc_pending_drain=1 dc_unknown_svc=0 dc_unknown_label=0 dc_retransmit=0 dc_retransmit_fail=0 dc_retransmit_cancel=2 assoc_lost=0
+```
+
+- MBCP Floor Control이 DC-only로 전환됨 (WS Floor path 완전 삭제). bearer=ws fallback 시 WS binary 프레임으로 동일 MBCP 바이너리 전달.
+- `mbcp_rx/tx`: MBCP 메시지 수신/발신 수. 발화 중이면 >0
+- `mbcp_ack_rx`: Floor Ack 수신 수 (T132 재전송 취소 근거)
+- `dc_send_fail > 0`: DC 전송 실패 — 심각. SCTP association 상태 확인
+- `dc_pending_buf > 0`: DCEP Open 전 누적된 Floor 이벤트. Open 후 drain되면 정상
+- `dc_retransmit > 0`: T132 재전송 발생. ACK 미수신이 원인. 소량은 정상
+- `assoc_lost > 0`: SCTP association 종료. 재입장 시 재생성되므로 1회는 정상
+- (각 카운터 상세는 섹션 3.7 참조)
+
+---
+
 ## 3. SFU 서버 카운터 전수 사전
 
 ### 3.1 타이밍 (AtomicTimingStat)
@@ -473,7 +495,7 @@ Hub(oxhubd) WS 게이트웨이 운영 지표.
 | `keyframe_arrived` | 키프레임 도착 | 화자 전환 시 1+ | 0 |
 | `floor_granted` | Floor 획득 | — | — |
 | `floor_released` | Floor 해제 | — | — |
-| `floor_revoked` | Floor 강제 회수 (PING 타임아웃) | >0이면 네트워크 문제 | — |
+| `floor_revoked` | Floor 강제 회수 (RTP liveness 타임아웃) | >0이면 네트워크 문제 | — |
 | `speaker_switches` | 화자 전환 | — | — |
 | `nack_remapped` | NACK 역매핑 (가상SSRC→원본) | >0 가능 | 0 |
 | `floor_queued` | 대기열 삽입 | — | — |
@@ -559,6 +581,32 @@ fan_out: avg=3.0 min=2 max=4
 | `event_received` | sfud 클라이언트 이벤트 수신 | >0 | 0이면 sfud 마비 |
 | `admin_received` | sfud 어드민 이벤트 수신 | >0 | 0이면 어드민 데이터 미수신 |
 | `reconnect` | sfud 스트림 재접속 | 0 | >0이면 sfud 연결 불안정 |
+
+### 3.7 DC 카운터 (신규 v1.2)
+
+> DataChannel(SCTP over DTLS) 카운터. DcMetrics 19카운터. `dc` 카테고리로 SfuMetrics에 포함.
+
+| 카운터 | 의미 | 정상 | 위험/비고 |
+|--------|------|------|-----------|
+| `sctp_rx` | SCTP 데이터 수신 수 | >0 (DC 사용 시) | 0이면 SCTP 미동작 |
+| `sctp_tx` | SCTP 데이터 송신 수 | >0 | — |
+| `dcep_open` | DCEP DATA_CHANNEL_OPEN 수신 | 참가자당 1 | >1이면 재접속 |
+| `dcep_ack` | DCEP DATA_CHANNEL_ACK 송신 | dcep_open과 일치 | — |
+| `mbcp_rx` | MBCP 메시지 수신 (Floor Request/Release/Ack) | 발화 시 >0 | — |
+| `mbcp_tx` | MBCP 메시지 송신 (Granted/Denied/Idle/Taken) | floor 동작 시 >0 | — |
+| `mbcp_ack_rx` | Floor Ack 수신 (T132 재전송 취소 근거) | mbcp_tx와 비례 | 0이면 클라이언트 ACK 미구현 |
+| `mbcp_floor_req` | Floor Request 수신 | — | — |
+| `mbcp_floor_rel` | Floor Release 수신 | — | — |
+| `dc_broadcast` | DC Floor 브로드캐스트 수 (Taken/Idle/Revoke) | floor 동작 시 >0 | — |
+| `dc_send_fail` | DC 전송 실패 | **0 필수** | >0이면 SCTP 상태 확인 |
+| `dc_pending_buf` | DCEP Open 전 버퍼링된 메시지 수 | 0 (Open 완료 후) | >0이면 Open 미완료 |
+| `dc_pending_drain` | 버퍼 drain 횟수 (Open 시 1회) | 참가자당 0~1 | — |
+| `dc_unknown_svc` | 미지 서비스 코드 수신 | 0 | >0이면 프로토콜 불일치 |
+| `dc_unknown_label` | 미지 DataChannel label 수신 | 0 | >0이면 클라이언트 버그 |
+| `dc_retransmit` | T132 재전송 횟수 | 0~소수 | >10이면 ACK 미도달 |
+| `dc_retransmit_fail` | T132 재전송 최대 횟수(C132=3) 초과 | 0 | >0이면 DC 경로 장애 |
+| `dc_retransmit_cancel` | ACK 수신으로 재전송 취소 | retransmit와 비례 | — |
+| `assoc_lost` | SCTP Association 종료 | 0 | >0이면 연결 끊김 (재입장 시 재생성) |
 
 ---
 
@@ -762,7 +810,15 @@ fan_out: avg=3.0 min=2 max=4
 | **BWE cold start** | PTT 발화 시 영상 초저해상도 | gating 구간 BWE "available=0" 추정 → 발화 복귀 시 cold start | `available_bitrate < 200kbps`, `quality_limit=bandwidth` | **환경 탓 아님.** Conference는 동일 환경 정상 |
 | **ts_gap drift** | 장시간 세션 jb_delay 누적 | 매 화자 전환 +43ms 일방향 drift | 서버 로그에서만 확인 가능 | 미착수 |
 | **snapshot↔runtime mismatch** | INTENT/TRACKS 스냅샷이 실제 상태 미반영 | admin snapshot 생성 타이밍 or 갱신 미구현 | INTENT received=false, TRACKS video 누락 | 미착수 |
-| **transceiver 누수 (video_radio)** | PTT 사이클마다 ghost transceiver 누적 | addTransceiver 매번 새로 호출, replaceTrack 미사용 | `sender:unknown hasTrack=false` 다수 | 클라이언트 수정 필요 |
+
+### 8.3.1 해결된 이슈 (v1.2)
+
+| 이슈 | 해결 방법 | 해결 세션 |
+|---|---|---|
+| **PTT 참가자 퇴장 시 영상 영구 미표시** | 서버 PTT virtual track remove 보호 — leave/zombie 경로에서 같은 kind half-duplex 보유자 잔존 시 remove 생략 | 0415d 확인, 0416a 수정 |
+| **STALLED PTT kf_pending 오탐** | is_pending_keyframe() 정당사유 추가 | 0415c |
+| **transceiver 누수 (video_radio)** | Pipe Track Gateway 전환으로 sender.replaceTrack 17→0곳 중앙화. addTransceiver 산재 제거 | 0418a |
+| **TRACKS_ACK SSRC 불일치 반복** | TRACKS_ACK에서 SSRC 비교/mismatch 전량 제거 (190→83줄). 단순 확인 응답으로 전환 | 0413d |
 
 ### 8.4 환류 규칙
 - 세션에서 새 사실 확인 시 이 섹션에 추가
@@ -817,4 +873,4 @@ fan_out: avg=3.0 min=2 max=4
 ---
 
 *작성: kodeholic (powered by Claude)*
-*최종 갱신: 2026-04-10 v1.1 (섹션 2.18 Hub Gateway 스냅샷, 섹션 3.6 Hub 카운터 사전, SFU JSON nested 키 매핑 반영, tracks_resync_sent 제거, server_metrics→sfu_metrics)*
+*최종 갱신: 2026-04-18 v1.2 (섹션 2.19 DC STATE 스냅샷, 섹션 3.7 DC 카운터 사전 19종, §2.11 DC 라인 추가, §2.13 ptt:virtual_remove_skipped/dc:unknown_label 레이블 추가, §3.3 floor_revoked RTP liveness 반영, §8.3 해결 이슈 4건 분리(PTT 참가자 퇴장/STALLED kf_pending/transceiver 누수/TRACKS_ACK 단순화), FLOOR_PING→RTP liveness 전환 반영)*
