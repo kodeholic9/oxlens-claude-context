@@ -3,15 +3,15 @@
 # Cross-Room Federation Phase 1 Step 4 — STUN 인덱스 EndpointMap 이동
 
 > **날짜**: 2026-04-18
-> **상태**: 설계 초안 (부장님 승인 대기)
-> **참조**: `context/design/20260416_cross_room_federation_design.md` §10.3
+> **상태**: 구현 완료 (Step 4a → 4b 순차)
+> **참조**: `context/design/20260416_cross_room_federation_design.md` §11.3 (rev.2에서 §10.3→§11.3 이동)
 > **분할**: **Step 4a + Step 4b** 2 PR로 쪼갠다
 
 ---
 
 ## 1. 목표
 
-설계서 §10.3: "STUN 인덱스 (`by_ufrag`, `by_addr`)를 Room → EndpointMap으로 이동."
+설계서 §11.3: "STUN 인덱스 (`by_ufrag`, `by_addr`)를 Room → EndpointMap으로 이동."
 
 cross-room에서 Endpoint의 `publish.ufrag`는 user당 1개. Endpoint가 Room A, Room B에 동시 소속일 때 "이 ufrag는 어느 방 인덱스에 있는가?"라는 질문이 무의미. STUN/SRTP 라우팅 인덱스는 EndpointMap이 전역 소유.
 
@@ -273,7 +273,7 @@ addr도 동일 패턴. Step 4a 동안 이 경고는 절대 발생하면 안 됨.
 ### 기각 3: Endpoint가 STUN 메타데이터(ice_pwd, SRTP context)까지 소유
 - **제안**: Step 4에서 Endpoint가 MediaSession까지 흡수
 - **기각 이유**:
-  - 설계서 §10 Phase 1 Step 5+ 영역, Step 4 범위 초과
+  - 설계서 §11 Phase 1 Step 5+ 영역, Step 4 범위 초과
   - Endpoint는 조회 레이어만 제공, 실제 세션 소유는 Participant 유지
   - Phase 1 끝에 Participant가 RoomMember로 축소될 때 한 번에 이동
 

@@ -189,6 +189,7 @@
 | 파일 | 용도 |
 |------|------|
 | `METRICS_GUIDE_FOR_AI.md` | 텔레메트리 스냅샷 AI 분석 가이드 |
+| `QA_GUIDE_FOR_AI.md` | QA 자동화 AI 가이드 (Playwright MCP + __qa__ + admin 교차검증) |
 | `OXLABS_DESIGN.md` | OxLabs 전체 설계 문서 |
 | `QUALITY_ASSESSMENT.md` | 품질 평가 기준 |
 | `blog_s3_01~04` | Simulcast 블로그 시리즈 초안 |
@@ -486,7 +487,7 @@
 
 ---
 
- 날짜 | 파일 | 영역 | 요약 |
+| 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
 | 0418 | `20260418a_pipe_gateway_media_acquire` | SDK 전체 | **★★★ Pipe Track Gateway 구현(Phase 1~4)**: sender.replaceTrack 17곳→0곳. TrackState 4단계+메서드 6개+bindSender+_refreshElement+_pendingShow. pipe.js/power-manager.js/endpoint.js/engine.js/sdp-negotiator.js 5파일 전환. **★★ MediaAcquire 게이트웨이(Phase A~E)**: getUserMedia 10곳→1곳 중앙화. DeviceError enum+권한 사전체크+denied 안내+timeout 공통화. media-acquire.js 신규. **★ Audio-first resolve**: COLD→HOT video 백그라운드 분리, _videoRestorePromise 가드, _resumePipe 중복 제거. **버그 3건**: error 2005(CAMERA_READY 순서), COLD 로컬 카메라 미표시(media:local talking 체크), suspend muted guard. device-manager.js acquire+swapTrack 전환. 설계서: `design/20260417_pipe_track_gateway_design.md`, `design/20260418_media_acquire_design.md` |
 | 0418 | `20260418b_server_lifecycle_phase` | 서버 | **서버 Lifecycle Phase**: ParticipantPhase(sfud 5단계)+SessionPhase(hub 4단계) 독립 전이. LeaveRoom→SESSION_DISCONNECT 통보만. HEARTBEAT touch 제거(UDP 독립 관찰). Anonymous 원복. 발견: video unmuted 미발생(0418a 사이드 이펙) |
@@ -498,14 +499,46 @@
 | 0418 | `20260418i_cross_room_phase1_step3_active_floor_room` | 서버 | **Cross-Room Federation Phase 1 Step 3 — cross-room floor 제약**: `Endpoint.active_floor_room: Mutex<Option<String>>` + `try_claim_floor`/`release_floor`/`current_floor_room` + 단위 테스트 3개. MBCP FLOOR_REQUEST 진입점 2곳(DC: datachannel/mod.rs, WS fallback: floor_ops.rs) 사전 체크 → Err 시 MBCP Deny 조기 반환. `apply_floor_actions` Granted/Released/Revoked에 endpoint 훅(SoC 유지: FloorController 무변경). `REJECT_OTHER_ROOM_ACTIVE=100` reject cause 신설(관측 변별성). Phase 1 단일방 환경에서는 실질 트리거 없음(Phase 2 cross-room에서 진짜 시험). 5파일, 빌드+E2E 2종 통과. 지침 후보 3건(SoC/사전체크+훅 이중화/Phase 1 검증 투명공개) |
 | 0418 | `20260418j_cross_room_phase1_step4_stun_index` | 서버 | **Cross-Room Federation Phase 1 Step 4 — STUN 인덱스 EndpointMap 이동**: `by_ufrag`/`by_addr` STUN 인덱스를 Room → EndpointMap으로 전역 이동(설계서 §10.3). 값 타입 `(Arc<Endpoint>, Arc<Participant>, PcType)` — hot path 보조 조회 0. `Room::latch` NAT rebinding 로직 `EndpointMap::latch_addr`로 통째 이관. Room에서 STUN 인덱스 및 `latch`/`get_by_*` 제거, RoomHub에서 `ufrag_index`/`addr_index` 및 `latch_by_ufrag`/`find_by_*` 제거. 등록/해제 4곳(JOIN/LEAVE/zombie reaper/STUN latch). 7파일 수정, 단위 테스트 2개 추가(9개 전부 통과), E2E 2종(voice_radio/video_radio) 정상. **설계 분할 이력**: Step 4a(dual-write)+4b(hot path 전환) 분할 제안→부장님 지시("최종만 검토")로 통합 진행. 교훈: hot path 전환은 분할 이득(위험 격리) vs 인프라 폐기 비용 저울질 필요. 지침 후보 4건 |
 | 0418 | `20260418k_cross_room_phase1_step5_subscribe_layers_key` | 서버 | **Cross-Room Federation Phase 1 Step 5 — subscribe_layers 키 확장**: `HashMap<String, SubscribeLayerEntry>` → `HashMap<(String, String), SubscribeLayerEntry>` (key = `(publisher_id, room_id)`, 설계서 §10.1). Phase 2 cross-room에서 같은 publisher를 N개 방으로 구독 시 각 방마다 독립된 virtual SSRC + simulcast layer 선택 보장. Phase 1 단일방에서는 실질 동작 변화 없음. `purge_subscribe_layers` remove→retain 전환, `for ((pub_id, _room), entry)` destructuring. 6파일 ~25줄 수정 (`participant.rs` + `helpers.rs` + `track_ops.rs` + `ingress_subscribe.rs` 3곳 + `ingress.rs` 3곳 + `tasks.rs` 2곳). 빌드+단위테스트 9/9 통과, E2E 2종(voice_radio/video_radio) 정상. **★ 반성**: Step 2 때 지적된 "grep scope 디렉토리 한정" 실수 재발 — ingress.rs 누락으로 빌드 에러 3건 발생. 지침 1: 핫패스 파일 수동 포함 체크리스트 / 지침 2: tuple key destructuring 패턴 / 지침 3: `build_sr_translation` multi-room 재설계는 Step 9~10 |
-| 2026-04-18 | l | Step 6 send_stats/stalled_tracker 키 확장 (§10.2) | ✅ |
+| 0418 | `20260418n_cross_room_phase1_step7_track_ownership` | 서버 | **Cross-Room Federation Phase 1 Step 7 — Track 소유권 Endpoint 이동 (§10.4 옵션 A)**: tracks 필드 + rtx_ssrc_counter + 관련 메서드 9개를 Participant → Endpoint로 이동. additive → 치환 → removal 3-Phase 분할(Phase 1: endpoint.rs 확장 / Phase 2: 13파일 35건 치환 / Phase 3: participant.rs 필드·메서드 제거). **반성**: 부장님 전수조사 52건 리스트에 floor_ops.rs 1파일 누락 → cargo check에서 발견. 지침 후보 2건: ①타입 기반 리팩터링 시 cargo check 전에 독립 grep 필수, ②부장님 리스트는 수령자 측에서도 grep 교차검증. 빌드 0 errors(3.10s), 단위 테스트 12개 전통과(기존 9 + 신규 3), build 4.69s. E2E 부장님 확인 대기 |
+| 0418 | `20260418o_cross_room_phase1_step8a_room_id` | 서버 | **Cross-Room Phase 1 Step 8a — RoomId newtype**: String → RoomId (Participant.room_id, 튜플키 3종, Endpoint.rooms/active_floor_room, Room.id, RoomHub.rooms). Borrow<str>+Deref+serde(transparent)로 호출처/JSON 경로 무변경. 114 tests pass. 지침: newtype 도입 시 #[cfg(test)] 내부까지 grep, doc-test 펜스 `text` 힌트. |
+| 0418 | `20260418p_cross_room_phase1_step8b_rename_room_member` | 서버 | **Cross-Room Phase 1 Step 8b — Participant → RoomMember 리네임**: participant.rs 정의만 수정 → cargo check로 사용처 확보 → perl `\bParticipant\b` 일괄치환(participant.rs 제외, 주석/로그 보존). 유지: 파일명, 메서드명(add_participant/get_participant), ParticipantPhase. 114 tests pass. 지침: 컴파일러=완벽 grep, word boundary 치환 안전. |
+| 0418 | `20260418q_cross_room_phase1_step9a_egress_room_id` | 서버 | **Cross-Room Phase 1 Step 9-A — EgressPacket room_id 필드**: tuple variant → struct variant `{ room_id, data }`. 생성처 7곳(ingress 4, ingress_subscribe 1, helpers 1) fan-out 시점 `room.id.clone()` 주입. egress 소비처는 `room_id: _` 로 무시 — Phase 1 동작 보존. Phase 2 cross-room에서 방별 send_stats 갱신에 사용될 자리. 114 tests pass. |
+| 0418 | `20260418r_cross_room_phase1_step9b_fanout_rooms_loop` | 서버 | **Cross-Room Phase 1 Step 9-B — Fan-out rooms_snapshot 루프**: `handle_srtp` 끝 match 블록과 `process_publish_rtcp` SR relay를 `for room_id in sender.endpoint.rooms_snapshot()` 루프로 전환. 각 방마다 `room_hub.get()` 후 기존 fan-out 함수 호출. Phase 1 단일방 rooms.len()==1이라 루프 1회=동작 변화 0. Subscribe RTCP/register_and_notify/speaker_tracker는 primary room 유지 (9-C 이후). 114 tests pass. |
+| 0418 | `20260418s_cross_room_phase1_step9c_publish_intent` | 서버 | **Cross-Room Phase 1 Step 9-C — publish_intent 도입**: `RoomMember.publish_intent: AtomicBool` 필드 + PUBLISH_TRACKS(add→true / remove all→false). `ingress.rs` fan-out 루프 + SR relay 루프 시작부에 `get_participant().publish_intent` 가드 추가. 부채널 보호(겸직 팀장의 CH3 sub only)가 SFU 레벨에서 성립. 프로토콜 변경 없음. 설계서 §3/§10.4 구현. 114 tests pass. |
+| 0418 | `20260418t_cross_room_phase1_step10_build_sr_translation_room` | 서버 | **Cross-Room Phase 1 Step 10 — SR translation / egress stats의 room_id 정리**: `build_sr_translation`에 `room: &Arc<Room>` 인자 추가. 내부 3곳(subscribe_layers + simulcast send_stats + non-sim send_stats) 전부 `sender.room_id` → `room.id`. `egress.rs`는 9-A에서 심어둔 `EgressPacket.room_id`를 활용 → `participant.room_id` → `pkt_room_id`. 남은 14곳의 `sender.room_id`는 agg_log 용도(주 방)로 의도적 유지. 114 tests pass. |
+
+---
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0419 | `20260419b_cross_room_doc_relay_error_fix` | 문서 | Cross-Room 설계 문서 relay 전제 오류 수정 확인. 코드 영향 0 |
+| 0419 | `20260419c_peer_refactor_direction` | 설계 | Peer 재설계 방향 확정 — Endpoint→Peer, PubSession/SubSession→Publish/SubscribeContext, RoomMember 4+1필드로 축소. 구조적 버그 7건 식별. A~F 단계 계획 |
+| 0419 | `20260419d_peer_refactor_step_a_done` | 서버 | Peer Step A: room/peer.rs 신규(타입 4 + smoke test 4), dead code. 122/122 pass |
+| 0419 | `20260419e_peer_refactor_step_b_done` | 서버 | Peer Step B: MediaSession 이주 + credential 재사용 closure + STUN 인덱스 멱등화. 33곳 풀 경로 치환. 126/126 pass |
+| 0419 | `20260419f_peer_refactor_step_c1_done` | 서버 | Peer Step C1: RTP 수신 5필드(rtp_cache/stream_map/recv_stats/twcc_recorder/twcc_extmap_id) 이주. 32곳/6파일. 126/126 pass |
+| 0419 | `20260419g_peer_refactor_step_c2_done` | 서버 | Peer Step C2: simulcast_video_ssrc 이주(갈래 A+B 혼합). 3곳/3파일. 127/127 pass. 거짓 보고 사건 교훈 |
+| 0419 | `20260419h_peer_refactor_step_c3_c6_done` | 서버 | Peer Step C3~C6: Pub scope 나머지 10필드 이주(PLI/진단/RTX/DC). 갈래 C 신규 분류. 26곳/7파일. 128/128 pass. Pub scope 완료 |
+| 0419 | `20260419i_peer_refactor_step_d_done` | 서버 | Peer Step D: Sub PC-scope 12필드 이주 + egress_spawn_guard CAS 신규. 46곳/12파일. 129/129 pass |
+| 0420 | `20260420_peer_refactor_step_e1_e5_done` | 서버 | Peer Refactor Step E1~E5 완료. RoomMember 필드 8개 Peer 이주. 129/129 pass |
+| 0420 | `20260420_peer_refactor_step_e6_done` | 서버 | Peer Step E6: zombie reaper를 EndpointMap user 순회로 재작성. user N방 시 1회 판정. 131/131 pass |
+| 0420 | `20260420_peer_refactor_step_f1_done` | 서버 | Peer Step F1: tracks+rtx_ssrc_counter+메서드 11개 Peer 이주. 11파일 56건 수동 치환. sed 실패 후 옵션 B 복구. cfg(test) 맹점 재발. 131/131 pass |
+
+---
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0421 | `20260421_peer_refactor_step_f2_done` | 서버 | Peer Step F2: EndpointMap→PeerMap 리네임 + 튜플 Arc<Peer> + Endpoint.peer embed→Arc. 4파일 43건, 131/131 pass |
+| 0421 | `20260421_peer_refactor_done` | 서버 | **★★★ Peer 재설계 완료 (Step F3 + 마일스톤)**: Endpoint struct 전면 소멸. `RoomMember.endpoint: Arc<Endpoint>` → `peer: Arc<Peer>`. 17파일 cascade (ingress/egress/ingress_subscribe/udp/mod/pli/tasks/handler 5개/floor_broadcast/room/participant/peer/endpoint등). `Endpoint` 타입은 peer.rs 재수출 shim으로 축소. `ZombieUser.endpoint` → `peer`. RoomMember 최종 5+1 필드(room_id/role/joined_at/publish_intent/peer/pipeline). 구조적 버그 7건 해소(recv_stats/twcc 이중 생성, simulcast_video_ssrc 분열, DC 나누어짐, egress 2중 spawn, RTX counter 재초기화, PC pair 개수 산정 오류). **cargo check 0 error / 131 pass**. A~F 전 구간 완료 마일스톤. |
+| 0421 | `20260421_qa_strategy_dialogue` | QA | QA v0 구현+실증 — 2인 video_radio 스모크 PASS |
+| 0421 | `20260421_qa_admin_integration_loss_analysis` | QA | QA controller admin WS 통합 + 3/5인 cycle 교차검증 — fan-out 비트대칭/gating 72%/KF drop 가설 오진 확정 |
+| 0421 | `20260421_ptt_unified_model_dialogue` + `design/20260421_ptt_unified_model_design` | 설계 | **★★★ PTT Unified Model — Axiom 3개 설계**: Subscribe SDP 에 PTT recvonly slot 2개(audio/video) 방 기본 pre-allocate + Universal SSRC (전 방 전 서버 고정 `0x50_54_54_A1/B1`). Axiom 1 (All-or-Nothing atomic grant) / Axiom 2 (Subscribe PC 당 1 stream 불변식) / Axiom 3 (Priority override, 도메인 정의). 파생 기능 6+개 자동 성립 (Listen filter/Multi-room speak/Whisper/긴급발언/Cross-SFU/지휘 브로드캐스트). MCPTT 가 IMS 제약으로 우회(mixing/Group Regroup/Broadcast Group)한 요구를 SFU 원리로 직선 해결. Phase 1(Peer F 완료 직후) / Phase 2(레퍼런스 확보 후) / Phase 3(2027~ Cross-SFU 2PC). 구현은 Peer F3 완료 이후 착수. |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 194개
-- **기간**: 2026-03-09 ~ 2026-04-18 (40일)
+- **총 세션 파일**: 210개
+- **기간**: 2026-03-09 ~ 2026-04-21 (43일)
 
 ---
 

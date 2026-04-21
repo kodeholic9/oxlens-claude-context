@@ -989,4 +989,26 @@ WS 끊김          ~2.3s (gUM 재호출)       ~500ms (stream 보존)  replaceTr
 
 ---
 
+## Addendum (2026-04-17 이후 실측 결과 반영)
+
+### Phase 3 ICE restart: 실측상 불필요로 결론
+
+§5 Phase 3 "1. ICE restart (Quick Reconnect) 구현" / "2. 에스컬레이션 체인 (ICE restart → PC 재생성 → rejoin)" 및 §4.6 "ICE failed → ICE restart 먼저" 항목은 **실측 결과 불필요로 결론**.
+
+**근거**:
+- WiFi↔LTE 전환 시 STUN consent check가 peer address를 **자동 재래치**함 (Pion/mediasoup/Janus 업계 공통 거동)
+- SFU측에서 `DemuxConn.peer_addr`를 `Arc<RwLock<SocketAddr>>`로 변경하고 `DtlsSessionMap::migrate()`를 구현하면 ICE restart 없이 주소 변경 대응 가능 (2026-04-17 완료, `PROJECT_MASTER.md` "ICE Address Migration" 섹션 참조)
+
+**실제 채택**:
+- SDK `_handlePcFailed` / `_autoRejoin`은 **exponential backoff retry (3회, 1s→2s→4s, 10s timeout) + stream 보존 + PC 재생성**만 유지
+- ICE restart 단계는 **건너뜀**
+- §4.6 "ICE failed → step 1 ICE restart → step 2 PC 재생성" 에스컬레이션은 **PC 재생성 단일 경로로 단순화**
+
+**Phase 3 다른 항목 현황**:
+- DC fallback (DC 죽으면 WS bearer 자동 전환): 완료 (`_floorBearer` 필드)
+- 복구 중 Floor 상태 안전 처리: ROOM_SYNC + floor idle 리셋으로 해결
+- 재시도 정책 타이머 + timeout: exponential backoff + 10s timeout으로 구현
+
+---
+
 *author: kodeholic (powered by Claude)*
