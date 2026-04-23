@@ -533,12 +533,23 @@
 | 0421 | `20260421_qa_admin_integration_loss_analysis` | QA | QA controller admin WS 통합 + 3/5인 cycle 교차검증 — fan-out 비트대칭/gating 72%/KF drop 가설 오진 확정 |
 | 0421 | `20260421_ptt_unified_model_dialogue` + `design/20260421_ptt_unified_model_design` | 설계 | **★★★ PTT Unified Model — Axiom 3개 설계**: Subscribe SDP 에 PTT recvonly slot 2개(audio/video) 방 기본 pre-allocate + Universal SSRC (전 방 전 서버 고정 `0x50_54_54_A1/B1`). Axiom 1 (All-or-Nothing atomic grant) / Axiom 2 (Subscribe PC 당 1 stream 불변식) / Axiom 3 (Priority override, 도메인 정의). 파생 기능 6+개 자동 성립 (Listen filter/Multi-room speak/Whisper/긴급발언/Cross-SFU/지휘 브로드캐스트). MCPTT 가 IMS 제약으로 우회(mixing/Group Regroup/Broadcast Group)한 요구를 SFU 원리로 직선 해결. Phase 1(Peer F 완료 직후) / Phase 2(레퍼런스 확보 후) / Phase 3(2027~ Cross-SFU 2PC). 구현은 Peer F3 완료 이후 착수. |
 
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0422 | `20260422_peer_datastruct_analysis` | 서버 | **Peer/RoomMember 자료구조 분석 세션**. 불부합 4건 확정(active_floor_room→Vec, publish_intent 삭제, PipelineStats(γ)분리, Peer.pipeline 삭제) + 관찰 3건(Axiom destinations 구조, 첫번째방 미디어 규칙, 트랙 다중성 미표현). 바디캠 대비 (A)기본+(B)앱위임 방향. Axiom 기반 클라이언트 메시지 설계 미반영 사실 확인. |
+| 0422 | `20260422b_destinations_phase1_impl` + `design/20260422_destinations_message_design` | 서버+SDK | **★ Destinations TLV Phase 1 구현**. mbcp_native FIELD_DESTINATIONS(0x0C), DC handler TLV 기반 방 선택, publish_intent 필드 7곳 삭제. 서버 138/138 + 클라 7/7 pass. playwright MCP로 3인 PTT 회전 QA 성공. multi-room 경계 확인: 서버 Peer.rooms OK, SDK _roomId 단일 필드로 Phase 2 과제 명시. |
+
+---
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0423 | `20260423_scope_model_step1_through_7_done` + `design/20260423_scope_model_design` (rev.2) | 서버+SDK | **★★★ Scope 모델 Step 1~7 완료 (Cross-Room rev.2)**: Peer scope 필드+set_id(1) / SubscriberIndex+fan-out user 단위(2) / SCOPE_UPDATE/SET/EVENT + primitive 4(3) / FLOOR_TAKEN user 단위 + speaker_rooms/via_room(4) / STALLED user 단위(5) / Admin User 듷(6) / SDK `engine.scope.*` API + MCPTT 표준 용어(7). 서버 163/163 pass + 클라 14/14 pass. Server-authoritative 원칙, JSON `"pub"` 키 대칭, 네임스페이스 그룹 API 확정. Step 4c(FLOOR_REQUEST pub_set_id) 연기, Step 8(Phase 2 SFU-SFU relay) 직전. |
+
 ---
 
 ### 통계
 
-- **총 세션 파일**: 210개
-- **기간**: 2026-03-09 ~ 2026-04-21 (43일)
+- **총 세션 파일**: 212개
+- **기간**: 2026-03-09 ~ 2026-04-23 (45일)
 
 ---
 
