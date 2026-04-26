@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-04-11
+> 최종 업데이트: 2026-04-26
 
 ---
 
@@ -356,200 +356,202 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0409 | `20260409b_hub_e2e_ws_session` | 서버 | **oxhubd E2E 연결 성공 + WsSession 근본 도입**. WS URL/pid+ok/response_json 연결 문제 해결. WsSession(user_id, room_id, server_pid) — sfud Session 대응, Claims/payload injection 전면 제거. dispatch 시그니처 Claims→WsSession. gRPC keepalive 15s/5s + lazy reconnect(double-check). Event consumer reconnect loop(backoff 2→15초) + sfud 없이 시작. REST helpers 중복 제거. handle_annotate SRP 수정. ADMIN_SNAPSHOT/METRICS/NOT_IN_ROOM 상수. heartbeat timeout 미완(MCP 타임아웃). broadcast_to_room O(N) 미착수 |
-| 0409 | `20260409c_hub_refactor_weak_points` | 서버 | **oxhubd 9건 완료**: 약한고리 4(①broadcast O(K) ②disconnect→LeaveRoom ③ArcSwap ④admin JWT) + 설계서 5(⑤Last-in-wins ⑥크기/rate ⑦Event Intent ⑧Reconnect ⑨Token Renewal). 우선순위(4ch) 구현후 원복(흐름제어 없이 무의미). 흐름제어=MQTT v5 Receive Maximum 모델 확정, 설계 미완(큐 구조+락+타이머) |
+| 0409 | `20260409b_hub_e2e_ws_session` | 서버 | oxhubd E2E 연결 성공 + WsSession 근본 도입 |
+| 0409 | `20260409c_hub_refactor_weak_points` | 서버 | oxhubd 9건 리팩터(약한고리 4 + 설계서 5) |
 
 ## Phase 42: WS 흐름제어 — OutboundQueue + 채널 분리 (0409)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0409 | `20260409d_ws_flow_control_impl` | common+oxhubd | **WS 흐름제어 전체 구현**: SCF FMQueue→OutboundQueue(우선순위4단계+슬라이딩윈도우8), event_tx/reply_tx 채널 분리, EVENT_ACK(op=2), pid per-connection, P3 fire-and-forget. 11파일 수정, 빌드 성공 |
-| 0409 | `design/20260409_ws_flow_control` | 설계 | WS 흐름제어 상세 설계서 (SCF 참조, Option B 확정, OutboundQueue 구조, ACK 프로토콜, 구현순서) |
-| 0410 | `20260410_ws_flow_control_dispatch_fix` | 전체 | **hub dispatch 전수 점검 6건 수정**: EVENT_ACK pid, TRACKS_ACK ssrcs, SUBSCRIBE_LAYER rid, MUTE_UPDATE kind, FLOOR_REQUEST 응답 포맷, ROOM_SYNC response_json. proto SyncRoomResponse response_json 추가. admin URL/JWT. STALLED PTT 오탐 발견(미해결) |
+| 0409 | `20260409d_ws_flow_control_impl` | common+oxhubd | WS 흐름제어 전체 구현 (OutboundQueue 4단계+슬라이딩 8) |
+| 0409 | `design/20260409_ws_flow_control` | 설계 | WS 흐름제어 상세 설계서 |
+| 0410 | `20260410_ws_flow_control_dispatch_fix` | 전체 | hub dispatch 전수 점검 6건 수정 |
 
-## Phase 43: STALLED 오탐 근본 수정 + HealthMonitor 단순화 (0410)
-
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0410 | `20260410b_stalled_false_positive_fix` | oxsfud+oxlens-home | **STALLED PTT 오탐 근본 수정**: record_stalled_snapshot이 half-duplex 트랙 원본 SSRC 등록 → PTT는 가상 SSRC로만 relay → 원본 send_stats 영원히 0 → 오탐. 원본 SSRC 등록 skip으로 해결. **HealthMonitor 단순화**: Phase 2(sendTracksAck 무의미)/Phase 3(leave→rejoin=UI 이탈)/_checkMediaFlow(전체합산 부정확) 전부 제거. STALLED→ROOM_SYNC 1회+토스트만. 4파일 수정 |
-
-## Phase 44: gRPC v2 — JSON Passthrough (0410)
+## Phase 43~47 (0410)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0410 | `20260410c_grpc_v2_passthrough` | proto+전체 | **gRPC 7서비스→1서비스 JSON passthrough 전면 개편**. proto 440→36줄. hub 투명 프록시화(dispatch 5파일→1파일). 클라이언트 room_id 필수화(7곳). WsPacket::wrap ok 덮어쓰기 버그 수정. SubscribeAdmin에 3초 주기 room snapshot 병합. ~2000줄+ 삭제 |
+| 0410 | `20260410b_stalled_false_positive_fix` | 서버+홈 | STALLED PTT 오탐 근본 수정 + HealthMonitor 단순화 |
+| 0410 | `20260410c_grpc_v2_passthrough` | proto+전체 | gRPC 7서비스→1 JSON passthrough 전환 (~2000줄 삭제) |
+| 0410 | `20260410d_hub_metrics` | oxhubd+홈 | Hub 텔레메트리 설계+구현+대시보드 (HubMetrics 6카테고리) |
+| 0410 | `20260410e_standalone_removal` | oxsfud | Standalone WS 완전 제거 |
+| 0410 | `20260410f_packet_unify` | 전체 | Packet/WsPacket common 통합 + telemetry framework Phase 1 |
+| 0410 | `20260410g_globalmetrics_to_sfumetrics` | oxsfud | GlobalMetrics → SfuMetrics 전환 (60+곳) |
+| 0410 | `20260410h_hub_metrics_common_admin_keymap` | 전체 | HubMetrics 공통 전환 + nested key 매핑 |
+| 0410 | `20260410i_symmetric_flow_control` | 전체 | 양방향 대칭 흐름제어 (ok 필드 ACK 통일) |
+| 0410 | `20260410j_moderated_floor` | 전체 | Moderated Floor Control v2 (자격관리 모델) |
+| 0410 | `20260410k_moderate_role_video` | oxsfud+홈 | role:u8 역할체계 + 영상무전 시도 |
+| 0410 | `20260410l_track_api_refactor_moderate_layout` | 홈 | Track API 리팩토링 + Moderate 레이아웃 v2 |
 
-## Phase 45: Hub Telemetry (HubMetrics) (0410)
-
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0410 | `design/20260410_hub_metrics` | 설계 | Hub 텔레메트리 설계서 (6카테고리, 카운터 22+게이지 3+TimingStat 1) |
-| 0410 | `20260410d_hub_metrics` | oxhubd+oxlens-home | **Hub 텔레메트리 설계+구현+대시보드**: HubMetrics(AtomicU64 lock-free), 8파일 22곳 카운터 삽입, server_metrics 감지→hub_metrics flush 병합. 어드민 대시보드 Hub Gateway 섹션(WS/흐름제어/gRPC/처리량). ufrag 4→8자리. hub 파일 로깅 추가 |
-
----
-
-## Phase 46: Standalone 모드 제거 리팩토링 (0410)
-
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0410 | `20260410e_standalone_removal` | oxsfud | **Standalone WS 완전 제거**: Session→DispatchContext, ws_tx/send_ws 삭제, broadcast 단일화(emit_to_hub만), WS route 삭제, IDENTIFY/ROOM_LIST/ROOM_CREATE 삭제, admin WS handler 삭제, cleanup 함수 삭제. 13개 파일 수정 |
-| 0410 | `20260410f_packet_unify` | common+oxsfud+oxhubd | **Packet/WsPacket common 통합** + **is_video_pt/is_audio_pt 삭제** + **A5 .env 파서 삭제**(dead code, 이미 policy.toml 이관 완료) + **common::telemetry Phase 1**(Counter/Gauge/TimingStat + Registry + metrics_group! 매크로). 설계서 `design/20260410_telemetry_framework.md` |
-| 0410 | `20260410g_globalmetrics_to_sfumetrics` | oxsfud | **Telemetry Phase 4 Step 2: GlobalMetrics → SfuMetrics 전환 완료**. 60+곳 `fetch_add→.inc()` 전환. Arc<GlobalMetrics> 전 경로 제거(UdpTransport/AppState/tasks/egress). GlobalMetrics struct 삭제. flush() JSON 카테고리 nested 구조. 11파일 수정, ~200줄 삭제 |
-| 0410 | `20260410h_hub_metrics_common_admin_keymap` | oxhubd+oxsfud+oxlens-home | **Telemetry Phase 5: HubMetrics 공통 전환 + 네이밍 통일**. HubMetrics→metrics_group! 6카테고리. `server_metrics`→`sfu_metrics` type 변경. 어드민 대시보드 flat key→nested category key 매핑 수정(5파일). 영상무전 스냅샷 검증 완료 |
-| 0410 | `20260410i_symmetric_flow_control` | common+oxhubd+oxsfud+oxlens-home | **양방향 대칭 흐름제어**: EVENT_ACK(op=2) 삭제, fire-and-forget 제거, 모든 메시지 ok 필드 기반 ACK 통일. 클라이언트 OutboundQueue 추가(슬라이딩 윈도우+우선순위3단계). TELEMETRY ok 응답 추가. sendDirect 바이패스. 7파일 수정 |
-
----
-
-## Phase 47: Moderated Floor Control (0410)
+## Phase 48: SDK Core v2 + Engine→Room→Endpoint→Pipe (0411)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0410 | `20260410j_moderated_floor` | common+oxsfud+oxhubd+oxlens-home | **Moderated Floor Control v2**: Hub moderate/ 3파일 + SDK moderate.js 신규 + media-session publishAudioTrack/removeAudioTrack. grant(kinds)/revoke → SDK 자동 audio/video=half 생성/제거, 실제 발언은 기존 PTT 그대로, sfud 연동 제로. v1→v2 재설계(자격 관리 모델) |
-| 0410 | `20260410k_moderate_role_video` | oxsfud+oxlens-home | **role: u8 역할 체계**: sfud Participant.role 저장/릴레이(ROOM_JOIN/SYNC/EVENT), 프리셋 moderator(role:1)/audience(role:10), 참가자 목록 역할 배지+Grant 필터링. **영상무전 시도**: grant(audio+video), 레이아웃 추가했으나 floor 이벤트 제어 혼란. `_onAuthorized` duplex 순서 버그 발견+수정. **코드 정리 필요** |
-| 0410 | `20260410l_track_api_refactor_moderate_layout` | oxlens-home | **Track API 리팩토링**: `_sendPublishIntent` full-snapshot → `_sendFullIntent`+`_publishTracks`+`_unpublishTracks` incremental 분리. `sdk.addAudioTrack()`/`removeAudioTrack()` 공개 API 추가. moderate.js 내부 접근 6곳→0. `joinRoom({hasAudio:false})` subscribe-only. **Moderate 레이아웃 v2**: 캐러셀 기반 영상, 진행자 카메라/화면공유, 청중 PTT 토글, Grant full/half 선택. 서버 변경 제로 |
+| 0411 | `20260411a_moderate_ux_carousel_duplex` | oxhubd+홈 | Moderate UX 대규모 개선 |
+| 0411 | `20260411b_track_mount_design` | SDK 설계 | Track Mount/Unmount 설계 방향 확정 |
+| 0411 | `20260411c_sdk_api_design` | SDK 설계 | SDK API 설계 v1 (Endpoint/Pipe 모델) |
+| 0411 | `20260411_sdk_entity_phase1` | SDK 구현 | Room/Endpoint/Pipe 클래스 + mount/unmount |
+| 0411 | `20260411_sdk_entity_phase2` | SDK | Pipe 생명주기 Endpoint 단일 책임 |
+| 0411 | `20260411_sdk_entity_phase2_v13` | SDK | v1.3 + Room 이관 (applied state 캡슐화) |
+| 0411 | `20260411_core_v2_refactor` | SDK 리팩터 | Core SDK v2 처음부터 재작성 (Engine→Room→Endpoint→Pipe 4계층) |
+| 0411 | `20260411_core_v2_e2e_freeze_masking` | SDK+데모 | Core v2 E2E + PTT Video Freeze Masking 근본 수정 |
+| 0411 | `20260411_core_v2_refactor_room_endpoint` | SDK+데모 | Engine 리팩토링 4단계 (1315→863줄) |
+| 0411 | `20260411_dispatch_duplex_bugs` | SDK+데모 | Dispatch duplex 전환 버그 3건 |
 
----
-
-## Phase 47: Moderated Floor Control (0411)
-
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0411 | `20260411a_moderate_ux_carousel_duplex` | oxhubd+oxlens-home | **Moderate UX 대규모 개선**: 캐러셀 IntersectionObserver+swipe pause+scroll-padding. **Grant duplex 전달** session→handler→moderate→app 전경로. **Subscribe-only SDP 버그** lazy pubPc. **`__ptt__` 제거** isPtt 플래그. **ontrack 타이밍** _pendingTracks 큐. **슬라이드 정리** speakers+tracks:update. **floor 이벤트** 진행자 idle 복귀. **goSlide** scrollIntoView→scrollTo 변경. **speakers 정리** local/ptt 슬라이드 보호. 7파일 |
-| 0411 | `20260411b_track_mount_design` | SDK 설계 | **Track Mount/Unmount 설계 방향 확정**: SDK가 video element 소유, app은 mount()로 element 받아서 DOM에 넣고 빼기만. Conference/PTT/Moderate 전 시나리오 동일 패턴. PTT slide hidden/display 버그 원인 분석 (snap scroll + indicator 불일치). LiveKit track.attach() 패턴 조사. SDK/app 경계 재정립 논의 |
-
----
-
-## Phase 48: SDK API 설계 — Endpoint/Pipe 모델 (0411)
+## Phase 49: Moderate v2 + Subscribe MID 서버 할당 (0412)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0411 | `20260411c_sdk_api_design` | SDK 설계 | **SDK API 설계 v1**: LiveKit/Sendbird 분석→Endpoint/Pipe/Push/Pull 용어 확정. Room/Endpoint/Pipe 3-tier 모델. 나=ep 행위, 남=pipe 조작. pushAudioPipe/pushVideoPipe 분리. mount/unmount 패턴(자원 소유). pipe:showReady/hideReady(판단=SDK, 실행=App). room.config() runtime 설정(app>server>기본값). 총 74개 API 표면. 설계서 `design/20260411_sdk_api_design.md` |
-| 0411 | `20260411_sdk_entity_phase1` | SDK 구현 | **SDK 엔티티 Phase 1**: Room/Endpoint/Pipe 클래스 + mount/unmount(LiveKit 내부구조 참조) + freeze masking Pipe 이관. `_allPipes` trackId 기반 단일 Map. `join:data`+`tracks:update` 순서 변경(SDP nego 전 발행). conference/voice_radio/video_radio 데모 전환. **껍데기만 씌웠고 내부 의존관계 정리 미완료** |
-| 0411 | `20260411_sdk_entity_phase2` | SDK 구현+설계 | **SDK 엔티티 Phase 2**: Pipe 생명주기 Endpoint 단일 책임(v1.2 코딩 완료). audio auto-mount(client.js _remoteAudios 제거). 버그 3건(FLOOR_TAKEN d.speaker, video:suspended source, pipe:duplex 타입). OxLensClient→Engine 리네이밍. **v1.3 설계**: desired(Pipe)/applied(MediaSession) state 분리, callback provider, 디버깅 장치 5종. **구조적 한계: Room은 아직 engine 래퍼. engine 책임 점진적 Room 이관 필요** |
-| 0411 | `20260411_sdk_entity_phase2_v13` | SDK 구현 | **v1.3 완료 + Room 이관**: applied state 캐슐화(28곳). Mute Phase 1(Pipe.duplex 분기). Reconnect Pipe 기반. Filter/PTT/device API 확장. 디버깅 3종. client.js shim. **데모 새로 만들 예정** |
-| 0411 | `20260411_core_v2_refactor` | SDK 리팩터 | **Core SDK v2 처음부터 다시 만들기**: 설계 3회 검토→rev.3 확정. **Engine→Room→Endpoint→Pipe** 4계층. PC=Engine 소유(cross-room 대비). PttController 삭제→Floor=Room+Power=Engine. media-session.js 해체→SdpNegotiator(30KB)+Pipe. 공개 API 100% 호환(media 프록시). Step 1~7 구현 완료. 6파일 신규+2파일 수정. E2E 검증 미완료. 설계서 `design/20260411_core_v2_architecture.md` |
+| 0412 | `20260412_moderate_v2_dispatch_bugs` | SDK+데모 | Moderate v2 전환 (Engine 기반) |
+| 0412 | `20260412b_moderate_slide_lifecycle` | SDK+데모 | Moderate 슬라이드 생명주기 재설계 + Subscribe MID 설계 |
+| 0412 | `20260412c_subscribe_mid_impl` | 서버+SDK | Subscribe MID 서버 주도 할당 구현 (5종 E2E PASS) |
+| 0412 | `20260412d_moderate_reauthorize_black_screen` | SDK+데모 | Moderate 2차 authorize 검은 화면 (미해결) |
+| 0412 | `20260412e_floorfsm_always_slide_nav_rules` | SDK+데모 | FloorFsm 항상 생성 + 슬라이드 네비 규칙 |
+| 0412 | `20260412_★_ai_활용_조언` | 메모 | AI 활용 방법 회고 |
 
-| 0411 | `20260411_core_v2_e2e_freeze_masking` | 데모+SDK | **Core v2 E2E 검증 + PTT Video Freeze Masking 근본 수정**: conference/voice_radio/video_radio 3시나리오 Engine 직접 사용 전환. PTT video 정지화면 문제 — display:none/visibility/rVFC 5차 시도 후 **left:-9999px + overflow:hidden + rVFC 이중 조건** 확정. 숨김=시그널링(floor:state) 즉각, 표시=listening AND rVFC. track.onmute는 보조. PowerManager _userVideoOff 연동 |
-| 0411 | `20260411_core_v2_refactor_room_endpoint` | core SDK+데모 | **Engine 리팩토링 4단계(1315→863줄 -34%)**. Step1: Room.applyTracksUpdate/applyDuplexSwitch/calcSyncDiff/resolveOnTrack(stale recycle 버그 수정). Step2: Room.hydrate. Step3: Endpoint에 engine 참조 주입(LiveKit 패턴)+publishAudio/Video/mute 이관. Step4: Mute→Endpoint. **Pipe.showVideo/hideVideo** freeze masking 캡슐화(voice_radio/video_radio 40→2줄). **Dispatch v2 전환**(OxLens.createRoom→Engine). **SWITCH_DUPLEX 수정2건**: ensureHot선행+발언중차단. **SDP m-line 순서 버그** mid 정렬로 해결 확정. 미해결: MUTE_UPDATE track_id 전환, showVideo 안전성 재검토 |
-| 0411 | `20260411_dispatch_duplex_bugs` | core SDK+데모 | **Dispatch duplex 전환 버그 3건**: ①PttPanel up mouseleave 스퓨리어스→floor 상태 가드. ②btn-f-duplex mouseup/touchend stopPropagation. ③**★ensureHot→applyDuplexSwitch 순서 버그**(Pipe.duplex 'full' 변경 후 PowerManager._audioSender() null→audio 미복원→pkts_delta=0). 스냅샷 sender:unknown+pkts_delta=0으로 진단. **PWA manifest/apple-mobile-web-app 제거**(5파일). 8파일 |
-| 0412 | `20260412_moderate_v2_dispatch_bugs` | core SDK+데모 | **Moderate v2 전환**: OxLensClient→Engine, pipe.mount(), 인디케이터 삭제. **★room:joined emit 순서 변경**(슬라이드 여전히 사라짐(Hub unauthorized 정책), full duplex grant 패널 미생성. 12파일 |
-| 0412 | `20260412b_moderate_slide_lifecycle` | core SDK+데모 | **Moderate 슬라이드 생명주기 전면 재설계**: authorized/unauthorized 기반(트랙 기반 아님). diff 기반 슬라이드 생성/제거, 아바타↔비디오 전환, glow 효과. **★_publishCamera resume에서 항상 publishTracks 재전송**. **★unauthorized에서 unpublishTracks 추가**. **★subscribe mid 설계**: m-line 누적 근본원인=클라이언트 mid 자체할당. mediasoup/LiveKit 조사→서버 주도 mid 할당 설계서 작성(`design/20260412_subscribe_mid_design.md`). 3파일+설계서 |
-| 0412 | `20260412c_subscribe_mid_impl` | 서버+SDK | **Subscribe MID 서버 주도 할당 구현**: per-subscriber MidPool(kind별 분리)+WsBroadcast per_user_payloads 인프라. TRACKS_UPDATE add/remove 전부 per-user 전환(track_ops/ingress/room_ops/tasks). 클라이언트 assignMids 서버 passthrough+mid 기반 pipe 재활용. **5개 시나리오 E2E 통과**(Conference 7회+반복/Video Radio/Voice Radio/Dispatch/Moderate). 미해결: Moderate PTT video relay(별도 이슈). 서버10파일+클라이언트2파일 |
-| 0412 | `20260412d_moderate_reauthorize_black_screen` | SDK+데모 | **Moderate 2차 authorize PTT video 검은 화면**: 서버 build_remove_tracks track_id 변환, 클라이언트 pipe.unmount() 추가, mount() 레거시 freeze masking 삭제(3건 완료). **★미해결: 2차 authorize 검은 화면** — Chrome transceiver inactive→active 재활용 시 렌더 파이프라인 미연결. srcObject 재할당/play()/업계 표준 attach-detach 전부 실패. Twilio#931 동일 증상. 다음: e.streams[0] 패턴/element 재생성/media-internals 분석 |
-| 0412 | `20260412e_floorfsm_always_slide_nav_rules` | SDK+데모 | **FloorFsm 항상 생성 + Moderate 슬라이드 네비게이션 규칙화**: FloorFsm Room생성시 항상 생성(PowerManager 분리). raw→공개 이벤트 전환. PTT 버튼 floor:state 동기화. 청중 발화시 로컬 카메라(half/full). **슬라이드 네비게이션 2규칙**: 규칙1(authorization기반 goToNearestAuthorized) + 규칙2(active:speakers 2초 debounce). 4파일 |
-| 0413 | `20260413_moderate_ux_active_speakers` | 데모 UX | **Moderate UX 개선 + active:speakers 연동**: speakerSlideId/slideLabel 헬퍼, speaking-glow(::after z-index:20), _currentFloorSpeaker(PTT↔active:speakers 충돌 방지), debounce 동일화자 타이머유지. 슬라이드 라벨(진행자/청중/내카메라). 고정 aud-slide-mod→동적 슬라이드(다중 진행자). **청중 2단 구조**(상단:진행자 5, 하단:청중 5). audTarget() 라우팅. 빈 상태 안내. w-[55%] h-[85%]. 참가자 영역 버튼 제거. **★미해결: 2차 authorize 검은 화면(half+full 동일)**. 3파일 |
-
----
-
-| 0413 | `20260413_moderate_reauthorize_root_cause` | SDK+분석 | **★★★ Moderate 2차 authorize 검은 화면 근본 원인 확정**: Chrome transceiver inactive→active 재사용 + 동일 SSRC/msid = 렌더 파이프라인 미재연결. 범인: moderate.js _onUnauthorized에서 unpublishTracks 호출 (mute 패턴으로 pub transceiver 살려놓고 서버에는 트랙 제거 알림 → subscriber m-line inactive 경유). clone()/srcObject 재할당 전부 실패 확인. 정공법: unpublishTracks 제거 (카메라 토글과 동일 패턴). 부수 발견: sendTracksAck premature SSRC (Pipe 참조 mutation) |
-| 0413b | `20260413b_moderate_reauthorize_fix` | 서버+SDK | **★★★ Moderate re-grant 검은 화면 해결 (full+half)**: full=pub transceiver 퇴역(새 SSRC), half=서버 ptt-video remove broadcast 생략(subscriber m-line 유지). 핵심 통찰: "unpublish가 나가기처럼 동작" — half-duplex virtual track은 방 레벨 자원, 개별 unpublish가 subscriber m-line 바꾸면 안 됨. 서버 track_ops.rs 3줄 수정 > 클라이언트 꼼수. moderate/app.js 로컬 카메라 full 조건 제거. 미해결: half 2차 PTT 시 내 카메라 프리뷰 미표시 |
-| 0413c | `20260413c_moderate_ux_rest_tracksack` | 전체 | **Moderate UX 완성**: pub 통일(transceiver 퇴역 full/half 동일), 내 카메라 영상무전 패턴(_localCamEl+floor:state), REST authorized API(`GET /:room_id/moderate/authorized`), TRACKS_ACK SSRC 데이터 제거(클라이언트 완료/서버 미완). ACTIVE_SPEAKERS 로그 제거. 2차 PTT 내 카메라 미표시 해결 |
-| 0413d | `20260413d_tracks_ack_simplify_deploy` | 서버+운영+문서 | **TRACKS_ACK 서버 단순화**: do_tracks_ack SSRC 비교/mismatch 전량 제거(190→83줄). ack_mismatch 메트릭/agg-log 삭제. **deploy-oxlens.sh 전면 개선**: oxsfud+oxhubd 이중 바이너리, .env→--config-dir, 빌드실패 이중확인, 로그 7일 로테이션. **nginx WS 경로**: proxy_pass /media/ws. **SDK 문서 Phase 1**: docs/index.html(Quick Start+API Ref+Presets+Concepts). 데모 허브에 SDK Docs 링크+원격지원 준비중 토스트. 서버3+스크립트1+웹1+데모1 |
-| 0413e | `20260413_hook_system_design` | 설계 | **Hook System 설계**: Webhook(14종 이벤트)+REST API+RoomStore trait. 업계 조사(LiveKit 12종 webhook+RoomService, Twilio StatusCallback). 데이터 소유 원칙(hub=static, sfud=dynamic, oxcccd=텔레메트리, oxtapd=녹음). RoomStore trait(Memory→SQLite→Redis 전환 무혼란). 분산 Hub Redis 시나리오. 데몬별 자체 REST API(hub 경유 금지). oxcccd 경고→hub webhook 중계. AI 업체 텔레메트리 API 연동 관문. Labs 냉동(성능 시험용 유지, 봇 코드 oxtapd 재활용). 설계서: `design/20260413_hook_system_design.md` |
-| 0413f | `20260413_oxtapd_design_and_scaffold` | 설계+서버 | **oxtapd 녹음/녹화 데몬 설계 + 개발 착수**: 업계 조사(Janus MJR/rtp_forward, mediasoup PlainTransport, LiveKit Egress). 방식 확정=정상 WebRTC subscriber(ICE+DTLS+SRTP). participant type:recorder(투명). OXR 자체 포맷(append-only, RTP+META 인터리빙). PTT 발화=META 논리 분할. 물리 분할(Conference 5m/PTT 1h). oxtap-mux CLI. **workspace 3 crate 추가**: liboxrtc(labs 기반 ICE/DTLS/SRTP/NACK/PLI/RR/WS 실구현), oxtapd(OXR writer/reader 실구현), oxtap-mux(clap CLI). cargo build 성공. **미완: common transport 리팩터링** — oxsfud transport/ 중복 발견, 공유 작전 미확정. 설계서: `design/20260413_oxtapd_design.md` |
-
----
+## Phase 50: Moderate 검은 화면 근본 + oxtapd + DataChannel (0413~0414)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0414 | `20260413_oxtapd_design_and_scaffold` | 설계+서버 | **oxtapd 녹음/녹화 데몬 설계 + 개발 착수**: 업계 조사(Janus MJR/rtp_forward, mediasoup PlainTransport, LiveKit Egress). 방식 확정=정상 WebRTC subscriber(ICE+DTLS+SRTP). participant type:recorder(투명). OXR 자체 포맷(append-only, RTP+META 인터리빙). PTT 발화=META 논리 분할. 물리 분할(Conference 5m/PTT 1h). oxtap-mux CLI. **workspace 3 crate 추가**: liboxrtc, oxtapd(OXR writer/reader), oxtap-mux(clap CLI). cargo build 성공. **★미완: common/liboxrtc 구조 재설계** — common에 프로토콜정의+서버인프라 혼재, liboxrtc가 common 안 보고 6종 중복 작성. liboxrtc→common 의존 시 tonic/JWT 딸려오는 문제. crate 이름 재정의 필요. 설계서: `design/20260413_oxtapd_design.md` |
-| 0414 | `20260414_datachannel_design` | 설계 | **DataChannel 통합 설계**: sctp-proto(algesten/sctp-proto, str0m 3년+ 검증) Sans-I/O 크레이트 선택. SCTP≠트랙(SSRC/mid 무관, re-nego 없음, m=application 한 번). Pub PC 단독(양방향). demux 분기 1줄+별도 모듈. Phase 1=MBCP unreliable 이중화(DC 우선, WS fallback). 기존 MBCP 바이너리 재사용. 클라이언트→서버만 DC, 서버→클라이언트 WS 유지. heartbeat ICE 위임. **착수: oxtapd 완료 후**. 설계서: `design/20260414_datachannel_design.md` |
-| 0414 | `20260414_oxsig_oxrtc_refactor` | 서버 리팩터링+구현 | **oxsig 신설 + liboxrtc→oxrtc + oxtapd 본체 구현**: oxsig 분리(Packet,opcode,error_code,role), liboxrtc→oxrtc, common re-export. **oxtapd 본체**: room_recorder.rs(oxrtc통합 tokio::select!루프, SSRC별 TrackWriter, NACK/RR), supervisor.rs(spawn+stop_tx), main.rs(CLI+Ctrl+C). 네이밍 체계 확정 |
-| 0414 | `20260414_oxtapd_recorder_test` | 서버+oxtapd | **★oxtapd 실 연동 시험 성공**: oxsfud type:recorder 투명 참가자(7파일, broadcast 제외/참가자수 미포함/capacity 미점유). Room rec 플래그(AtomicBool, startup conference+video_radio). system.toml [recording] 섹션. oxtapd config from_config_dir(system.toml 파싱). TRACKS_UPDATE/ROOM_EVENT 파싱 서버 프로토콜 일치. 파일명 SSRC 포함. **실 시험**: 5명 전원 감지, 11개 OXR(audio5+video5+screen1), video 52~57KB RTP 포함. **★WS split 전면 재작성**: SignalWriter/SignalReader struct+method, connect_and_join→split, 50ms폴링 제거→select! arm 즉시 수신. **미완**: 빌드 확인, supervisor 재시작 루프, run() 재접속, hub→oxtapd 명령 채널 - 결과물이 쓰레기다 |
+| 0413 | `20260413_moderate_reauthorize_root_cause` | SDK+분석 | ★★★ Moderate 2차 authorize 검은 화면 근본 원인 확정 |
+| 0413 | `20260413_moderate_ux_active_speakers` | 데모 UX | Moderate UX 개선 + active:speakers 연동 |
+| 0413 | `20260413b_moderate_reauthorize_fix` | 서버+SDK | ★★★ Moderate re-grant 검은 화면 해결 |
+| 0413 | `20260413c_moderate_ux_rest_tracksack` | 전체 | Moderate UX 완성 + REST authorized + TRACKS_ACK 단순화 |
+| 0413 | `20260413d_tracks_ack_simplify_deploy` | 서버+운영 | TRACKS_ACK 서버 단순화 + deploy 스크립트 개선 + SDK Docs Phase 1 |
+| 0413 | `20260413_oxtapd_design_and_scaffold` | 설계+서버 | oxtapd 설계 + workspace 3 crate 추가 (liboxrtc/oxtapd/oxtap-mux) |
+| 0414 | `20260414_datachannel_design` | 설계 | DataChannel 통합 설계 (sctp-proto) |
+| 0414 | `20260414_oxsig_oxrtc_refactor` | 서버 | oxsig 신설 + liboxrtc→oxrtc + oxtapd 본체 구현 |
+| 0414 | `20260414_oxtapd_recorder_test` | 서버+oxtapd | oxtapd 실 연동 시험 성공 |
+
+## Phase 51: DataChannel 구현 + MBCP DC 전환 (0415~0416)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0415 | `20260415_datachannel_sctp_server` | 서버 | **★DataChannel SCTP 서버 엔진 구현**: oxtapd/oxtap-mux 삭제(보류). 설계서 오류 3건 수정(demux.rs 변경불필요—SCTP는 DTLS 내부, Room에 SctpManager 부적합—per-participant DTLS task, sctp-proto 0.6→0.9). **datachannel/ 모듈 신규**: mod.rs(SCTP event loop+DCEP+MBCP Floor+broadcast ~490줄), dcep.rs(RFC 8832 파서/빌더 ~160줄). Pub PC DTLS keepalive→SCTP loop 분기. sctp-proto 0.9 API 학습(Chunks.read(&mut buf), write_with_ppi, Payload::RawEncode extend_from_slice). **cargo build --release 성공**. 참조소스 git clone ~/repository/reference/sctp-proto/. 미완: 클라이언트(sdp-builder m=application, engine.js createDataChannel, floor-fsm DC fallback) |
-| 0415b | `20260415b_mbcp_datachannel_v2` | 전체 | **★★★ MBCP over DataChannel 규격 준수 구현 (3GPP TS 24.380)**: RTCP APP→TS 24.380 native TLV 포맷 전환. **T101/T104 재전송**(500ms×3회, ACK 기반 취소). **FLOOR_PING 완전 제거**→RTP liveness(last_video_rtp_ms/last_audio_arrival_us, hot path 변경 0줄). **WS Floor path 제거**(DC-only). **DC 양방향 응답**(서버 Granted/Denied/Queued를 같은 SCTP stream에 즉시 쓰기, 별도 outbound 채널 불필요). mbcp_native.rs 신규(빌더/파서+테스트). 발견+수정: PowerManager REQUESTING 미보호→1초 후 hot_standby, DC granted 누락, DC Denied/Queued 미도달. 미해결: PTT STALLED false positive(kf_pending), SDP validator warning(m=application direction), 서버 T132 재전송 |
-| 0415c | `20260415c_mbcp_cleanup` | 전체 | **MBCP 마무리 5건 전량 해소**: ①1 STALLED kf_pending 정당사유 추가(is_pending_keyframe). ①2 서버 T132 재전송(PendingRetransmit+500ms×3+ACK취소). ①3 apply_floor_actions 중복 해소→room/floor_broadcast.rs 공용 모듈(~94줄 순감). ①4 SDP m=application a=sendrecv 추가. ①5 **WS Floor 핸들러 완전 제거**: signaling.js _floor:*_raw 전량 삭제, floor_ops.rs 300줄 삭제, room_ops/track_ops floor_broadcast 호출 교체. 서버 ~420줄 순감. |
-| 0415d | `20260415d_ptt_video_freeze_participant_leave` | SDK (클라이언트) | **★★ PTT 영상 미표시 근본 원인 확정**: 참가자 퇴장 시 PTT 가상 pipe(`user_id=null`)가 `active:false`로 전환되고 복귀 안 됨 → subscribe SDP `a=inactive` → track 영구 muted → `showVideo()` unmute 영구 대기 → 영상 영구 미표시. 서버 릴레이+디코딩 정상(fps=24, decoded_delta=72) 확인. DC-only floor broadcast 서버 경로 정상 동작 확인. 수정 위치: `subscribeTracks()` — 가상 pipe는 방에 참가자 있으면 active 유지. 부수: floor.rs Idle→Released spurious clear_speaker 잠재 버그 |
+| 0415 | `20260415_datachannel_sctp_server` | 서버 | DataChannel SCTP 서버 엔진 구현 (sctp-proto 0.9) |
+| 0415 | `20260415b_mbcp_datachannel_v2` | 전체 | MBCP DC 전환 (TS 24.380 native TLV) + FLOOR_PING 제거 |
+| 0415 | `20260415c_mbcp_cleanup` | 전체 | MBCP 마무리 5건 + WS Floor 핸들러 완전 제거 |
+| 0415 | `20260415d_ptt_video_freeze_participant_leave` | SDK | PTT 영상 미표시 근본 원인 (가상 pipe inactive) |
+| 0416 | `20260416a_cross_room_federation` | 설계 | Cross-Room Federation 설계 |
+| 0416 | `20260416a_ptt_virtual_remove_fix_mbcp_queue_dc_design` | 서버+SDK | PTT virtual track remove 보호 + MBCP 큐 갱신 + DC 채널 확장 설계 |
+| 0416 | `20260416b_ptt_virtual_remove_mbcp_queue_dc_design` | 서버+SDK | 0416a 반영 점검 + DC 멀티플렉싱 §13/§14 |
+| 0416 | `20260416c_dc_channel_step_b_complete` | 서버+SDK | DC Phase 1 Step B (label "unreliable" rename) |
+| 0416 | `20260416d_dc_step_c_complete` | 서버+홈 | DC Phase 1 Step C (DcMetrics 19 카운터) |
+| 0416 | `20260416e_dc_bearer_ws_server_complete` | 서버 | DC bearer=WS 서버 경로 완성 |
 
----
-
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0416 | 202604/20260416a_cross_room_federation.md | 설계 | Cross-Room Federation 설계 - Connection/RoomMember 분리, publish intent 기반 fan-out, 연합 중첩 금지, Phase 1~3 로드맵 |
-| 0416 | `20260416a_ptt_virtual_remove_fix_mbcp_queue_dc_design` | 서버+SDK+설계 | **★ PTT virtual track remove 보호**(room_ops/tasks — leave/zombie 경로, half-duplex 잔존 시 생략). **MBCP 큐 위치 갱신**(TS 24.380 §6.3.4.4, QueueUpdated 6곳). **Granted duration**(FIELD_DURATION). **sub_mid_map 스냅샷**. **DC 채널 확장 설계 확정**: unreliable/reliable 2채널 + svc(1)+len(2)+payload 공통 포맷 + WS binary fallback + gRPC oneof{json,binary}. 상용 DC 패턴 조사(LiveKit/mediasoup). 세션 타임라인 텔레메트리 설계 |
-| 0416 | `20260416b_ptt_virtual_remove_mbcp_queue_dc_design` | 서버+SDK+설계 | 0416a 범위 반영 상태 점검: ★ PTT virtual track remove 보호 / ★ MBCP 큐 갱신 6곳 / Granted duration / sub_mid_map 모두 **이미 반영** 확인. 큐 갱신 미동작은 서버 빌드 문제(해결). DC 채널 멀티플렉싱 설계 §13/§14 append — Phase 1 결정 5건(D1 label "unreliable" 원샷, D2 dc_unreliable_tx rename, D3 event_bus binary는 Phase 3, D4 표준 svc 고정+_app/_unknown 버킷, D5 readiness 버퍼링 Phase 1 포함). search_files 도구 2회 오판 → 본문 read_text_file 원칙 재확인 |
-| 0416 | `20260416c_dc_channel_step_b_complete` | 서버+SDK | **★ DC Phase 1 Step B 완료 (6파일 rename)**: label "mbcp"→"unreliable" 원샷 교체. Participant `dc_tx`→`dc_unreliable_tx` + `dc_unreliable_ready: AtomicBool` + `dc_pending_buf: Mutex<VecDeque<Vec<u8>>>` (MAX=64) 신설. DCEP Open 전 floor 이벤트 pending_buf 누적, Open 시 drain(D5). **락 순서 통일(buf→tx)** — broadcast가 buf 락 하에서 ready 체크 → stuck race 차단. 미지 label `dc:unknown_label` warn agg-log + ACK 미전송(D1). 미지 svc warn + drop(D4는 카운터 Step C로 이월). 부장님 재입장 반복 검증: unreliable channel open/closed 정상 순환. 지침: 전환(store)은 "관찰 경로와 같은 mutex" 내에서만 안전. rename 누락은 cargo build가 알려준다. |
-| 0416 | `20260416d_dc_step_c_complete` | 서버+홈 | **DC Phase 1 Step C**: DcMetrics 19 카운터 + SCTP AssociationLost break + 클라 `_setupDataChannel` LiveKit 패턴(bufferedAmountLowThreshold/onerror 분해/tel 승격) + admin 스냅샷 DC 섹션 + `[server:dc]` 한 줄. 6파일 |
-| 0416 | `20260416e_dc_bearer_ws_server_complete` | 서버 | **★★ DC bearer=WS 서버 경로 완성 (②-B)**: proto `WsMessage { oneof { json, binary } }` + common helper. event_bus `WsBroadcast.binary_payload` + hub `bin_event_tx` 채널. `apply_floor_actions` 5 파라미터(+bearer+event_tx) 확장, `broadcast_floor_frame`/`send_floor_frame_to` 엔트리에서만 bearer 분기. sfud `dispatch_binary` + `floor_ops::handle_floor_binary` 신규(DC handler와 대칭). hub WS Binary 수신 → envelope wrap → sfud gRPC binary fire-and-forget. sfud↔hub envelope = self-contained bytes `[env_len|env_json|payload]` (base64 금지). binary는 OutboundQueue 우회(T132 이중화 방지). 왕복 경로 완성: 클라→hub→sfud→floor state→event_tx→hub→클라. E0063 누락 6곳(helpers×3 + ingress_subscribe + tasks + ingress) `binary_payload: None` 추가. 빌드 성공 4회. 남은 것: 클라 ②-C(_floorBearer, sendBinary, parseFrame 재사용) |
-
----
+## Phase 52: SDK Lifecycle 재설계 (0417)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0417 | `20260417a_dc_bearer_ws_client_module_merge` | SDK | **②-C bearer=ws 클라 경로 완성 + DC 모듈 통합**: engine.js _floorBearer 필드, sdp-negotiator DC 스킵, floor-fsm _sendByBearer bearer 분기, signaling binaryType+sendBinary. dc-frame+mbcp+speakers → datachannel.js 1파일 통합(270줄 5섹션). 4파일 수정+1신규+3삭제 |
-| 0417 | `20260417b_lifecycle_redesign` | SDK 설계 | **★★★ SDK Lifecycle 전면 재설계**: Perf mark 실측(getUserMedia 1283ms=96.4%). 업계 조사 3사(LiveKit/mediasoup/Twilio) + 업계 문제점 5건 도출(ConnectionState 불일치, ICE restart 한계, PTT 부재, 부분 실패 무대책, tracks-먼저 문제). **설계 문서**: Phase 5단계(IDLE→CONNECTED→JOINED→PUBLISHING→READY) + 자원별 독립 상태 + Reactive 연쇄 실행(onPhaseEnter/Exit) + 서버 통보→Phase 반응 + 오류별 복구(stream 보존) + 재시도 정책(사유 분류+에스컬레이션+포기) + PTT 고유 복구 + 미디어 부분 실패(청취 모드) + 공개 API(enableMic/Camera) + 관찰 3계층(status/event/admin) + Perf 통합. 서버 변경 제로. 구현 Phase 1~3 로드맵. **서버 사이드 조사**: LiveKit ParticipantInfo.State 4단계 / mediasoup peer 없음 / Janus Event Handler. **현재 복구 경로 4건 코드 추적**(setupPublishPc 실패=stuck 발견). 설계서: `design/20260417_lifecycle_redesign.md` |
-| 0417 | `20260417c_lifecycle_phase1_phase2` | SDK 전체 | **★★★ SDK Lifecycle Phase 1+2 구현**: lifecycle.js 신규(Phase 상태머신+Perf+오류분류+status). Phase 전이 7곳(idle→connected→joined→publishing→ready). **★ stream 보존 복구**(PC failed/WS 재연결 시 getUserMedia 0ms). **★★ connect→publish 분리**: joinRoom에서 _acquireMedia 제거, enableMic/enableCamera 공개 API, setupPublishPc track-less(kind 문자열), hydrate mediaIntent, joinRoom Promise화. **입장 1331ms→33ms(40배)**. PowerManager video 미활성화 시 restore 스킵. 데모 5종 정석 패턴(joinRoom+enableMic+enableCamera). 상태 표시등(shared.js). 12파일 |
-| 0417 | `20260417d_ice_migration_retry_policy` | 서버+SDK | **★ ICE Address Migration**: 업계 조사(Pion/mediasoup/Janus) → ICE restart 불필요 확정(STUN consent check 자동 갱신). SRTP 경로 기 자동 갱신 확인. **DTLS/SCTP 갭 수정**: DemuxConn peer_addr Arc<RwLock> + DtlsSessionMap migrate(서버 2파일). **★ 재시도 정책**: _handlePcFailed exponential backoff 3회(1s→2s→4s) + timeout 10s, _autoRejoin 2회 + lifecycle 연동. BWE 모니터 1s→5s 간격. |
-| 0417 | `20260417e_extension_refactor_pipe_gateway_design` | SDK 리팩토링+설계 | **★ Extension 리팩토링 완료 + Pipe Track Gateway 설계**: Moderate/Annotate/Filter → extensions/ 분리(engine.use/ext 패턴). engine.js -86줄, signaling.js -14줄. Extension 인터페이스(onAttach/onDetach/onJoined/onLeft/onPcFailed/onSignaling). 데모 2종 수정. 동작 확인(conference+video_radio). **★★ PowerManager COLD→HOT 영상 미복구 근본 원인**: sender.replaceTrack 17곳 직접 호출, 상태 기록 없음. **Pipe Track Gateway 설계 합의**: Pipe를 sender 유일한 게이트웨이로 승격. TrackState 4단계(INACTIVE/ACTIVE/SUSPENDED/RELEASED). 메서드 6개(setTrack/suspend/resume/release/deactivate/swapTrack). 위험 지점 5건 식별+판단 합의. 설계서: `design/20260417_pipe_track_gateway_design.md` |
+| 0417 | `20260417a_dc_bearer_ws_client_module_merge` | SDK | bearer=ws 클라 + DC 모듈 통합 |
+| 0417 | `20260417b_lifecycle_redesign` | SDK 설계 | ★★★ SDK Lifecycle 전면 재설계 (Phase 5단계) |
+| 0417 | `20260417c_lifecycle_phase1_phase2` | SDK | Lifecycle Phase 1+2 구현 (입장 1331ms→33ms) |
+| 0417 | `20260417d_ice_migration_retry_policy` | 서버+SDK | ICE Address Migration + 재시도 정책 |
+| 0417 | `20260417e_extension_refactor_pipe_gateway_design` | SDK | Extension 리팩토링 + Pipe Track Gateway 설계 |
 
----
-
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0418 | `20260418a_pipe_gateway_media_acquire` | SDK 전체 | **★★★ Pipe Track Gateway 구현(Phase 1~4)**: sender.replaceTrack 17곳→0곳. TrackState 4단계+메서드 6개+bindSender+_refreshElement+_pendingShow. pipe.js/power-manager.js/endpoint.js/engine.js/sdp-negotiator.js 5파일 전환. **★★ MediaAcquire 게이트웨이(Phase A~E)**: getUserMedia 10곳→1곳 중앙화. DeviceError enum+권한 사전체크+denied 안내+timeout 공통화. media-acquire.js 신규. **★ Audio-first resolve**: COLD→HOT video 백그라운드 분리, _videoRestorePromise 가드, _resumePipe 중복 제거. **버그 3건**: error 2005(CAMERA_READY 순서), COLD 로컬 카메라 미표시(media:local talking 체크), suspend muted guard. device-manager.js acquire+swapTrack 전환. 설계서: `design/20260417_pipe_track_gateway_design.md`, `design/20260418_media_acquire_design.md` |
-| 0418 | `20260418b_server_lifecycle_phase` | 서버 | **서버 Lifecycle Phase**: ParticipantPhase(sfud 5단계)+SessionPhase(hub 4단계) 독립 전이. LeaveRoom→SESSION_DISCONNECT 통보만. HEARTBEAT touch 제거(UDP 독립 관찰). Anonymous 원복. 발견: video unmuted 미발생(0418a 사이드 이펙) |
-| 0418 | `20260418c_conference_encoder_null` | SDK+분석 | DIAG 로그 추가→encoder=null 확정. video_radio 교차 분석→Chrome 멀티탭 카메라 인코더 경합. 개발환경 한정. 방어 미구현 |
-| 0418 | `20260418e_first_publish_pattern` | SDK | 첫 publish LiveKit 패턴 전환(빈 깡통 transceiver 폐기). 검은화면=복합 시나리오 한정, 오늘 수정 무관 확인 |
-| 0418 | `20260418f_cross_room_phase1_code_review` | 설계+분석 | **★ Cross-Room Federation Phase 1 착수 전 코드 실측 리뷰**: `participant.rs`(42KB 필드 50+)/`room.rs`/`helpers.rs` 매핑. Connection 이동 35필드 vs RoomMember 3필드 분류. **★★ 설계서 §10 addendum 추가**(4항 확정): 10.1 `subscribe_layers` 키 `(publisher_id,room_id)` 확장 / 10.2 `send_stats`·`stalled_tracker` `(ssrc,room_id)` 확장 — SR Translation 방별 독립의 실체 / 10.3 STUN 인덱스 Room→ConnectionMap 전역 이동 / 10.4 Track 소유권 Connection 단일(옵션 B RoomMember 분산 기각). 공수 재평가 1주+→**2~3주**. 오늘의 지침 후보: "설계서에 없는 순서 단정 금지" / "리팩터링 공수는 핵심 파일 실측 후에만". 설계서: `design/20260416_cross_room_federation_design.md` (§10 추가) |
-| 0418 | `20260418g_cross_room_phase1_step1_endpoint_skeleton` | 서버 | **Cross-Room Federation Phase 1 Step 1**: Endpoint/EndpointMap 뼈대 도입. user_id/rooms/created_at + join_room/leave_room/room_count + DashMap 기반 EndpointMap(get_or_create/remove). Participant에 Arc<Endpoint> 참조 추가(상태 이동 X). ROOM_JOIN endpoint claim + 실패 복구(leave_room rollback) + LEAVE endpoint leave + zombie reaper leave. 7파일, cargo build 12.55s 성공, 6종 E2E 정상. 단위 테스트 4개 |
-| 0418 | `20260418h_cross_room_phase1_step2_midpool_migration` | 서버 | **Cross-Room Federation Phase 1 Step 2 — MidPool 이동**: `MidPool` struct + `sub_mid_pool`/`sub_mid_map` 필드 + `assign_subscribe_mid`/`release_stale_mids` 메서드를 Participant→Endpoint로 이동. 설계서 §2 "MidPool=SDP/미디어 도메인, Endpoint(물리)에 자연". Sub PC user당 1개 → cross-room mid 충돌 자료구조 레벨 보장. 8파일 18곳 `.endpoint.` 접두어 추가. 빌드+E2E 2종 통과. **반성 2건**: grep scope 디렉토리 한정(ingress.rs:1248 누락) / 계획 후 실행 누락(같은 에러 2번). 지침 후보 3건 |
-| 0418 | `20260418i_cross_room_phase1_step3_active_floor_room` | 서버 | **Cross-Room Federation Phase 1 Step 3 — cross-room floor 제약**: `Endpoint.active_floor_room: Mutex<Option<String>>` + `try_claim_floor`/`release_floor`/`current_floor_room` + 단위 테스트 3개. MBCP FLOOR_REQUEST 진입점 2곳(DC: datachannel/mod.rs, WS fallback: floor_ops.rs) 사전 체크 → Err 시 MBCP Deny 조기 반환. `apply_floor_actions` Granted/Released/Revoked에 endpoint 훅(SoC 유지: FloorController 무변경). `REJECT_OTHER_ROOM_ACTIVE=100` reject cause 신설(관측 변별성). Phase 1 단일방 환경에서는 실질 트리거 없음(Phase 2 cross-room에서 진짜 시험). 5파일, 빌드+E2E 2종 통과. 지침 후보 3건(SoC/사전체크+훅 이중화/Phase 1 검증 투명공개) |
-| 0418 | `20260418j_cross_room_phase1_step4_stun_index` | 서버 | **Cross-Room Federation Phase 1 Step 4 — STUN 인덱스 EndpointMap 이동**: `by_ufrag`/`by_addr` STUN 인덱스를 Room → EndpointMap으로 전역 이동(설계서 §10.3). 값 타입 `(Arc<Endpoint>, Arc<Participant>, PcType)` — hot path 보조 조회 0. `Room::latch` NAT rebinding 로직 `EndpointMap::latch_addr`로 통째 이관. Room에서 STUN 인덱스 및 `latch`/`get_by_*` 제거, RoomHub에서 `ufrag_index`/`addr_index` 및 `latch_by_ufrag`/`find_by_*` 제거. 등록/해제 4곳(JOIN/LEAVE/zombie reaper/STUN latch). 7파일 수정, 단위 테스트 2개 추가(9개 전부 통과), E2E 2종(voice_radio/video_radio) 정상. **설계 분할 이력**: Step 4a(dual-write)+4b(hot path 전환) 분할 제안→부장님 지시("최종만 검토")로 통합 진행. 교훈: hot path 전환은 분할 이득(위험 격리) vs 인프라 폐기 비용 저울질 필요. 지침 후보 4건 |
-| 0418 | `20260418k_cross_room_phase1_step5_subscribe_layers_key` | 서버 | **Cross-Room Federation Phase 1 Step 5 — subscribe_layers 키 확장**: `HashMap<String, SubscribeLayerEntry>` → `HashMap<(String, String), SubscribeLayerEntry>` (key = `(publisher_id, room_id)`, 설계서 §10.1). Phase 2 cross-room에서 같은 publisher를 N개 방으로 구독 시 각 방마다 독립된 virtual SSRC + simulcast layer 선택 보장. Phase 1 단일방에서는 실질 동작 변화 없음. `purge_subscribe_layers` remove→retain 전환, `for ((pub_id, _room), entry)` destructuring. 6파일 ~25줄 수정 (`participant.rs` + `helpers.rs` + `track_ops.rs` + `ingress_subscribe.rs` 3곳 + `ingress.rs` 3곳 + `tasks.rs` 2곳). 빌드+단위테스트 9/9 통과, E2E 2종(voice_radio/video_radio) 정상. **★ 반성**: Step 2 때 지적된 "grep scope 디렉토리 한정" 실수 재발 — ingress.rs 누락으로 빌드 에러 3건 발생. 지침 1: 핫패스 파일 수동 포함 체크리스트 / 지침 2: tuple key destructuring 패턴 / 지침 3: `build_sr_translation` multi-room 재설계는 Step 9~10 |
-| 0418 | `20260418n_cross_room_phase1_step7_track_ownership` | 서버 | **Cross-Room Federation Phase 1 Step 7 — Track 소유권 Endpoint 이동 (§10.4 옵션 A)**: tracks 필드 + rtx_ssrc_counter + 관련 메서드 9개를 Participant → Endpoint로 이동. additive → 치환 → removal 3-Phase 분할(Phase 1: endpoint.rs 확장 / Phase 2: 13파일 35건 치환 / Phase 3: participant.rs 필드·메서드 제거). **반성**: 부장님 전수조사 52건 리스트에 floor_ops.rs 1파일 누락 → cargo check에서 발견. 지침 후보 2건: ①타입 기반 리팩터링 시 cargo check 전에 독립 grep 필수, ②부장님 리스트는 수령자 측에서도 grep 교차검증. 빌드 0 errors(3.10s), 단위 테스트 12개 전통과(기존 9 + 신규 3), build 4.69s. E2E 부장님 확인 대기 |
-| 0418 | `20260418o_cross_room_phase1_step8a_room_id` | 서버 | **Cross-Room Phase 1 Step 8a — RoomId newtype**: String → RoomId (Participant.room_id, 튜플키 3종, Endpoint.rooms/active_floor_room, Room.id, RoomHub.rooms). Borrow<str>+Deref+serde(transparent)로 호출처/JSON 경로 무변경. 114 tests pass. 지침: newtype 도입 시 #[cfg(test)] 내부까지 grep, doc-test 펜스 `text` 힌트. |
-| 0418 | `20260418p_cross_room_phase1_step8b_rename_room_member` | 서버 | **Cross-Room Phase 1 Step 8b — Participant → RoomMember 리네임**: participant.rs 정의만 수정 → cargo check로 사용처 확보 → perl `\bParticipant\b` 일괄치환(participant.rs 제외, 주석/로그 보존). 유지: 파일명, 메서드명(add_participant/get_participant), ParticipantPhase. 114 tests pass. 지침: 컴파일러=완벽 grep, word boundary 치환 안전. |
-| 0418 | `20260418q_cross_room_phase1_step9a_egress_room_id` | 서버 | **Cross-Room Phase 1 Step 9-A — EgressPacket room_id 필드**: tuple variant → struct variant `{ room_id, data }`. 생성처 7곳(ingress 4, ingress_subscribe 1, helpers 1) fan-out 시점 `room.id.clone()` 주입. egress 소비처는 `room_id: _` 로 무시 — Phase 1 동작 보존. Phase 2 cross-room에서 방별 send_stats 갱신에 사용될 자리. 114 tests pass. |
-| 0418 | `20260418r_cross_room_phase1_step9b_fanout_rooms_loop` | 서버 | **Cross-Room Phase 1 Step 9-B — Fan-out rooms_snapshot 루프**: `handle_srtp` 끝 match 블록과 `process_publish_rtcp` SR relay를 `for room_id in sender.endpoint.rooms_snapshot()` 루프로 전환. 각 방마다 `room_hub.get()` 후 기존 fan-out 함수 호출. Phase 1 단일방 rooms.len()==1이라 루프 1회=동작 변화 0. Subscribe RTCP/register_and_notify/speaker_tracker는 primary room 유지 (9-C 이후). 114 tests pass. |
-| 0418 | `20260418s_cross_room_phase1_step9c_publish_intent` | 서버 | **Cross-Room Phase 1 Step 9-C — publish_intent 도입**: `RoomMember.publish_intent: AtomicBool` 필드 + PUBLISH_TRACKS(add→true / remove all→false). `ingress.rs` fan-out 루프 + SR relay 루프 시작부에 `get_participant().publish_intent` 가드 추가. 부채널 보호(겸직 팀장의 CH3 sub only)가 SFU 레벨에서 성립. 프로토콜 변경 없음. 설계서 §3/§10.4 구현. 114 tests pass. |
-| 0418 | `20260418t_cross_room_phase1_step10_build_sr_translation_room` | 서버 | **Cross-Room Phase 1 Step 10 — SR translation / egress stats의 room_id 정리**: `build_sr_translation`에 `room: &Arc<Room>` 인자 추가. 내부 3곳(subscribe_layers + simulcast send_stats + non-sim send_stats) 전부 `sender.room_id` → `room.id`. `egress.rs`는 9-A에서 심어둔 `EgressPacket.room_id`를 활용 → `participant.room_id` → `pkt_room_id`. 남은 14곳의 `sender.room_id`는 agg_log 용도(주 방)로 의도적 유지. 114 tests pass. |
-
----
+## Phase 53: Pipe Track Gateway + MediaAcquire + 서버 Lifecycle (0418)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0419 | `20260419b_cross_room_doc_relay_error_fix` | 문서 | Cross-Room 설계 문서 relay 전제 오류 수정 확인. 코드 영향 0 |
-| 0419 | `20260419c_peer_refactor_direction` | 설계 | Peer 재설계 방향 확정 — Endpoint→Peer, PubSession/SubSession→Publish/SubscribeContext, RoomMember 4+1필드로 축소. 구조적 버그 7건 식별. A~F 단계 계획 |
-| 0419 | `20260419d_peer_refactor_step_a_done` | 서버 | Peer Step A: room/peer.rs 신규(타입 4 + smoke test 4), dead code. 122/122 pass |
-| 0419 | `20260419e_peer_refactor_step_b_done` | 서버 | Peer Step B: MediaSession 이주 + credential 재사용 closure + STUN 인덱스 멱등화. 33곳 풀 경로 치환. 126/126 pass |
-| 0419 | `20260419f_peer_refactor_step_c1_done` | 서버 | Peer Step C1: RTP 수신 5필드(rtp_cache/stream_map/recv_stats/twcc_recorder/twcc_extmap_id) 이주. 32곳/6파일. 126/126 pass |
-| 0419 | `20260419g_peer_refactor_step_c2_done` | 서버 | Peer Step C2: simulcast_video_ssrc 이주(갈래 A+B 혼합). 3곳/3파일. 127/127 pass. 거짓 보고 사건 교훈 |
-| 0419 | `20260419h_peer_refactor_step_c3_c6_done` | 서버 | Peer Step C3~C6: Pub scope 나머지 10필드 이주(PLI/진단/RTX/DC). 갈래 C 신규 분류. 26곳/7파일. 128/128 pass. Pub scope 완료 |
-| 0419 | `20260419i_peer_refactor_step_d_done` | 서버 | Peer Step D: Sub PC-scope 12필드 이주 + egress_spawn_guard CAS 신규. 46곳/12파일. 129/129 pass |
-| 0420 | `20260420_peer_refactor_step_e1_e5_done` | 서버 | Peer Refactor Step E1~E5 완료. RoomMember 필드 8개 Peer 이주. 129/129 pass |
-| 0420 | `20260420_peer_refactor_step_e6_done` | 서버 | Peer Step E6: zombie reaper를 EndpointMap user 순회로 재작성. user N방 시 1회 판정. 131/131 pass |
-| 0420 | `20260420_peer_refactor_step_f1_done` | 서버 | Peer Step F1: tracks+rtx_ssrc_counter+메서드 11개 Peer 이주. 11파일 56건 수동 치환. sed 실패 후 옵션 B 복구. cfg(test) 맹점 재발. 131/131 pass |
+| 0418 | `20260418a_pipe_gateway_media_acquire` | SDK | ★★★ Pipe Track Gateway + MediaAcquire 게이트웨이 구현 |
+| 0418 | `20260418b_server_lifecycle_phase` | 서버 | ParticipantPhase + SessionPhase 독립 전이 |
+| 0418 | `20260418c_conference_encoder_null` | SDK+분석 | Chrome 멀티탭 카메라 인코더 경합 |
+| 0418 | `20260418e_first_publish_pattern` | SDK | 첫 publish LiveKit 패턴 전환 |
 
----
+## Phase 54: Cross-Room Federation Phase 1 Step 1~10 (0418)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0421 | `20260421_peer_refactor_step_f2_done` | 서버 | Peer Step F2: EndpointMap→PeerMap 리네임 + 튜플 Arc<Peer> + Endpoint.peer embed→Arc. 4파일 43건, 131/131 pass |
-| 0421 | `20260421_peer_refactor_done` | 서버 | **★★★ Peer 재설계 완료 (Step F3 + 마일스톤)**: Endpoint struct 전면 소멸. `RoomMember.endpoint: Arc<Endpoint>` → `peer: Arc<Peer>`. 17파일 cascade (ingress/egress/ingress_subscribe/udp/mod/pli/tasks/handler 5개/floor_broadcast/room/participant/peer/endpoint등). `Endpoint` 타입은 peer.rs 재수출 shim으로 축소. `ZombieUser.endpoint` → `peer`. RoomMember 최종 5+1 필드(room_id/role/joined_at/publish_intent/peer/pipeline). 구조적 버그 7건 해소(recv_stats/twcc 이중 생성, simulcast_video_ssrc 분열, DC 나누어짐, egress 2중 spawn, RTX counter 재초기화, PC pair 개수 산정 오류). **cargo check 0 error / 131 pass**. A~F 전 구간 완료 마일스톤. |
-| 0421 | `20260421_qa_strategy_dialogue` | QA | QA v0 구현+실증 — 2인 video_radio 스모크 PASS |
-| 0421 | `20260421_qa_admin_integration_loss_analysis` | QA | QA controller admin WS 통합 + 3/5인 cycle 교차검증 — fan-out 비트대칭/gating 72%/KF drop 가설 오진 확정 |
-| 0421 | `20260421_ptt_unified_model_dialogue` + `design/20260421_ptt_unified_model_design` | 설계 | **★★★ PTT Unified Model — Axiom 3개 설계**: Subscribe SDP 에 PTT recvonly slot 2개(audio/video) 방 기본 pre-allocate + Universal SSRC (전 방 전 서버 고정 `0x50_54_54_A1/B1`). Axiom 1 (All-or-Nothing atomic grant) / Axiom 2 (Subscribe PC 당 1 stream 불변식) / Axiom 3 (Priority override, 도메인 정의). 파생 기능 6+개 자동 성립 (Listen filter/Multi-room speak/Whisper/긴급발언/Cross-SFU/지휘 브로드캐스트). MCPTT 가 IMS 제약으로 우회(mixing/Group Regroup/Broadcast Group)한 요구를 SFU 원리로 직선 해결. Phase 1(Peer F 완료 직후) / Phase 2(레퍼런스 확보 후) / Phase 3(2027~ Cross-SFU 2PC). 구현은 Peer F3 완료 이후 착수. |
+| 0418 | `20260418f_cross_room_phase1_code_review` | 설계 | Phase 1 착수 전 코드 실측 리뷰 (공수 2~3주) |
+| 0418 | `20260418g_cross_room_phase1_step1_endpoint_skeleton` | 서버 | Step 1: Endpoint/EndpointMap 뼈대 |
+| 0418 | `20260418h_cross_room_phase1_step2_midpool_migration` | 서버 | Step 2: MidPool Endpoint 이동 |
+| 0418 | `20260418i_cross_room_phase1_step3_active_floor_room` | 서버 | Step 3: cross-room floor 제약 |
+| 0418 | `20260418j_cross_room_phase1_step4_stun_index` | 서버 | Step 4: STUN 인덱스 EndpointMap 이동 |
+| 0418 | `20260418k_cross_room_phase1_step5_subscribe_layers_key` | 서버 | Step 5: subscribe_layers 키 (publisher_id, room_id) 확장 |
+| 0418 | `20260418l_cross_room_phase1_step6_send_stats_key` | 서버 | Step 6: send_stats 키 (ssrc, room_id) 확장 |
+| 0418 | `20260418n_cross_room_phase1_step7_track_ownership` | 서버 | Step 7: Track 소유권 Endpoint 이동 (옵션 A) |
+| 0418 | `20260418o_cross_room_phase1_step8a_room_id` | 서버 | Step 8a: RoomId newtype |
+| 0418 | `20260418r_cross_room_phase1_step9b_fanout_rooms_loop` | 서버 | Step 9-B: Fan-out rooms_snapshot 루프 |
+| 0418 | `20260418s_cross_room_phase1_step9c_publish_intent` | 서버 | Step 9-C: publish_intent (부채널 보호) |
+| 0418 | `20260418t_cross_room_phase1_step10_build_sr_translation_room` | 서버 | Step 10: SR translation room_id 정리 |
+
+## Phase 55: Peer 재설계 (0419~0421)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0422 | `20260422_peer_datastruct_analysis` | 서버 | **Peer/RoomMember 자료구조 분석 세션**. 불부합 4건 확정(active_floor_room→Vec, publish_intent 삭제, PipelineStats(γ)분리, Peer.pipeline 삭제) + 관찰 3건(Axiom destinations 구조, 첫번째방 미디어 규칙, 트랙 다중성 미표현). 바디캠 대비 (A)기본+(B)앱위임 방향. Axiom 기반 클라이언트 메시지 설계 미반영 사실 확인. |
-| 0422 | `20260422b_destinations_phase1_impl` + `design/20260422_destinations_message_design` | 서버+SDK | **★ Destinations TLV Phase 1 구현**. mbcp_native FIELD_DESTINATIONS(0x0C), DC handler TLV 기반 방 선택, publish_intent 필드 7곳 삭제. 서버 138/138 + 클라 7/7 pass. playwright MCP로 3인 PTT 회전 QA 성공. multi-room 경계 확인: 서버 Peer.rooms OK, SDK _roomId 단일 필드로 Phase 2 과제 명시. |
+| 0419 | `20260419_cross_room_phase1_followup` | 서버 | Phase 1 후속 점검 |
+| 0419 | `20260419b_cross_room_doc_relay_error_fix` | 문서 | 설계 문서 relay 전제 오류 수정 |
+| 0419 | `20260419c_peer_refactor_direction` | 설계 | Peer 재설계 방향 확정 (A~F 단계) |
+| 0419 | `20260419d_peer_refactor_step_a_done` | 서버 | Step A: room/peer.rs 신규 |
+| 0419 | `20260419e_peer_refactor_step_b_done` | 서버 | Step B: MediaSession 이주 |
+| 0419 | `20260419f_peer_refactor_step_c1_done` | 서버 | Step C1: RTP 수신 5필드 이주 |
+| 0419 | `20260419g_peer_refactor_step_c2_done` | 서버 | Step C2: simulcast_video_ssrc 이주 |
+| 0419 | `20260419h_peer_refactor_step_c3_c6_done` | 서버 | Step C3~C6: Pub scope 나머지 10필드 |
+| 0419 | `20260419i_peer_refactor_step_d_done` | 서버 | Step D: Sub PC-scope 12필드 이주 |
+| 0420 | `20260420_peer_refactor_step_e1_e5_done` | 서버 | Step E1~E5: RoomMember 8필드 Peer 이주 |
+| 0420 | `20260420_peer_refactor_step_e6_done` | 서버 | Step E6: zombie reaper user 순회 |
+| 0420 | `20260420_peer_refactor_step_f1_done` | 서버 | Step F1: tracks+rtx 11개 메서드 Peer 이주 |
+| 0421 | `20260421_peer_refactor_step_f2_done` | 서버 | Step F2: EndpointMap→PeerMap 리네임 |
+| 0421 | `20260421_peer_refactor_done` | 서버 | ★★★ Peer 재설계 완료 (Endpoint 소멸, 구조 버그 7건 해소) |
 
----
+## Phase 56: PTT Unified Model + QA + Hook + MBCP 부채 (0421)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0423 | `20260423_scope_model_step1_through_7_done` + `design/20260423_scope_model_design` (rev.2) | 서버+SDK | **★★★ Scope 모델 Step 1~7 완료 (Cross-Room rev.2)**: Peer scope 필드+set_id(1) / SubscriberIndex+fan-out user 단위(2) / SCOPE_UPDATE/SET/EVENT + primitive 4(3) / FLOOR_TAKEN user 단위 + speaker_rooms/via_room(4) / STALLED user 단위(5) / Admin User 듷(6) / SDK `engine.scope.*` API + MCPTT 표준 용어(7). 서버 163/163 pass + 클라 14/14 pass. Server-authoritative 원칙, JSON `"pub"` 키 대칭, 네임스페이스 그룹 API 확정. Step 4c(FLOOR_REQUEST pub_set_id) 연기, Step 8(Phase 2 SFU-SFU relay) 직전. |
+| 0421 | `20260421_qa_strategy_dialogue` | QA | QA v0 구현 + 2인 video_radio smoke PASS |
+| 0421 | `20260421_qa_admin_integration_loss_analysis` | QA | QA admin WS 통합 + 3/5인 cycle 교차검증 |
+| 0421 | `20260421_ptt_unified_model_dialogue` + `design/20260421_ptt_unified_model_design` | 설계 | ★★★ PTT Unified Model — Axiom 3개 설계 |
+| 0421 | `20260421c_hook_site_toml_design` | 설계 | Hook + site.toml 설계 |
+| 0421 | `20260421d_mbcp_ack_asymmetry_debt` | 분석 | MBCP ACK 비대칭 부채 분석 |
+
+## Phase 57: 자료구조 분석 + Destinations + Scope Model + Track Refactor (0422~0423)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0422 | `20260422_peer_datastruct_analysis` | 서버 | Peer/RoomMember 자료구조 분석 (불부합 4건) |
+| 0422 | `20260422b_destinations_phase1_impl` + `design/20260422_destinations_message_design` | 서버+SDK | Destinations TLV Phase 1 + 3인 PTT 회전 QA |
+| 0423 | `20260423_scope_model_step1_through_7_done` + `design/20260423_scope_model_design` (rev.2) | 서버+SDK | ★★★ Scope 모델 Step 1~7 (Cross-Room rev.2) |
+| 0423 | `20260423c_track_entity_refactor_done` + `design/20260423b_track_entity_refactor_design` | 서버 | Track 리팩터 Step T1~T3 (atomic, ArcSwap RCU) |
+| 0423 | `20260423d_track_refactor_t4_t7_done` | 서버 | Track 리팩터 Step T4~T7 |
+
+## Phase 58: Cross-SFU 모델링 + 업계 조사 (0424~0425)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0424 | `20260424_crosssfu_modeling_70pct` | 설계 | Cross-SFU 모델링 70% (RoomHub.room_directory + Room.remote_subscribers) |
+| 0425 | `20260425_crosssfu_industry_survey_positioning` | 설계+포지셔닝 | 5개 구현 topology 비교 + 100만 한 방 업계 실측 |
+| 0425 | `20260425_mbcp_standard_gap_analysis` | 분석 | MBCP 표준 갭 분석 (옵션 B 자체 포맷 명시) |
+| 0425 | `20260425b_affiliate_floor_design_mulling` + `blog/20260425_blog_strategy_reassessment` | 설계+블로그 | Affiliate-level Floor 설계 숙성 + 블로그 전략 재검토 |
+
+## Phase 59: Step 4c + SDK Settings + Pan-Floor (0425)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0425 | `20260425c_step4c_pub_set_id_done` | 서버+SDK | Step 4c FLOOR_REQUEST pub_set_id ↔ destinations MUTEX |
+| 0425 | `20260425d_sdk_media_settings_qa_panel_video_radio_v2` + `design/20260425_sdk_media_settings` | SDK+QA | 시험체계 단일출처 + SDK Media Settings + QA UI 패널 |
+| 0425 | `20260425e_takeover_qa_ui_simulcast_fix` | 서버+SDK+QA | Take-over 가드 단축 + simulcast 비대칭 fix |
+| 0425 | `20260425f_pan_floor_impl` | 서버 | Pan-Floor svc=0x03 서버 구현 (2PC) |
+| 0425 | `20260425g_pan_floor_phase2` | 서버 | Pan-Floor Phase 2 enhancement |
+| 0425 | `20260425h_pan_floor_sdk_consistency_review` | SDK+QA | Pan-Floor 5 step 통합 시험 + 일관성 검토 |
+| 0425 | `20260425i_p1_p2_p3_multiroom_floor_wire` | SDK+서버+QA | P1/P2/P3 + cross-room SDP duplicate fix + 멀티룸 floor wire 라우팅 fix |
+
+## Phase 60: oxhubd Supervisor 설계 + 옛 PMON 학습 (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426_supervisor_design_pmon_review` + `design/20260426_oxhubd_supervisor_design` | 설계 | hub control plane 설계 (Level 1~3 차원, 1차 PR Level 1만, spec 자리만 Level 2/3). 옛 PMON 소스 리뷰. 부장님 풀스택 자산 컨텍스트 (시그널링서버/단말 직접 구현, OxLens 미디어서버가 처음). 불변 원칙 3개 (도메인 무관/Stop 양식/enum 확장). Ground truth 5종 (Erlang OTP/systemd/kubelet/tini/tokio::process) |
+
+## Phase 61: QA 10영역 시험 + measure/quality hook + 품질 카테고리 신설 (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426_qa_session_progress` | QA+SDK | QA 14영역 중 10영역(10~92, 91 별도) Playwright MCP 시험 완료. **129항목 / ✅ 91 / ❌+⚠️ 14 / ❓ 24** (success rate **70.5%**). 결함 8건 (C-06, R-01/02, R-09, P-07, S-08, F-14, PAN-06, PW-08) + 의심 4건 (F-12 preemption, server-side stale, RV-09 zombie timing 35s→24s, G3-02/03 capture constraint 미반영). 50_track_gateway / 92_media_settings 16/16 괴함 없음. 별도 TODO 기각, qa/README.md 단일 라이브 큐. **품질 카테고리 신설** (5번째 카테고리, 3-tier 모델: 신호 임계 자동 + MOS proxy 자동 + 합성 신호 baseline) — `checks/94_quality.md` 11항목 초안. **인프라 hook 신설**: `__qa__.measure`, `__qa__.quality` (latency / getStats diff). 부장님 정정: QA 전용 방 = qa_test_01~03, UI 시각 검증 (§G), 환경 불변 (§H). |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 212개
-- **기간**: 2026-03-09 ~ 2026-04-23 (45일)
+- **총 세션 파일**: 224개
+- **기간**: 2026-03-09 ~ 2026-04-26 (48일)
 
 ---
 
