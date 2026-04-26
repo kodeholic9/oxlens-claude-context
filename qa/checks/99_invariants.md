@@ -1,8 +1,8 @@
 # 99_invariants.md — 불변식 sentinel (Negative Regression)
 
 > **목적**: 매 시험 default 로 박힘. 깨지면 즉시 fail.
-> **마지막 갱신**: 2026-04-26
-> **항목 갯수**: 13
+> **마지막 갱신**: 2026-04-26 (Phase 66 §G: INV-14~18 UI 시각 구조 불변식 5건 추가)
+> **항목 갯수**: 18
 
 ---
 
@@ -28,6 +28,16 @@
 | INV-11 | WS JSON Floor (op=40/41) 송신 시 거부/무시 | DC bearer 시 WS 경로로 floor 보내면 서버 거부 + 미전파 (FLOOR_TAKEN/IDLE 미발생) | 👁 |
 | INV-12 | Pan-Floor MUTEX (dests + pubSetId 동시) → 클라 사전 throw | `buildPanRequest`/`buildRequest` 호출 시 throw, 서버 도달 0 | 👁 |
 | INV-13 | `pub_rooms ⊆ joined_rooms` (감시만, 강제 아님) | 위반 시 admin agg-log `scope_invariant_violation` 출현 (현재 미구현, 감시 후보) | 👁 |
+
+## UI 시각 구조 (Phase 66 §G — 다음 시험 default)
+
+| ID | 불변식 | 측정 방법 | 상태 |
+|---|---|---|:---:|
+| INV-14 | half-wrap 의 모든 cell 의 dataset.duplex === 'half' | `[data-qa="half-wrap"] .cell` 순회, `cell.dataset.duplex !== 'half'` 시 fail | 👁 |
+| INV-15 | full-wrap 의 모든 cell 의 dataset.duplex === 'full' | `[data-qa="full-wrap"] .cell` 순회, `cell.dataset.duplex !== 'full'` 시 fail | 👁 |
+| INV-16 | full-wrap 이 half-wrap 아래에 위치 (CSS grid layout) | `getBoundingClientRect`: `fullRect.top >= halfRect.bottom` | 👁 |
+| INV-17 | recv cell 의 dataset.roomId 비어있지 않음 (G-3) | `.cell[data-dir="recv"]` 순회, `cell.dataset.roomId === ''` 시 fail (PTT virtual 은 send/half 특수 제외) | 👁 |
+| INV-18 | audio-only placeholder 의 dataset 무결성 (G-2) | `.cell[data-audio-only="1"]` 존재 시 dataset.user/duplex/roomId 모두 비어있지 않음 | 👁 |
 
 ---
 
@@ -65,6 +75,51 @@ function checkInvariants() {
   for (const cell of document.querySelectorAll('.cell video')) {
     if (cell.dataset.duplex === 'half' && getComputedStyle(cell).display === 'none') {
       fails.push(`INV-10: PTT video display:none on ${cell.dataset.user}`);
+    }
+  }
+
+  // INV-14/15/16: UI 시각 구조 (Phase 66 §G G-1)
+  const halfWrap = document.querySelector('[data-qa="half-wrap"]');
+  const fullWrap = document.querySelector('[data-qa="full-wrap"]');
+  if (halfWrap) {
+    for (const cell of halfWrap.querySelectorAll('.cell')) {
+      if (cell.dataset.duplex !== 'half') {
+        fails.push(`INV-14: half-wrap cell duplex='${cell.dataset.duplex}' (expected 'half') user=${cell.dataset.user}`);
+        break;
+      }
+    }
+  }
+  if (fullWrap) {
+    for (const cell of fullWrap.querySelectorAll('.cell')) {
+      if (cell.dataset.duplex !== 'full') {
+        fails.push(`INV-15: full-wrap cell duplex='${cell.dataset.duplex}' (expected 'full') user=${cell.dataset.user}`);
+        break;
+      }
+    }
+  }
+  if (halfWrap && fullWrap) {
+    const halfRect = halfWrap.getBoundingClientRect();
+    const fullRect = fullWrap.getBoundingClientRect();
+    if (halfRect.height > 0 && fullRect.height > 0 && fullRect.top < halfRect.bottom) {
+      fails.push(`INV-16: full-wrap.top(${fullRect.top}) < half-wrap.bottom(${halfRect.bottom}) (CSS grid layout broken)`);
+    }
+  }
+
+  // INV-17: recv cell 의 dataset.roomId 키 비어있지 않음 (Phase 66 §G G-3)
+  for (const cell of document.querySelectorAll('.cell[data-dir="recv"]')) {
+    // PTT virtual (data-user='~speaker') 은 제외 — PTT 는 send pipe 의 send-side 표현으로 roomId 명시적 없음
+    if (cell.dataset.user === '~speaker') continue;
+    if (cell.dataset.roomId === '') {
+      fails.push(`INV-17: recv cell dataset.roomId empty user=${cell.dataset.user}`);
+      break;
+    }
+  }
+
+  // INV-18: audio-only placeholder dataset 무결성 (Phase 66 §G G-2)
+  for (const cell of document.querySelectorAll('.cell[data-audio-only="1"]')) {
+    if (!cell.dataset.user || !cell.dataset.duplex) {
+      fails.push(`INV-18: audio-only placeholder missing dataset.user or duplex`);
+      break;
     }
   }
 

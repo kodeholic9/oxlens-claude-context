@@ -1,8 +1,8 @@
 # 80_power.md — Power Management (PTT 3단계)
 
 > **catalog 매핑**: `10_sdk_api.md §Engine.Power Management`, `50_lifecycle.md §PTT_POWER`
-> **마지막 갱신**: 2026-04-26
-> **항목 갯수**: 9
+> **마지막 갱신**: 2026-04-26 (Phase 64: PW-08 제거)
+> **항목 갯수**: 8
 
 ---
 
@@ -15,13 +15,11 @@
 | PW-05 | visibility=visible → HOT (`ptt:visibility_change{visible:true}`) | document.visibilitychange 이벤트, `_set(HOT)` | 동일 | ✅ |
 | PW-06 | online event → HOT | `window.online` 이벤트, HOT 강제 | 동일 | ✅ |
 | PW-07 | connection change → HOT | `navigator.connection.change`, HOT 강제 | 동일 | ✅ |
-| PW-08 | mute/unmute (`_userMuteLock`) | `mute:changed{kind:'all', muted:true}`, COLD lock, unmute → HOT | `10_sdk_api §Power Management` | ❌ |
 | PW-09 | audio first / video background restore (`ptt:restore_metrics`) | `{audioMethod, audioMs, videoMethod, videoMs, totalMs}` audio 우선 resolve | `10_sdk_api §Power Management` | ✅ |
 
 ---
 
 > ⚠️ PW-01 의 'attach 직후' 시점이 ready Promise resolve 직후라도 이미 hot_standby 는 경우 다수 — timer-based capture path 자체가 필요 (or `ptt:power{state:'hot'}` 첫 이벤트 capture). 현 시험 logic 으로 는 unknown.
-> ⚠️ PW-08 결함 확인: `handle.mute()` 는 catalog 기대 `kind:'all'` 대신 `kind:'video'` 만 emit. `_userMuteLock` 변수 자체가 engine 에 존재 안 함. unmute 후 HOT 복귀 안 됨 (state 변동 없음). README §E (결함 추적) — PW-08 등록.
-> ⚠️ PW-08: userMuteLock 활성 시 외부 _set 호출은 COLD 외에는 무시됨 (설계 의도).
+> 📝 PW-08 (4/26 Phase 64 §E) 시험 항목 제거 — 의도 복잡 (`engine.power.mute()` PTT lock vs `engine.toggleMute()` 트랙 mute 혼동, qa `handle.mute()` 가 후자에 매핑). 무전 시 toggleMute 가 video 만 끄는 것은 정상 동작 (부장님 결정). PowerManager 정합 작업은 §A-6 차우선순위 하락과 묶임 — mute 의미 재정의 후 catalog 별도 항목 신설 대기.
 > ⚠️ PW-09: audio 실패 시 전체 중단, video 실패 시 audio-only fallback (`media:fallback` emit).
 > ✅ PW-09 실측: COLD→HOT wake 시 audioMs=21ms, totalMs=22ms (localhost). audio-first 패턴 정상.

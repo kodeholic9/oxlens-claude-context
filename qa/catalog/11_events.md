@@ -97,9 +97,9 @@
 | `ptt:restore_metrics` | `{audioMethod, audioMs, videoMethod, videoMs, totalMs}` |
 
 ## Scope (engine.scope.on)
-| 이벤트 | payload |
-|---|---|
-| `changed` | `{sub_set_id, pub_set_id, sub[], pub[], cause, change_id}` |
+| 이벤트 | payload | 비고 |
+|---|---|---|
+| `changed` | `{sub_set_id, pub_set_id, sub[], pub[], cause, change_id}` | **현재 cause = `'user'` 단일** (클라이언트 발 SCOPE_UPDATE/SET 응답 + broadcast 통일). force / admin / reconnect 등 강제 변경 카테고리는 향후 보존. SDK 는 서버 `d.cause` 그대로 pass-through |
 
 ## Extension
 | 이벤트 | payload | 출처 |

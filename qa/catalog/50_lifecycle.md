@@ -63,7 +63,7 @@
 | 값 | 의미 |
 |---|---|
 | `hot` | 정상 — 장치 ON, 인코더 OK |
-| `hot_standby` | enabled=false (브라우저 자동 해제) |
+| `hot_standby` | half-duplex pipe `trackState==='inactive'` (`replaceTrack(null)`, sender.track==null). full-duplex pipe 는 보존 |
 | `cold` | track release, RTP 완전 중단 |
 
 전이: 기본 HOT → 1초 → HOT_STANDBY → 30초 → COLD. floor:granted/taken/released/revoke/idle 시 HOT 복귀. visibility/online/connection wake 시 HOT.

@@ -1,12 +1,12 @@
 # 40_qa_ui.md — QA UI 표면 (`window.__qa__`)
 
-> **마지막 갱신**: 2026-04-26
+> **마지막 갱신**: 2026-04-26 (Phase 66 §G: cell.dataset.roomId/audioOnly + RX overlay hdr 명세)
 > **출처 파일**:
 >   - oxlens-home/qa/controller.js (parent tab)
 >   - oxlens-home/qa/participant.js (iframe)
 >   - oxlens-home/qa/index.html / participant.html
 > **다음 갱신 트리거**: `window.__qa__.*` 표면 변경, admin WS 메시지 타입 추가
-> **항목 갯수**: parent 8 / iframe 12 / admin 14 / test panel 5
+> **항목 갯수**: parent 8 / iframe 17 / admin 14 / test panel 5
 
 ---
 
@@ -85,10 +85,15 @@ parent tab (qa/index.html)
 ### Fault Injection (육안 검증 + 시험)
 | API | 비고 |
 |---|---|
-| `fault.killMedia()` | local audio/video track stop, count 반환 |
-| `fault.killWs()` | `engine.sig._ws.close(4000, "qa-kill")` |
+| `fault.killMedia()` | local audio/video track stop, count 반환. 재개는 enableMic/Camera 재호출 필요 |
+| `fault.killWs()` | `engine.sig._ws.close(4000, "qa-kill")` — auto-reconnect trigger |
 | `fault.toggleMic()` | `engine.toggleMute('audio')` |
 | `fault.toggleSpk()` | audio-wrap 의 모든 audio.muted 토글 |
+| `fault.injectMediaError(category)` | `navigator.mediaDevices.getUserMedia` 1회 mock (자동 복원). category=`permission_denied`/`not_found`/`in_use`/`overconstrained`/`timeout`/`unknown`. **C-09** 검증 path. 호출 후 `enableMic/Camera` trigger |
+| `fault.killPc(which)` | which=`pub`/`sub`/`both`. `engine.pubPc.close()`/`subPc.close()` — connectionState='closed' → classifyPcError. **C-10** 검증 path. ⚠️ 'unknown' 분류만 자연 발화, 'ice'/'dtls' 분류는 별도 mock 필요 (차기 round) |
+| `fault.fillPending(n=70, type='pending')` | OutboundQueue 직접 주입. type=`pending`(`_pending[2]` n건) 또는 `ack_timeout`(`_sending` 11초 이전 timestamp). 다음 heartbeat 시점 reconnect trigger. **C-14** 검증 path |
+| `fault.suppressFloorAck(on)` | `room.floor.handleDcMessage` override (자체 백업/복원). on=true 면 DC svc=0x01 응답 drop → T101 (500ms×3) 자연 발화. **F-10** 검증 path. spawn(autojoin) 후 호출 |
+| `fault.publisherRtpStop({kind})` | kind=`audio`/`video`/`all` (default 'all'). pipe.track.stop() — SDK lifecycle 변경 없이 RTP 송출 정지 → 서버 STALLED checker 가 ~5초 후 op=106 trigger. **RV-06** 검증 path. killMedia 와 의미적 분리 |
 
 ## Spec 형식 (spawn / participant URL)
 
@@ -136,6 +141,18 @@ snapshot 20 / sfu 60 / hub 60 / aggLog 60 / clientTel 100 / raw 200
 | `agg_log` | 3s (이벤트 시) | `{label, room_id, count, delta_ms}[]` |
 | `client_telemetry` | 클라 op=30 중계 | |
 
+### snapshot 메시지 세부 표기
+
+`participants[].tracks[]` 항목별 필드:
+- `kind`: `'audio'` / `'video'`
+- `source`: `'mic'` / `'camera'` / `'screen'`
+- `type`: **video 만 `'half'/'full'` 표기, audio 는 undefined** (비대칭 — audio duplex 검증 시 다른 path 사용 필요)
+- `mid` / `ssrc` / `simulcast`
+
+`participants[].phase` (ParticipantPhase): `'created'` / `'intended'` / `'active'` / `'suspect'` / `'zombie'`
+- **Active 진입 = 첫 RTP 송출 후** (full-duplex 트랙 또는 PTT press 필요). spawn(autojoin) 만으로는 Intended 까지
+- Suspect: 20초 무응답 / Zombie: 35초 (→ admin 제거)
+
 ### URL 자동 감지 (`adminDetectUrl`)
 
 | host | URL |
@@ -162,7 +179,39 @@ snapshot 20 / sfu 60 / hub 60 / aggLog 60 / clientTel 100 / raw 200
 - 4 버튼: kill media / kill ws / mic toggle / spk toggle
 - status row: `phase / conn / cfg / mic / cam / spk / floor / speaker`
 - TX status: `tx=A:... | V:...`
-- RX overlay: hdr / cfg / A / V / V2 + level-bar (audioLevel meter)
+- RX overlay: hdr / cfg / A / V / V2 + level-bar (audioLevel meter). hdr 라인 = `RX <userKey> / <roomId>` (Phase 66 G-3 cross-room 식별)
+
+### SDK `pipe.mount()` 이 만드는 element 의 dataset (자동 부여)
+
+`createElement('video'|'audio')` 결과 element 에 SDK 가 다음 속성 자동 부여:
+
+| 속성 | 값 |
+|---|---|
+| `data-pipe-id` | pipe.trackId |
+| `data-kind` | `'audio'` / `'video'` |
+| `data-source` | `'mic'` / `'camera'` / `'screen'` (없으면 빈 문자열) |
+| `data-duplex` | `'half'` / `'full'` (audio/video 모두) |
+| `data-user-id` | pipe.userId (recv pipe 만, local send pipe 는 부여 X) |
+
+§G UI 검증 (half=첫줄 / full=둘째 줄) 자동화 시 이 dataset 기준으로 DOM query.
+
+**G2 outputElement 자동 등록**: `pipe.mount()` 가 반환하는 element 는 SDK 가 자동으로 `engine.addOutputElement(el)` 호출 → `outputMuted` / `outputVolume` 이 즉시 반영됨. `pipe.unmount()` 시 자동 해제. 앱이 `engine.addOutputElement` 를 명시 호출할 필요 없음 (외부에서 직접 만든 element 를 등록할 때만 사용).
+
+### QA UI cell.dataset (participant.js 가 cell wrapper 에 부여) — Phase 66 §G
+
+attachMounted 가 video/placeholder cell 생성 시 다음 속성 부여 (SDK 가 video element 에 부여하는 위 dataset 과 별개 — cell 은 wrapper, video 는 그 안의 자식):
+
+| 속성 | 값 |
+|---|---|
+| `data-user` | pipe.userId 또는 '~speaker' (PTT virtual half) / '~self' (send local) |
+| `data-dir` | 'send' / 'recv' |
+| `data-duplex` | 'half' / 'full' |
+| `data-room-id` | **pipe.roomId** (recv pipe 만, G-3 cross-room 식별. send pipe / PTT virtual 은 빈 문자열) |
+| `data-audio-only` | **'1'** (G-2 audio-only placeholder cell 마커. 일반 video cell 은 부여 X) |
+
+**RX overlay hdr 라인**: `RX <userKey> / <roomId>` (G-3, `cell.dataset.user` + `cell.dataset.roomId` 결합). roomId 빈 문자열이면 `RX <userKey>` 만 표시.
+
+§G 검증 logic (`99_invariants.md` INV-14~18) 가 이 dataset 기준으로 DOM query.
 
 ---
 

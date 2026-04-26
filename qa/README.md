@@ -1,7 +1,7 @@
 # qa/ — OxLens QA 시험 체계
 
 > **단일 출처**: 본 README + 하위 디렉토리. (구) `context/guide/QA_GUIDE_FOR_AI.md` 는 stub.
-> **마지막 갱신**: 2026-04-26
+> **마지막 갱신**: 2026-04-26 (Phase 67: §F 4/4 처리 완료 — RV-09/F-12/G3-02·03/server-side stale 모두 결함 아님 판정)
 > **세션 시작 시 의무 로드**: 시험 세션 시작 전 본 README 부터.
 
 ---
@@ -100,72 +100,72 @@ window.qa              (participant iframe)
 ## 다음 시험 시정/참고사항 (라이브)
 
 > 처리되면 즉시 빼서 짧게 유지. catalog/checks/doc 는 정리된 결과만, 여기는 "아직 손 안 댄 라이브 큐". 세션 시작 시 README 따라 자동 로드됨.
-> 마지막 갱신: 2026-04-26 (QA 7영역 완료 후)
+> 마지막 갱신: 2026-04-26 (Phase 67: §F 4/4 처리 완료)
 
 ### A. catalog 사실 mismatch (수정 필요)
 
-- [ ] **§Pipe.DOM `mount(element)/unmount(element)` → 실제 인자 없음**: `mount()` 는 SDK 가 element 를 만들어서 반환 (LiveKit owner 패턴). `unmount()` 는 인자 없이 `HTMLMediaElement[]` 반환 (app 이 DOM 에서 제거). `_attachTrack` 이 stream 재사용 + Safari/FF 우회 처리.
-- [ ] **§Acquire 반환 형태**: `acquire.audio() / .video() / .screen()` 반환은 단일 track 이 아닌 `{track, stream}` wrapper. catalog 에 명시 필요.
-- [ ] **§Simulcast layer 표기**: catalog `h/m/l` 3계층 → 실제 `h/l` 2계층만.
-- [ ] **§Scope cause 표기**: catalog 의 `'affiliate' / 'deaffiliate' / 'select' / 'deselect' / 'force'` → 실제 SDK 는 `cause:'user'` 로 통일. SC-01/02/03 검증 시 cause 매칭 잘못된 시험 logic 만들면 fail 마킹됨.
-- [ ] **§Engine `enableScreen / disableScreen` 없음**: 화면 공유는 `acquire.screen() + addVideoTrack(track, 'screen')` 패턴. catalog 에 명시 필요.
-- [ ] **§Admin snapshot audio track type 필드 누락**: video 만 `'half' / 'full'` 표기, audio 는 undefined. catalog/40_qa_ui §Admin 에서 명시.
-- [ ] **§Lifecycle heartbeat interval SDK 측 노출 path**: 현재 `engine.sig._idleTimeout` null. C-04 검증 시 측정값 capture 불가. 노출 명세 필요.
-- [ ] **§Power Management track 검증 path**: PW-02 catalog 기대 `track.enabled==false` → 실제 `pipe.trackState=='inactive'`. SDK 는 sender.track 자체를 null 로 제거 (replaceTrack(null) 패턴). catalog 보정 필요.
-- [ ] **§Video element 식별 속성**: SDK 가 생성하는 `<video>` element 에 `data-uid` / `data-duplex` 등 식별 속성 노출 안 됨. §G UI 레이아웃 검증 (half=첫줄 / full=둘째 줄) 을 DOM query 로 자동화 불가. SDK 측 노출 명세 필요 또는 catalog 에 권장 selector 명시.
-- [ ] **§Power Management `_userMuteLock` 변수 없음**: PW-08 catalog 기대 `engine._userMuteLock` 접근 불가. SDK 측에 lock 변수 노출 안 됨 또는 다른 이름. catalog/SDK 양쪽 정리 필요.
-- [ ] **§ParticipantPhase RV-07 시나리오**: catalog "spawn 직후 Created→Intended→Active" 기대 실제로는 spawn(autojoin) 만으로는 Intended 까지만 도달. **Active 는 첫 RTP 송출 후** (full-duplex 또는 PTT press 필요) — catalog 에 명시.
-- [ ] **§G2 outputMuted/Volume element 자동 등록 안 됨**: SDK 가 생성하는 audio/video element (mount() 결과 포함) 가 outputElement 로 자동 등록 안 됨. 앱이 `engine.addOutputElement(el)` 명시 호출 필수. catalog 의 "모든 등록 audio element 동기화" 표현에 "addOutputElement 로 등록한" 명시 필요. 또는 SDK 측에서 mount() 시 자동 등록 제공 검토.
-- [ ] **§Local pipe `mid=null` 현상**: full-duplex 송출 중인 cam pipe 의 `mid` 가 null. catalog 기대는 할당된 mid 노출 (subscribe MID 가 아닌 local sender MID). SDK 측 명세 확인 필요.
+> Round 2 결과: §A 9건 모두 처리 완료.
 
 ### B. checks 갱신 후보
 
-- [ ] **40_subscribe S-05**: `room.pipes` 자료구조 검증 path 미상 — 현 catalog 의 "Room.matchPipeByMid" 가 어떤 자료구조 가리키는지 명시 안 됨. bob 의 `room.pipes` 가 Map 아님.
-- [ ] **40_subscribe S-07**: `fan_out.gate_paused` metric 실제 위치 정정 — 현 sfu_metrics 에는 `avg / max / min` 만 있고 `gate_paused` 키 없음.
+> Phase 64 (4/26) 처리 완료: 2/2.
+> - S-05 검증 path 명시 (`room.remoteEndpoints` 2단계 중첩 — catalog `10_sdk_api §Room`)
+> - S-07 `fan_out.gate_paused` 미존재 정정 → admin snapshot `participants[*].subscriber_gate[]` (publisher/paused/reason/elapsed_ms dump) 이 유일 경로
 
 ### C. doc 신설 / 보강
 
-- [ ] **runtime_patterns.md 보강 — iframe MediaStream cross-realm 우회**: controller realm 에서 iframe 의 MediaStream 객체 메서드 호출 불가 (security). 우회: `aliceWin.eval(\`window.__fn__ = async function() { ... }\`)` 으로 iframe realm 에 함수 정의 후 `await aliceWin.__fn__()` 로 호출.
-- [ ] **신규 doc — server-side stale join_rooms / sub_set 멤버**: reset 후에도 server 의 sub-{user} / pub-{user} set 멤버 잔존 (shadow 복구 + zombie 정리 부재). qa_test_01 이 alice 의 sub/pub 에 자동 복구되는 현상. 새 시험 시작 시 명시 cleanup (`engine.scope.set({sub:[room], pub:[room]})`) 권장 패턴.
-- [ ] **runtime_patterns.md 보강 — ws.send hook 으로 wire 검증**: Scope/MBCP 등 outgoing payload 캡처. `const orig = ws.send.bind(ws); ws.send = (data) => { capture(data); return orig(data); };`. SC-10 의 'pub' JSON key 검증, F-14/PAN-06 의 wire 파싱에 활용.
+> Phase 64 (4/26) 처리 완료: 3/3.
+> - `runtime_patterns.md` §F. iframe MediaStream cross-realm 우회 (eval + plain object 반환)
+> - `runtime_patterns.md` §G. ws.send hook 으로 wire 검증 (string/binary 분기)
+> - `server_side_stale_membership.md` 신설 — sub-{user}/pub-{user} set 잔재 현상, cleanup 패턴 (`engine.scope.set`), BUNDLE 길이 sentinel, 결함 vs 운영 한계 판정 대기 (§F 와 묶임)
 
 ### D. QA 인프라 신설 (현재 unknown 처리되는 시험들 풀려남)
 
-- [ ] **`fault.injectMediaError(category)`** — C-09 (mediaError 시뮬). 현재 unknown.
-- [ ] **`fault.killPc()`** — C-10 (PC error). 현재 unknown.
-- [ ] **`fault.fillPending(n)`** — C-14 (ACK timeout). 현재 unknown.
-- [ ] **`fault.suppressFloorAck`** — F-10 (T101 timeout). 현재 unknown.
-- [ ] **`fault.publisherRtpStop`** — RV-06 (track:stalled 서버 측 자연 발생 시뮬). publisher RTP 송출 5쓴 이상 강제 정지 + 정당사유 제외 조건. 현재 unknown.
+> Phase 65 (4/26) 처리 완료: 5/5.
+> - `fault.injectMediaError(category)` — getUserMedia 1회 mock + 자동 복원 (**C-09**)
+> - `fault.killPc(which)` — pubPc/subPc 강제 close, 'unknown' 분류 자연 발화 ('ice'/'dtls' 차기 round) (**C-10**)
+> - `fault.fillPending(n, type)` — OutboundQueue _pending/_sending 직접 주입, type='pending'/'ack_timeout' (**C-14**)
+> - `fault.suppressFloorAck(on)` — room.floor.handleDcMessage override, 자체 백업/복원 (**F-10**)
+> - `fault.publisherRtpStop({kind})` — pipe.track.stop() kind 분기, killMedia 와 의미적 분리 (**RV-06**)
+>
+> 부수효과: RV-03/04 (PC failed 자체 복구) 도 killPc 로 시뮬 가능 — unknown 해소.
+> 시험은 모두 ⬜ (다음 cycle 에서 검증 → ✅/⚠️).
 
 ### E. 결함 추적 (다음 시험 영역에서도 영향 가능 — fix 되면 빼기)
 
-- [ ] **C-06**: 잘못된 JWT (`'INVALID_TOKEN_xxx_not_kodeholic'`) 도 46ms 만에 IDENTIFIED + JOINED 도달. 인증 우회 의심. **재현 path**: `__qa__.spawn` 에 잘못된 token 주입 → state 즉시 ready.
-- [ ] **R-01 / R-02**: ROOM_LIST(op=9) / ROOM_CREATE(op=10) WS dispatch 시 `code=3001 "invalid opcode"` 반환. `oxsfud/signaling/handler/room_ops.rs` 가 JOIN/LEAVE/SYNC/SESSION_DISCONNECT 만 처리. REST `oxhubd/rest/rooms.rs` 분리됐을 가능성. **재현**: `aliceEng.sig.send(9, {})`.
-- [ ] **R-09**: ROOM_SYNC(op=50) SDK 능동 호출 path 미상. `sig.send(50, {})` → `code=2004 "not in room"`, `{room_id:'qa_test_01'}` 줘도 동일. SDK 응답 핸들러 `_onRoomSyncIncremental` 만 존재. **재현**: 직접 op=50 송신.
-- [ ] **P-07**: `disable('mic'/'camera')` 후 device 정리 / server propagate 모두 ✅, 그러나 **`state().published` 변동 없음** (audio/mic, video/camera 그대로 stale). pipe.deactivate → published 제거 chain 끊어짐. **재현**: enable mic+camera → disable both → state.published 확인.
-- [ ] **S-08**: multi-publisher 직렬 spawn 시 sub PC `setRemoteDescription` m-line order mismatch race 9건 발생 (bundle `0 1 2 3 → 0 1 2 3 4 5`). **multi-room joinRoom 시점에도 재현** (bundle `0 1 2 3 4`). 최종 SDP 는 retry 로 정합. **재현**: 3명 sequential spawn 또는 alice 가 second room join.
-- [ ] **F-14**: `engine.floorRequest({priority:0, destinations:['qa_test_03'], pubSetId:'pub-alice'})` MUTEX 사전 throw 누락. catalog 기대 `buildRequest throw, floor:denied{code:4032}` — 실제로는 throw 안 함 (silent 송신). PROJECT_MASTER §시그널링 "FLOOR_REQUEST 방 지정 MUTEX 원칙" 에 SDK 사전 안전망 누락.
-- [ ] **PAN-06** (F-14 동일 패턴): `engine.scope.panRequest({dests:['qa_test_03'], pubSetId:'pub-alice'})` 동시 → throw=false, panSeq=null silent 반환. catalog 기대 `buildPanRequest throw`.
-- [ ] **PW-08**: `handle.mute()` 동작이 catalog 와 불일치. catalog 기대 `mute:changed{kind:'all', muted:true}` + COLD lock + unmute → HOT 이지만 실제로는 (a) `kind:'video'` 만 emit, (b) `_userMuteLock` 변수 없음, (c) state 변동 없음 (HOT 복귀 안 됨). PROJECT_MASTER `Mute 3-state` 의도에 따른 SDK 동작일 가능성 있으나 catalog 와 명확히 충돌. **재현**: alice spawn (mic+camera half) → 1.5s 대기 → `handle.mute()` → mute_changed 이벤트 / 파워 state 확인. SDK 명세 재정리 이후 catalog 재작성 + 재시험.
+> Phase 64 (4/26) 처리 완료: 1/1.
+> - PW-08 시험 항목 제거 (`checks/80_power.md` 9→8) — 의도 복잡 (PowerManager `power.mute()` PTT lock vs `engine.toggleMute()` 트랙 mute 혼동, qa `handle.mute()` 가 후자에 매핑). 무전 시 toggleMute 가 video 만 끄는 것은 정상 동작 (부장님 결정). PowerManager 정합 작업은 §A-6 차우선순위 하락과 묶임 — mute 의미 재정의 후 catalog 별도 항목 신설 대기.
 
 ### F. 결함 의심 (재현 환경 추가 검토)
 
-- [ ] **F-12**: priority preemption 미작동. alice priority 0 talking 중 bob priority 3 press → bob `queued` 만 (queuePos=1). PROJECT_MASTER §시그널링 PTT v2 = "우선순위 + 큐잉 + 선점" 명시인데 선점 부재. 서버 정책 인지 SDK 인지 분리 필요. **재현**: alice press(0) → 1초 후 bob press(3) → bob.state.floor 확인.
-- [ ] **server-side stale (zombie 잔재)**: alice reset 후 qa_test_03 단독 join 했는데도 server 응답에 `sub:['qa_test_01','qa_test_02','qa_test_03']` 등장. **qa_test_01/02/03 모두 실재하는 QA 전용 방** 이므로 "이전 세션 alice 의 멤버십이 server-side sub-{user}/pub-{user} set 에 누적" 으로 해석. shadow 복구 + zombie 정리 cascade 부재. **재현**: reset 후 alice qa_test_03 단독 spawn → `affiliate('qa_test_02')` → snap.sub 에 qa_test_01 자동 추가 확인.
-- [ ] **RV-09 zombie timing**: catalog 기대 35s ZOMBIE_TIMEOUT 이지만 실측 일면 24초에 admin snapshot 에서 user 제거. 또한 'zombie' phase 자체를 관측 못함 (suspect → 바로 사라짐). 결과적 자연 정리는 동작하나 (a) timing catalog 와 11s 차이, (b) zombie phase 노출 자체 누락 — server 쪽 zombie reaper 동작 재권장 또는 admin snapshot 에 zombie phase 일시적 노출 필요. **재현**: alice spawn 단독 → 2.5s 후 iframe remove → 1초 주기 admin.snapshot 폴링 → phase trace 기록.
-- [ ] **G3-02 / G3-03 capture constraint 미반영**: `setMicCapture({AGC:false, NS:true, EC:true})` 호출 시 ret='reacquired' (새 track 교체) 되지만 새 track.getSettings 가 여전히 `{AGC:true, NS:true, EC:true}`. autoGainControl=false / NS=false / EC=false 의도가 반영 안 됨. Chrome 정책일 가능성 vs SDK reacquire 경로에서 constraint 알셜이 누락될 가능성. **재현**: alice spawn (mic full) → `setMicCapture({AGC:false})` → mic pipe sender.track.getSettings.autoGainControl 확인 (true 로 남으면 fail).
+> Phase 67 (4/26) 처리 완료: 4/4. 모두 결함 아님 — RV-09/F-12/G3-02·03 catalog stale, server-side stale 운영 한계.
 
-### G. UI 검증 (다음 시험 시 확인 필수)
+### G. UI 검증 (Phase 66 처리 완료 — 다음 시험 default)
+
+> Phase 66 (4/26) 처리 완료: 3/3. SDK/UI 인프라 신설 + INV-14~18 박힘.
+> - **G-1 위치 룰**: INV-14/15/16 신설 (`checks/99_invariants.md`)
+> - **G-2 audio-only video panel**: `participant.js _createAudioOnlyPlaceholder` + INV-18
+> - **G-3 오버레이 방 정보**: SDK `Pipe.roomId` 노출 (`pipe.js` + `room.js`) + cell.dataset.roomId + RX hdr `RX <userKey> / <roomId>` + INV-17
+>
+> 부수효과: cross-room 시험 시 어느 방에서 도착한 미디어인지 시각 식별 가능. SDK Pipe API 명세 1건 추가 (Pipe 17→18).
 
 부장님 명시 (4/26): UI 시각 검증 항목. 직전 7영역 시험에서 누락. 다음 시험부터 모든 영역에 default 로 적용.
 
-- [ ] **상대 트랙 표시 위치 룰**: half-duplex(PTT) 트랙은 **첫 번째 줄**, full-duplex 트랙은 **두 번째 줄**. half 가 full 영역에 표시되면 즉시 fail. 시험 시 DOM/computedStyle 로 위치 확인.
-- [ ] **audio-only 도 video panel 무조건 생성**: mic half 단독 spawn (camera 없이) 한 user 도 video panel 자동 생성되어야 함. 오버레이에 user 정보 + 방 정보 노출이 그 panel 의 핵심 기능. **재현**: alice mic half + camera disabled 로 spawn → bob 화면에 alice video panel 존재 + audio meter / 방 라벨 표시 확인.
-- [ ] **오버레이에 방 정보 표시 (cross-room 검증용)**: 각 video panel 의 오버레이는 user 이름 + 해당 user 가 어느 방 소속인지 같이 보여야 함. cross-room 시 어느 방의 발화인지 확인하는 핵심 UX. **재현**: alice (qa_test_02 + qa_test_03 멀티룸) + bob (qa_test_03), bob 화면의 alice panel 오버레이에 "alice / qa_test_03" 같은 방 정보 가시.
+- [x] **상대 트랙 표시 위치 룰** (G-1): half-duplex(PTT) 트랙은 **첫 번째 줄**, full-duplex 트랙은 **두 번째 줄**. half 가 full 영역에 표시되면 즉시 fail. 시험 시 DOM/computedStyle 로 위치 확인.
+- [x] **audio-only 도 video panel 무조건 생성** (G-2): mic half 단독 spawn (camera 없이) 한 user 도 video panel 자동 생성되어야 함. 오버레이에 user 정보 + 방 정보 노출이 그 panel 의 핵심 기능. **재현**: alice mic half + camera disabled 로 spawn → bob 화면에 alice video panel 존재 + audio meter / 방 라벨 표시 확인.
+- [x] **오버레이에 방 정보 표시 (cross-room 검증용)** (G-3): 각 video panel 의 오버레이는 user 이름 + 해당 user 가 어느 방 소속인지 같이 보여야 함. cross-room 시 어느 방의 발화인지 확인하는 핵심 UX. **재현**: alice (qa_test_02 + qa_test_03 멀티룸) + bob (qa_test_03), bob 화면의 alice panel 오버레이에 "alice / qa_test_03" 같은 방 정보 가시.
 
 ### H. QA 시험 환경 불변 (재발 방지)
 
 - [ ] **방은 `qa_test_01` / `qa_test_02` / `qa_test_03` 만**. README 본문 §QA 전용 방 에 명시되어 있으나 시험 logic 작성 시 망각 위험. 다른 방 이름 사용한 시험 (예: `qa_test_05`, `qa_test_07`) 은 server 가 정상 거부하므로 **시험 자체가 무효**. 미반영 결과를 결함으로 오판하지 않도록 주의.
+- [ ] **catalog 시험 logic 상 외부 API 만 호출 원칙**: `engine.floorRequest`, `engine.scope.panRequest`, `engine.floorRelease` 같은 **외부 facade** 만 시험에 쓴다. `floor.request({destinations, pubSetId})` 같은 **내부 floor-fsm 시그니처** 는 외부 API 가 받지 않는 키를 담고 있으므로 직접 구성하면 **무의미한 시험** 이 된다 (Phase 61 F-14 / PAN-06 이 이 사례 — catalog 가 내부 시그니처를 외부 API 인 양 명세 한 잘못. 결함 아님으로 판정 후 §E 에서 제거됨).
+- [ ] **JWT 검증 = 개발용 무조건 통과 (의도된 동작)**. 현 `oxhubd` dev 서버는 invalid token (`'INVALID_TOKEN_xxx'` 등) 도 IDENTIFIED + JOINED 까지 통과시킨다. 운영 모드의 진짜 검증 분리는 별도 영업 패키지로 처리. 시험 시 invalid token 결과를 인증 우회 결함으로 **오판 금지** (Phase 61 C-06 가 이 사례 — 결함 아님으로 판정 후 §E 에서 제거됨).
+- [ ] **ROOM_LIST(op=9) / ROOM_CREATE(op=10) 사용법**: WS 능동 호출 가능 (`engine.sig.send(OP.ROOM_LIST, {})` / `engine.sig.send(OP.ROOM_CREATE, {room_id?, name, capacity?})`) 또는 REST (`GET/POST /media/rooms`). ROOM_CREATE 반환 코드: 2005 = name 필수, 2006 = 명시된 room_id 중복. **demo_* / qa_test_01–03 은 startup.rs 가 사전 생성** — 이들과 중복되는 ID 로 CREATE 호출하면 2006 RoomAlreadyExists. 시험용 임시 방이 필요하면 고유한 이름(예: `qa_temp_<ts>`) 또는 room_id 생략으로 uuid 자동 생성.
+- [ ] **ROOM_SYNC(op=50) 능동 호출 사용법**: `engine.sig.send(OP.ROOM_SYNC, {})` — **대상 방은 `ctx.current_room` 으로 고정** (payload `room_id` 무시됨). 따라서 **ROOM_JOIN 이후** 에만 호출 가능. JOIN 전/LEAVE 후 호출은 `2004 "not in room"` 반환 (Phase 61 R-09 이 동일 사례 — 결함 아님으로 판정 후 §E 에서 제거됨). cross-room 시나리오에서 특정 방 sync 필요 시 해당 방으로 먼저 JOIN 후 호출.
+- [ ] **QA spawn spec 형식: `tracks.mic.{enabled,duplex}` / `tracks.camera.{enabled,duplex,simulcast}`** (Phase 61 F-12 false negative 의 원인). `audio:{duplex:'half'}` 같은 spec 은 `participant.js parseSpec()` 이 무시하고 default `tracks.mic.enabled=false` 로 스포닝 → mic pipe 자체 없이 테스트 실행되어 모든 floor 시험이 false negative 로 끝난다. 정답 스펙: `{ user, room, tracks:{ mic:{enabled:true, duplex:'half'} }, autojoin:true }`.
+- [ ] **PTT 시험 경로**: spawn 시 마이크 자동 publish 되고 phase=ready 직후 floor 사용 가능. `__qa__.user(u).enable('mic')` 추가 호출 불필요 (이 호출은 duplex='full' 고정으로 재생성해서 floor 무효화 함정). press 는 `__qa__.user(u).ptt.press(priority)` — numeric positional, `engine.floorRequest(priority)` 로 그대로 전달되며 일반 facade 는 `engine.floorRequest({priority, roomId?})`.
+- [ ] **reset 후 zombie 잔재 (server-side stale) 는 운영 한계**: WS disconnect → sfud 는 SESSION_DISCONNECT 통보만 받고 Peer/sub_rooms/pub_rooms 그대로 유지 (zombie reaper SUSPECT 15s + ZOMBIE 5s = 20s 자연 정리 대기). 그 timing 안 새 IDENTIFY 가 들어오면 `endpoints.get_or_create_with_creds` 가 기존 Peer 재사용 → 다른 방 ROOM_JOIN 시 take-over 미발동 (2003 AlreadyInRoom 은 같은 방 재진입에만) → sub/pub 누적. **cleanup 패턴**: reset 전에 `engine.scope.set({sub:[], pub:[]})` + `room.leave()` 명시 호출 후 disconnect, 또는 zombie 정리 20s 대기. 자세한 메커니즘은 `doc/server_side_stale_membership.md`.
+- [ ] **zombie reaper timing**: `SUSPECT_TIMEOUT=15s`, `ZOMBIE_TIMEOUT=20s` (REAPER_INTERVAL=5s, 4/25e 단축 후 값). 실측 18s/24s 는 5s polling 변동 안 일치. zombie phase 는 reaper 한 cycle 안 전이+삭제라 admin snapshot 노출 시간 0 (관측성 구조). catalog 이 35s/30s 로 남아있던 것은 4/25e 단축 이전 옥 값 잔재 (Phase 61 RV-09 해석).
 
 ### I. 품질 측정 카테고리 신설 (functional 외 별도 차원)
 

@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-04-26
+> 최종 업데이트: 2026-04-26 (Phase 63: §A round 2 9/9 + S-08 m-line fix 완료)
 
 ---
 
@@ -545,12 +545,57 @@
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
 | 0426 | `20260426_qa_session_progress` | QA+SDK | QA 14영역 중 10영역(10~92, 91 별도) Playwright MCP 시험 완료. **129항목 / ✅ 91 / ❌+⚠️ 14 / ❓ 24** (success rate **70.5%**). 결함 8건 (C-06, R-01/02, R-09, P-07, S-08, F-14, PAN-06, PW-08) + 의심 4건 (F-12 preemption, server-side stale, RV-09 zombie timing 35s→24s, G3-02/03 capture constraint 미반영). 50_track_gateway / 92_media_settings 16/16 괴함 없음. 별도 TODO 기각, qa/README.md 단일 라이브 큐. **품질 카테고리 신설** (5번째 카테고리, 3-tier 모델: 신호 임계 자동 + MOS proxy 자동 + 합성 신호 baseline) — `checks/94_quality.md` 11항목 초안. **인프라 hook 신설**: `__qa__.measure`, `__qa__.quality` (latency / getStats diff). 부장님 정정: QA 전용 방 = qa_test_01~03, UI 시각 검증 (§G), 환경 불변 (§H). |
+| 0426 | `20260426_qa_phase61_followup` | QA+서버 | Phase 61 후속 처리. **서버 ROOM_LIST/CREATE 핸들러 신규 구현** (sfud dispatch + room_ops + RoomAlreadyExists 2006). 결함 5건 소멸 (C-06 dev / R-01/02 구현 / R-09 결함아님 / F-14/PAN-06 catalog 시험로직 오류). Playwright 6/6 PASS. **§E 8건 → 3건** (P-07/S-08/PW-08 잔존). scope.panRequest 메서드 분리 권장 §A 기록 (지금 미진행). §H 환경 불변 4건 추가 (JWT dev / LIST/CREATE / ROOM_SYNC / catalog 외부 API 원칙). |
+
+## Phase 62: P-07 fix 완전종결 + §A catalog 보정 + PowerManager 정합 분석 (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426_p07_section_a_followup` | SDK+QA+분석 | **P-07 fix 완전종결** — 클라이언트 stale (`pipe.active=false`) + 서버 stale (`_unpublishCamera → unpublishTracks` 호출, mic/screen 정합). BWE 보존은 transceiver 수준으로 유지. **§A catalog 5건 보정** (mount/unmount owner, MediaAcquire 시그니처, simulcast h/l, screen 워크플로우, scope cause). Playwright 검증 모두 client=server 일치. 부수효과: §F #B/#C 자동 해소. **PowerManager 정합 분석** (4/26 차우선순위 하락 지시로 기록 제거). **§E 3건 → 2건** (P-07 제거, S-08/PW-08 잔존). |
+
+## Phase 63: §A round 2 + A-8 SDK 구현 + S-08 m-line fix (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426b_qa_round2_s08_fix` | SDK+QA | **§A round 2 — 9건 모두 처리** (A-1 시그니쳐 함정 pitfalls #8 + scope.js/floor-fsm.js JSDoc, A-2/3/4/5/7/9 catalog 보정, A-6 폐기, A-8 SDK 구현). **A-8 outputElement 자동 등록 3계층 hook chain** (Pipe.opts.onMount/onUnmount + Endpoint.attachOutputHooks + Room 생성자 attach — 측쇄화 보존). **S-08 m-line race fix** — `buildSubscribeRemoteSdp` 에 mid 오름차순 정렬 추가 (첫 nego 와 update 단일 진입점 통일), `updateSubscribeRemoteSdp` 위임만. 단위 테스트 4건 신규 (82/82 PASS). **Playwright MCP 회귀 시험 PASS** — 3인 sequential / multi-room / full+half 혼합 모두 connected, console errors 0. **§E 2건 → 1건** (S-08 제거, PW-08 만 잔존). |
+
+---
+
+## Phase 64: QA §B + §C + §E 묶음 처리 (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426c_qa_section_bc_done` | QA | §B 2/2 + §C 3/3 + §E 1/1 묶음 (자료구조/cross-realm/stale doc/PW-08 제거) |
+
+---
+
+## Phase 65: QA §D fault hook 5건 인프라 (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426d_qa_section_d_fault_hooks` | QA | §D 5/5 fault hook (C-09/C-10/C-14/F-10/RV-06 + RV-03/04 unknown 해소) |
+
+---
+
+## Phase 66: QA §G UI 시각 검증 3건 (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426e_qa_section_g_visual` | SDK+QA | §G 3/3 UI 시각 검증 (G-3 SDK Pipe.roomId 노출 + G-2 audio-only placeholder + G-1 INV-14~18) |
+
+---
+
+## Phase 67: QA §F 결함 의심 4건 일괄 해소 (0426)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0426 | `20260426f_section_f_resolution` | QA+서버분석 | §F 4/4 모두 결함 아님 판정 (RV-09 catalog stale, server-side stale 운영한계, F-12 시험 spec 오류, G3-02/03 재현 불가). catalog 5건 보정 + §H 3건 추가. |
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 224개
+- **총 세션 파일**: 231개
 - **기간**: 2026-03-09 ~ 2026-04-26 (48일)
 
 ---

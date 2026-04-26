@@ -49,6 +49,12 @@
 **진실**: ROOM_JOIN 이전 ontrack 도착 시 임시 큐에 들어가야 함. `_onJoinOk` 후 drain. 길게 남아있으면 hydrate 누락.
 → scenarios 종료 시 0 이어야 함.
 
+### 8. `scope.panRequest` MUTEX 가 시그니처로 차단되는가?
+
+**오진**: `engine.scope.panRequest({priority, dests?, pubSetId?})` 객체 시그니처를 보고 "한 인자만 채우면 MUTEX 자동 만족" 으로 가정.
+**진실**: 객체 시그니처라 **dests 와 pubSetId 동시 주입이 형식적으로 가능**. MUTEX 는 **클라이언트 인자 가드 (`pan:denied` cause=4032 + return null) 로만 강제** — throw 가 아닌 emit/null 리턴 패턴, 시그니처적 차단 아님. 외부 API 자체가 실수를 부르는 패턴.
+→ 시험 logic 작성 시 `engine.floorRequest({roomId})` 의 단일 인자 패턴이 시그니처 자체로 단일성을 보장하는 것과 혼동 금지. 향후 positional 분리 권장 (`panRequest(rooms, priority)` ad-hoc / `panRequestScope(priority)` 자기 pub_set_id 자동) — **현재 미진행, 기록만** (Phase 61 PAN-06 재판정 결과, 2026-04-26).
+
 ## 체크리스트 (시험 짤 때)
 
 - [ ] 시험할 메트릭이 "정상 패턴 화이트리스트" 에 있는가? (audio_concealment, video_freeze during transitions, fps=0 idle, sr_relay=0 PTT)
