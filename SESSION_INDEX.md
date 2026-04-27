@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-04-26 (Phase 63: §A round 2 9/9 + S-08 m-line fix 완료)
+> 최종 업데이트: 2026-04-27 (Phase 68: Track Lifecycle 재설계 rev.3 + Phase 0 완료)
 
 ---
 
@@ -593,10 +593,18 @@
 
 ---
 
+## Phase 68: Track Lifecycle 재설계 rev.3 + Phase 0 완료 (0427)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0427 | `20260427_track_lifecycle_phase0` + `design/20260427_track_lifecycle_redesign` (rev.3) | 설계+서버 | Janus 모델 + LiveKit Forwarder + Peer 소유 + PTT 자동화. 신규 3파일 (publisher_stream/subscriber_stream/slot) +660L. cargo build 성공 |
+
+---
+
 ### 통계
 
-- **총 세션 파일**: 231개
-- **기간**: 2026-03-09 ~ 2026-04-26 (48일)
+- **총 세션 파일**: 232개
+- **기간**: 2026-03-09 ~ 2026-04-27 (49일)
 
 ---
 
