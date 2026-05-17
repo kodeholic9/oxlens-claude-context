@@ -1,7 +1,8 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-17 (Hook 시스템 Phase 1 — `MediaState` 격상 + `hooks::media::on_subscribe_ready` 4종 핸들러 분리, udp/mod.rs 60+줄 → 1줄, 252 tests PASS)
+> 최종 업데이트: 2026-05-17 (묶음 1~9 한 세션 마무리: 코드 적용 7건 + 기각 1건 + 세션 마무리. 194 tests PASS, main 머지 + push 완료, 별 토픽 6건 백로그 등록)
+> 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (실 작업일은 2026-05-17 단일 세션)
 
 ---
 
@@ -694,10 +695,95 @@
 
 ---
 
+## Phase 96: 세션 마무리 + 9 묶음 작업 순서 (0517g)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0517g | `20260517g_session_close` / `design/20260517g_work_order` | 메타 | 산천포 진단 + 백로그 정리 + 김과장 axis 1~4 (`design/20260517g_axis1~4_*.md`) 흡수 → 9 묶음 옵션 A 순차. 다음 = 묶음 1 (Pan-Floor + Cross-Room publish 폐기) |
+
+---
+
+## Phase 97: 묶음 1 — 모델 단순화 (Pan-Floor + Cross-Room publish 폐기) (0518)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0518 | `20260518a_model_simplification_done` | 서버 | Pan-Floor 전체 폐기 + pub_rooms 단일화. -2177줄, 파일 2개 삭제, 208 tests PASS. F22/F23 묶음 2 흡수 |
+
+---
+
+## Phase 98: 묶음 2 — 코드/주석 청결성 (0518b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0518b | `20260518b_code_cleanliness_done` | 서버 | dead_code 전수 제거 + Endpoint 이주 묘비 400줄 청산 + Pan TLV 360줄 완전 폐기. -777줄, 195 tests PASS. pub_room 자료구조 마이그(Phase I) 묶음 3 이월 |
+
+---
+
+## Phase 99: 묶음 3 — 자료구조 일관성 ① (0518c)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0518c | `20260518c_data_invariant_done` | 서버 | pub_room 단수 정합 (ArcSwap<Option<RoomId>>) + Peer mutation 일원화 + TrackSnapshot rename + SubscriberGate 단순화 (HashMap→AtomicBool). -244줄, 189 tests PASS |
+
+---
+
+## Phase 100: 묶음 4 — 자료구조 일관성 ② PLI Governor 통합 (0518d)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0518d | `20260518d_pli_governor_consolidation_done` | 서버 | SubscriberStream.pli_state mode 무관 통합 + F8 (Hook PLI Governor 우회) 해소 + 묶음 3 TODO (gate.resume symmetric reset) 해소. +68줄, 192 tests PASS, 7 commits |
+
+---
+
+## Phase 101: 묶음 5 — Floor 천이 hook 화 (0519a) [원복]
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0519a | `20260519a_floor_hook_done` | 서버 | **⚠️ 원복** — MBCP (3GPP TS 24.380) Granted/Taken/Idle/Revoke/Queued broadcast 는 PTT 표준 규격 = 주 흐름 자체. fire-and-forget 황단 관심사가 아님. 김대리 분류 오류 확인 — git reset --hard 66ce656e 원복. 묶음 5 자체 = 기각 (코드 정정 자리 없음) |
+
+---
+
+## Phase 102: 묶음 6 — Hook 본문 + State 천이 agg-log + Floor hook 틀 (0519b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0519b | `20260519b_hook_body_state_agglog_done` | 서버 | on_publisher_phase / on_subscriber_phase Active 천이 본문 채움 (track:publish_active / subscribe:active agg-log) + on_peer_phase 빈 채 주석 강화 + hooks/floor.rs 빈 틀 신설 (미래 황단 관심사 자리, 묶음 5 분류 오류 회피). +162줄, 194 tests PASS, 5 commits |
+
+## Phase 103: 묶음 7 — scope 통지 흔적 제거 (YAGNI 정합) (0519c)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0519c | `20260519c_scope_traces_cleanup_done` | 서버 | `handle_scope_announce_for_room` 빈 placeholder + TODO 제거 + spawn 호출 1줄 제거 + 4 파일 주석 정리 (hooks/stream/media/transport/track_ops). 부장님 *"다채널 수신 처리할 때 자연 발굴"* YAGNI 정합. -7줄 net, 194 PASS 유지. 미니 정정 1건 (hooks/media.rs `PLI/FLOOR_TAKEN/scope` 슬래시 연결 자리 — 패턴 분리체 grep 누락) |
+
+## Phase 104: 묶음 8 — 운영성 마무리 (axis4 + 백로그 청산) (0520a)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0520a | `20260520a_operability_wrapup_done` | 서버 + 문서 | F26 ingress_mbcp.rs dead 파일 청소 (-107줄) + 주요 모듈 5개 `//!` 표준화 (peer/publisher_stream/subscriber_stream/floor/handler) + `context/design/wire_v3_catalog.md` 신설 (275줄, 18 섹션) + PROJECT_MASTER E-1 명세 7자리 반영 (묶음 1~6 마일스톤 + 신규 원칙 2건 + 신규 기각접근법 3건). F25 underscored 인자 정리는 면적 점검 결과 *작업 자체 부적용* (묶음 5 원복 후 자료 자연 정리). 194 PASS 유지. 발견_사항: agg-log 테스트 멀티 스레드 race 별 토픽 권고 |
+
+## Phase 105: 묶음 9 — 세션 마무리 + 별 토픽 분류 (옵션 D) (0517h)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0517h | `20260517h_milestone_close_done` | 메타 + 문서 | 본 세션 (2026-05-17 단일 자리) 마지막 작업. 코드 변경 0, 문서 위주. SESSION_INDEX + work_order §10 별 토픽 분리 자리 신설 + 마무리 보고서. 9a/9b/9c 모두 별 토픽 분리 결정 (PTT 비시뮬 RTP 분석 / last_seen MediaSession 이주 / trace_id 분산 추적). main 머지 완료 (33 commits, fast-forward), origin/main push 완료. 194 PASS 유지 |
+
+---
+
+## 백로그 (다음 세션 진입 자리)
+
+- **9a** PTT 비시뮬 RTP 흐름 분석 — 부장님 *"날 잡고 분석"* 명시. 분석 모드 (코딩 0). 부장님 동석 자리
+- **9b** last_seen MediaSession 이주 — 큰 가지 잔여, Peer 재설계 원칙 정합 분석 필요
+- **9c** axis4 §3.4 trace_id 분산 추적 — 큰 토픽 (Observability), 별 세션 자연
+- **F24** Audio/ViaSlot mode pli_state 미사용 Mutex — 측정 후 결정
+- **F19** render-detail.js 분리 — oxlens-home 자리 (클라 재작성 예정)
+- **F28** agg-log 테스트 (`publisher_active` / `subscriber_active`) 멀티 스레드 race — `cargo test --release` 자리 공유 AGG Registry race, 간헐 1건 실패 (재실행 시 PASS). serial_test crate 또는 agg_flush race 회피. 묶음 6 산출 자리. CI 신뢰성 자리
+
+---
+
 ### 통계
 
-- **총 세션 파일**: 266개
-- **기간**: 2026-03-09 ~ 2026-05-17 (69일)
+- **총 세션 파일**: 275개
+- **기간**: 2026-03-09 ~ 2026-05-17 (70일)
 
 ---
 
