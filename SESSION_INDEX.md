@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-04-27 (Phase 68: Track Lifecycle 재설계 rev.3 + Phase 0 완료)
+> 최종 업데이트: 2026-05-17 (Hook 시스템 Phase 1 — `MediaState` 격상 + `hooks::media::on_subscribe_ready` 4종 핸들러 분리, udp/mod.rs 60+줄 → 1줄, 252 tests PASS)
 
 ---
 
@@ -601,10 +601,103 @@
 
 ---
 
+## Phase 69: LiveKit 컨닝 — RtpRewriter 일반화 + Hall 모델 + Video Cold Start 발견 (0428)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0428 | `20260428_livekit_rewriter_cunning` | 분석+설계 | 부장님 통찰: 가상 SSRC 패턴 일반화 (PTT/Simulcast/Hall 공통 토대). Hall 모델 도출. LiveKit 컨닝 4건 (RTPMunger→RtpRewriter, Forwarder 3-timestamp, Sequencer NACK, Video Cold Start blank frame) |
+
+---
+
+## Phase 70~84: Track Lifecycle Phase 0~5 + Rewriter Phase ① + cleanup (0428~0430)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0428~0430 | (15 세션 파일, 상세는 git/세션 파일 참조) | 서버 | Track Lifecycle rev.3 Phase 0~5 완료 + Rewriter 일반화 Phase ① (Step A/B) + vssrc cleanup + SubscribeMode 단일출처 + PT static mapping (option D-1) |
+
+---
+
+## Phase 85~88: Phase ①.5 cross-room PTT slot 일반화 + 웹 클라 정합 + 업계 hot path 비교 + inner SSRC 보강 (0502~0509)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0502 | `20260502_phase1_5_scope` | 합의 | Phase ① 완료 마일스톤 + Phase ①.5 합의 |
+| 0502b | `20260502b_phase1_5_complete` | 서버 | Phase ①.5 cross-room PTT slot 일반화 한방 commit, 252 tests PASS |
+| 0502c | `20260502c_web_client_phase1_5` | 클라 | 웹 클라 Phase ①.5 정합 (`_pttPipes` Map<roomId>, 3 파일 ~150L) |
+| 0505 | `20260505_industry_hotpath_compare` | 분석 | 업계 4-way hot path 비교 (LiveKit/mediasoup/Janus/OxLens) |
+| 0509 | `20260509_phase1_5b_inner_ssrc_cleanup` | 서버 | inner SSRC 정합 보강 (Slot.virtual_ssrc 와 rewriter.inner 일치), push 완료 |
+
+---
+
+## Phase 89: 시그널링 프로토콜 v3 wire 재설계 (0516)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0516 | `20260516_signaling_v3_design` | 설계 | v3 wire 재설계 — 8B 바이너리 헤더 + 16진 opcode 카테고리 + ACK 의무화 + gRPC typed envelope, Pan-Floor 삭제. 설계서 합의 완료, 코드 변경 0줄 |
+
+---
+
+## Phase 90: 시그널링 프로토콜 v3 wire 구현 완료 (0516b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0516b | `20260516b_signaling_v3_impl` | 서버 | v3 wire 구현 완료. 35 파일 변경. `cargo build --release` + `cargo test --release -p oxsig` (54 tests) PASS. WS Binary 단일 + 8B WireHeader + 16진 opcode 40 + ACK 양방향 + WsBroadcast unicast 단일 + Packet 외부 v2 호환 (`{op,pid,ok,d}`) 보존 — handler 호출처 마이그 부담 거의 0. oxsig (외부 공유) 신설, header/code common 에서 이주. 부채 6건 (Packet v2 alias, dead op 4, placeholder 파일, AckState 별칭, pfloor 모듈, 설계서 §5.2 32→40 갱신) cleanup PR 영역. 클라 (oxlens-home/sdk-core) 부정합 fix 후 별도. |
+
+---
+
+## 코드 리뷰 부정합 발굴 (0516c~)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0516c | `20260516c_code_review_defects` | 리뷰 | 부정합 발굴 누적 목록 (17건). 버그 1, 거짓주석 1, 구조 5, 설계 6, 코드 2, 성능 1, 검증필요 3 |
+| 0516d | `20260516d_peer_map_tuple_cleanup` | 서버 | 0516c #11/#13/#14 정정. PeerMap 튜플 `(Peer, RoomMember, PcType) → (Peer, PcType)`. 6 파일 20+ 함수 캐스케이드. C1 (handle_srtp 조기 룸 게이트 폐기), C2 (agg-log 5곳 first_room_hint helper), C3 스터브 (Subscribe SRTP ready PLI/FLOOR_TAKEN). `cargo build` PASS. 252 tests 회귀 미실행 |
+
+---
+
+## Phase 91: Hook 시스템 Phase 1 — Media Ready (0517)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0517 | `20260517_hook_phase1_media_ready` | 서버 | `MediaState { Idle/Handshaking/Ready/Failed }` enum 격상 + `crate::hooks::media::on_subscribe_ready` 4종 핸들러 분리 (egress spawn / PLI / FLOOR_TAKEN / scope-stub). udp/mod.rs 60+줄 인라인 블록 → 1줄 트리거. `egress::*` `pub(crate) use` 재노출. 0516d 보류 #1 (C3) 분리 단계 완료, 재배치는 Phase 2. `cargo build --release` + 252 tests PASS |
+
+---
+
+## Phase 92: Hook Phase 2 — Stream 천이 Hook + set_phase 통일 (0517c)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0517c | `20260517c_stream_phase_hooks_done` | 서버 | Phase A~G 5 commit 완료. set_phase 단일 진입점 (Peer/PublisherStream/SubscriberStream) + Suspect/Zombie 통일 (옵션 A). PLI/FLOOR_TAKEN/scope hook 자리를 DTLS Ready → TRACKS_READY 로 정정 (MCPTT 정합). PLI 정밀화 3종 (Audio/Half no-floor/Sim non-h) `send_pli_to_publishers` 흡수. 전역 OnceLock `hooks::HookCtx` 도입 (set_phase 시그니처 부담 회피). advance_phase 함수 제거. 252 tests PASS. 발견_사항 F1~F8 (F8 = GATE:PLI vs Hook PLI 중복 — 다음 토픽). 클라 wire 영향 0 |
+
+---
+
+## Phase 93: Hook Phase 3 — ParticipantPhase 3-Layer State 분해 (0517d)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0517d | `20260517d_phase_enum_split_done` | 서버+홈 | Phase A~F 3 commit (sfu-server) + 1 commit (oxlens-home). 직전 ParticipantPhase 5단계 enum 의 2 concern (liveness + negotiation) 을 scope 별 3 enum 분해 — PeerState (Alive/Suspect/Zombie) / PublishState (Created/Intended/Active) / SubscribeState (Created/Active). 옵션 A 확정 — Peer 는 liveness 만, negotiation 은 PublisherStream 흡수. `room/state.rs` 신규 단일 파일. set_phase 시그니처 enum 별 분리 + hook 시그니처 분리 + 호출처 7자리 마이그 (peer_map reaper Active→Alive 의미 정정 / publisher_stream:451 → ingress fanout 직전 이주 F10 / ingress:599 제거 F11). admin JSON 키 분리 (`peer_state` / `publish_state` / `subscribe_state`). ParticipantPhase 완전 폐기 (코드 0건). 252 tests PASS. 클라 wire 영향 0 (admin JSON 만 변경). 발견_사항 F9~F16 (F16 = admin 중복 표시 cleanup 자리 — 다음 토픽). oxlens-home `dd23894` 별 레포 commit |
+
+---
+
+## Phase 94: Hook Phase 3 후속 cleanup — DTO 일관성 + ctx() 안전망 (0517e)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0517e | `20260517e_admin_cleanup_done` | 서버+홈 | sfu-server 1 commit (`01e0456`) + oxlens-home 1 commit (`81a8612`). DTO 일관성 — TrackSnapshot 에 `phase: PublishState` 필드 추가 + `SubscriberStreamSnapshot` 신설 (F17 흡수). admin.rs 의 `stream.phase.load` 직접 접근 3자리 → `snap.phase.as_str()` 통일. hooks::ctx() None 분기 OnceLock 1회 warn 안전망 추가. oxlens-home 대시보드 시각화 — tracks ● + sub_streams ○ dot, publishStateColors (created=회색/intended=노랑/active=초록). 252 tests PASS. 클라 wire 영향 0. 발견_사항 F17~F19 (F18 = PeerSnapshot DTO 신설 — 다음 토픽). 부장님 작업 중 oxlens-home 5 파일 회피 |
+
+---
+
+## Phase 95: Hook Phase 3 후속 cleanup 2 — PeerSnapshot + set_phase_state rename (0517f)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0517f | `20260517f_peer_snapshot_rename_done` | 서버 | sfu-server 1 commit (`157d11c`). 위험도 낮은 mechanical 두 토픽 묶음. PeerSnapshot { peer_state } 신설 (F18 흡수) — Peer 비대칭 해소, PublisherStream/SubscriberStream 패턴 완성. admin.rs:269 직접 접근 → `peer.snapshot().peer_state` 경유. set_phase → set_phase_state rename — 정의 3자리 + 호출 6자리 일괄. hook 함수 이름 (`on_*_phase`) 옵션 A 유지 (내부 통신 함수). 252 PASS. 클라 wire 영향 0. 발견_사항 F20~F21 (F20 = tasks.rs:126 hot path 직접 접근, 손대지 않음 — 별 토픽). PeerSnapshot 필드는 호출처 1자리만 (peer_state) — 과잉 캡처 회피 |
+
+---
+
 ### 통계
 
-- **총 세션 파일**: 232개
-- **기간**: 2026-03-09 ~ 2026-04-27 (49일)
+- **총 세션 파일**: 266개
+- **기간**: 2026-03-09 ~ 2026-05-17 (69일)
 
 ---
 

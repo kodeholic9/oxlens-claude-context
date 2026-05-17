@@ -5,7 +5,8 @@
 > 수정 이력:
 > - rev.1 — 초안
 > - rev.2 (2026-04-27) — 소유 관계 정정. 부장님 지적: PublisherStream/SubscriberStream 은 Peer 소유, Room 은 멤버십+slots 만
-> - **rev.3 (2026-04-27) — 크로스 체크 결과 8개 보강 + 자체 발견 2개 추가** (현 버전)
+> - rev.3 (2026-04-27) — 크로스 체크 결과 8개 보강 + 자체 발견 2개 추가
+> - **rev.4 (2026-04-30) — Phase 4 구현 반영: §4.3 의사코드 W-1 prefan_out_via_slot 보강** (현 버전)
 > 상태: 부장님 review 대기
 
 ## 0. 한 줄 요약
@@ -437,6 +438,20 @@ publisher_stream::fanout(packet, header):
    for room_id in pub_rooms.rooms.iter() {
        let room = RoomMap.get(room_id)?;
        
+       // Rev.3 ⭐ W-1 보강 (rev.4, 2026-04-30 Phase 4 적용 결과):
+       // Half-duplex non-sim 의 경우 방마다 1회 만 Slot.rewriter::rewrite 호출.
+       // sub 마다 rewrite 하면 ts_offset/seq_offset 카운터가 N배 증가 →
+       // arrival-time drift 자산 깨짐 (부록 E.1 자산 8건 보존 의무).
+       // 구현: publisher_stream.rs::prefan_out_via_slot() 헬퍼 —
+       //   floor 검사 (current_speaker == owner) + Slot.rewriter.rewrite 1회 +
+       //   RewriteResult 분기 (Ok/PendingKeyframe/Skip) + metrics.
+       //   반환: Option<Vec<u8>> — None 이면 해당 방 fan-out skip.
+       let prefan_payload: Option<Vec<u8>> =
+           if self.is_half_duplex_non_sim() {
+               self.prefan_out_via_slot(&room, packet, header)?
+           } else { None };
+       if self.is_half_duplex_non_sim() && prefan_payload.is_none() { continue; }
+       
        for (sub_uid, sub_peer_weak) in room.members.iter() {
            if *sub_uid == owner_peer.user_id { continue; }
            let sub_peer = sub_peer_weak.upgrade()?;       // S-1 lazy
@@ -458,18 +473,90 @@ publisher_stream::fanout(packet, header):
                let scoped = sub_stream.room_stats.entry(*room_id)
                    .or_insert_with(|| Arc::new(RoomScopedStats::new()));
                
-               sub_stream.forward(packet, header, &scoped);
+               // Rev.3 ⭐ W-1 보강: prefan_payload 전달 (Half-duplex non-sim 일 때만 Some).
+               sub_stream.forward(packet, header, &scoped, prefan_payload.as_deref());
            }
        }
    }
 
-sub_stream::forward(packet, header, scoped):
+sub_stream::forward(packet, header, scoped, prefan_payload):
+   // Rev.3 ⭐ W-1 보강: ViaSlot + Half-duplex 일 때는 prefan_payload (Some) 사용.
+   //   Direct + Conference 는 그대로 packet 사용 (sub 마다 munger.rewrite).
+   //   분기 근거: PublisherRef::ViaSlot 는 publisher_stream::fanout 이 prefan-out
+   //   해둔 다른 바이트 스트림, Direct 는 sub 자체 munger 필요.
+   let payload = match (sub_stream.publisher_ref.load().as_ref(), prefan_payload) {
+       (PublisherRef::ViaSlot(_), Some(p)) => p,         // Half-duplex: prefan-out 1회 결과 재사용
+       _ => packet,                                       // Direct/Conference: 그대로
+   };
+   
    1. sub_stream.gate.lock() — pause 체크 (publisher×subscriber 단위)
    2. (있으면) scoped.forwarder.lock() — simulcast layer 선택
-   3. sub_stream.munger.lock() — SSRC/seq/ts rewrite
+   3. sub_stream.munger.lock() — SSRC/seq/ts rewrite (Direct 일 때만)
    4. scoped.send_stats.lock() — 통계 갱신 (방별 독립)
-   5. egress_tx.try_send()
+   5. egress_tx.try_send(payload)
 ```
+
+#### W-1 prefan_out_via_slot 명세 (rev.4 신규, Phase 4 구현 반영)
+
+```rust
+impl PublisherStream {
+    /// Half-duplex non-sim 일 때 방마다 1회 만 호출 (sub 마다 호출 금지).
+    /// 이유: PttRewriter 의 ts_offset/seq_offset/last_relay_at 카운터가
+    /// arrival-time drift 결정. sub 마다 호출 시 N배 증가 → drift 누적.
+    /// 별속년: 부록 E.1 자산 8건 (last_relay_at / virtual_base_ts /
+    ///    Audio ts_guard_gap=960 / Video ts_guard_gap=3000 / Opus silence flush 3프레임 /
+    ///    clear_speaker 먱등성 / pending_keyframe / Video pending_compensation).
+    fn prefan_out_via_slot(&self, room: &Room, packet: &[u8], hdr: &RtpHeader)
+        -> Result<Option<Vec<u8>>>
+    {
+        // 1. Slot lookup (kind 별)
+        let slot = match self.kind {
+            TrackKind::Audio => room.audio_slot(),
+            TrackKind::Video => room.video_slot(),
+        };
+        
+        // 2. floor 검사 — current_speaker == self 인지.
+        //    아니면 None 반환 (해당 방 fan-out skip, metrics.ptt.rtp_gated 증가).
+        let cur = slot.current_publisher.load();
+        let is_current = cur.as_ref()
+            .and_then(|w| w.upgrade())
+            .map(|p| Arc::ptr_eq(&p, &Arc::new(self.clone())))
+            .unwrap_or(false);
+        if !is_current {
+            metrics.ptt.rtp_gated.inc();
+            return Ok(None);
+        }
+        
+        // 3. PttRewriter::rewrite 1회 호출 — 별속년 자산 보존.
+        match slot.rewriter.rewrite(packet, hdr) {
+            RewriteResult::Ok(rewritten) => {
+                metrics.ptt.audio_rewritten.inc();   // or video_rewritten
+                Ok(Some(rewritten))
+            }
+            RewriteResult::PendingKeyframe => {
+                metrics.ptt.video_pending_drop.inc();
+                Ok(None)
+            }
+            RewriteResult::Skip => {
+                metrics.ptt.video_skip.inc();
+                Ok(None)
+            }
+        }
+    }
+}
+```
+
+#### 설계 의도 — publisher 사이드 적용 이유
+
+rev.3 의 의사코드는 sub_stream.forward 안에서 rewrite 의미로 읽힌다. 하지만 Half-duplex non-sim 는:
+
+1. **Slot 은 방 고유 자원** (P-1 / O-4) — PttRewriter 카운터 도 방 고유.
+2. **arrival-time drift 자산 은 sub 수와 무관** — publisher 의 RTP 시간축을 방의 공통 시간축으로 정규화.
+3. **sub 마다 호출 시** — ts_offset 이 sub 수 N 배 증가 → 다음 packet 의 timestamp 계산 오류.
+
+따라서 rev.4 에서는 publisher_stream::fanout 의 inner loop 진입 직후 에서 **방당 1회** 호출. 결과 bytes 는 prefan_payload 로 전달, sub_stream.forward 은 ViaSlot + prefan_payload Some 일 때 그것을 그대로 egress.
+
+Direct/Conference 는 sub 마다 munger.rewrite 가 독립적 (publisher×subscriber 단위 카운터) 이므로 W-1 보강 적용 안 함.
 
 ### 4.4 Floor 회전 — Slot 메서드 (rev.3 정정)
 
