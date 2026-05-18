@@ -1,8 +1,8 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-17 (묶음 1~9 한 세션 마무리: 코드 적용 7건 + 기각 1건 + 세션 마무리. 194 tests PASS, main 머지 + push 완료, 별 토픽 6건 백로그 등록)
-> 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (실 작업일은 2026-05-17 단일 세션)
+> 최종 업데이트: 2026-05-18 (F29 participant.rs 해체 + F29-a/F28 doc·race 후속 정리. main 머지 + push 2회, 194 tests PASS × 10회, F28 race 해소)
+> 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션)
 
 ---
 
@@ -769,6 +769,22 @@
 
 ---
 
+## Phase 106: F29 — participant.rs 해체 (응집도 작업) (0518a)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0518a | `20260518a_participant_decompose_done` | 서버 | participant.rs 응집도 부정합 청산. 자료 16건 → 4 자리 이주 (publisher_stream 6 / subscriber_stream 3 / tasks 1 / peer 6). 로직 변경 0, pub use re-export 잔재 0. participant.rs **936 → 308줄** (-628), 누적 +694/-686. 직접 변경 5 + 호출처 16 = 20 파일. 정지점 2건 (Phase 1 끝 / Phase 4 끝) 부장님 결재 통과. 4 commits, main 머지 + push 완료. 194 PASS 유지. 발견_사항: F29-a (모듈 doc 정합) / F28 race 재발견 |
+
+---
+
+## Phase 107: A + D 통합 — 모듈 doc 정합 + F28 race 해소 (0518c)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0518c | `20260518c_doc_and_test_race_done` | 서버 | F29 잔여 후속 정리. Phase A: participant.rs / peer.rs 모듈 doc 정합 (RoomMember 책임 재서술 + pub use 예외 명시). Phase B: serial_test = "3" dev-dep 추가 + hooks/stream.rs 두 테스트 `#[serial]` 매크로 → F28 race 해소 (10/10 PASS 검증). production 코드 변경 0. 2 commits (`2c3e87a` doc / `b48075c` race), main 머지 + push 완료. 194 PASS 유지 |
+
+---
+
 ## 백로그 (다음 세션 진입 자리)
 
 - **9a** PTT 비시뮬 RTP 흐름 분석 — 부장님 *"날 잡고 분석"* 명시. 분석 모드 (코딩 0). 부장님 동석 자리
@@ -776,14 +792,14 @@
 - **9c** axis4 §3.4 trace_id 분산 추적 — 큰 토픽 (Observability), 별 세션 자연
 - **F24** Audio/ViaSlot mode pli_state 미사용 Mutex — 측정 후 결정
 - **F19** render-detail.js 분리 — oxlens-home 자리 (클라 재작성 예정)
-- **F28** agg-log 테스트 (`publisher_active` / `subscriber_active`) 멀티 스레드 race — `cargo test --release` 자리 공유 AGG Registry race, 간헐 1건 실패 (재실행 시 PASS). serial_test crate 또는 agg_flush race 회피. 묶음 6 산출 자리. CI 신뢰성 자리
+- ~~**F28** agg-log 테스트 race~~ ✅ Phase 107 해소 (`b48075c`, serial_test 도입)
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 275개
-- **기간**: 2026-03-09 ~ 2026-05-17 (70일)
+- **총 세션 파일**: 277개
+- **기간**: 2026-03-09 ~ 2026-05-18 (71일)
 
 ---
 
