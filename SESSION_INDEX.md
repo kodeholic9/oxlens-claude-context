@@ -1,8 +1,8 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-18 (F29 participant.rs 해체 + F29-a/F28 doc·race 후속 정리. main 머지 + push 2회, 194 tests PASS × 10회, F28 race 해소)
-> 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션)
+> 최종 업데이트: 2026-05-19 (oxlens-home v3 마이그 Phase 1 — wire.js 신규 + binary frame 재작성 + Pan-Floor 폐기. 5 commits 자율 진행, sdp-builder 82/82 PASS, wire round-trip 5/5 PASS)
+> 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
 
@@ -782,6 +782,14 @@
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
 | 0518c | `20260518c_doc_and_test_race_done` | 서버 | F29 잔여 후속 정리. Phase A: participant.rs / peer.rs 모듈 doc 정합 (RoomMember 책임 재서술 + pub use 예외 명시). Phase B: serial_test = "3" dev-dep 추가 + hooks/stream.rs 두 테스트 `#[serial]` 매크로 → F28 race 해소 (10/10 PASS 검증). production 코드 변경 0. 2 commits (`2c3e87a` doc / `b48075c` race), main 머지 + push 완료. 194 PASS 유지 |
+
+---
+
+## Phase 108: oxlens-home v3 마이그 Phase 1 — Foundation + Pan-Floor 폐기 (0518e)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0518e | `20260518e_oxlens_home_v3_migration_phase1_done` | 클라 | 클라 측 Signaling v3 진입 — wire.js 신규 (encodeFrame/decodeFrame + ACK_STATE/PRIO + requiresAck/priorityOf) + constants.js OP 객체 v3 카테고리 nibble 통째 교체 + signaling.js binary frame 기반 재작성 (_handleFrame/_handleMessage 신설, IDENTIFY_RESULT event 분기) + Pan-Floor (svc=0x03) 전체 폐기 (datachannel.js TLV 4건 + builder 8개 / floor-fsm.js FSM 영역 + _sendByBearer 단순화 / scope.js panRequest·panRelease wrapper / sdp-negotiator.js svc=0x03 분기). 자율 진행 모드 (정지점 폐기, 부장님 부재). 5 commits 누적 +341/-767 net -426. sdp-builder 82/82 PASS, wire round-trip 5/5 PASS. Pan-Floor 테스트 fail 자리 = Phase 3 cleanup (지침 명시). push 보류 (부장님 확인 후 진행) |
 
 ---
 
