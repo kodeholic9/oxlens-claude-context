@@ -12,14 +12,16 @@
 [8B WireHeader][body bytes]
 ```
 
-WireHeader (8 bytes BE):
+WireHeader (8 bytes, 다중-바이트 필드는 BE):
 
 | offset | size | 필드 | 의미 |
 |-------|-----|-----|-----|
-| 0 | 2 | `op: u16` | opcode (`oxsig::opcode`) |
-| 2 | 4 | `pid: u32` | packet id (hub OutboundQueue 가 발급, ACK 매칭 키) |
-| 6 | 1 | `flags: u8` | `[ack_state(2bit)][reserved(6bit)]` |
-| 7 | 1 | `version: u8` | wire version (현재 `0x03`) |
+| 0 | 1 | `ver: u8` | wire version (현재 `0x01` = v3 first release) |
+| 1 | 1 | `flags: u8` | `[ack_state(2bit)][reserved(6bit)]` |
+| 2 | 2 | `op: u16` | opcode (`oxsig::opcode`) |
+| 4 | 4 | `pid: u32` | packet id (hub OutboundQueue 가 발급, ACK 매칭 키) |
+
+단일 출처: 설계서 `20260516_signaling_v3.md` §3.2 / 서버 `crates/oxsig/src/header.rs`.
 
 `ack_state` (`oxsig::AckState`):
 - `0b00` Msg — 메시지 (응답 없음 또는 응답 대기)

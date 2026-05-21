@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "SESSION_INDEX.md",
+                "file": "202605/20260519d_b_rejoin_resource_lifecycle.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "SESSION_INDEX"
+              "title": "20260519d_b_rejoin_resource_lifecycle"
             }
           }
         ]
@@ -78,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 200,
+    "collapsed": true
   },
   "right": {
     "id": "539082e6f3614e18",
@@ -184,5 +185,8 @@
     }
   },
   "active": "15c70d2d61bc141c",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "design/20260517_data_hierarchy.md",
+    "SESSION_INDEX.md"
+  ]
 }

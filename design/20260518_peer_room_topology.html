@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>OxLens SFU — Peer / Room 자료구조 + 계층 관계도</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        themeVariables: {
+          background: "#fafbfc",
+          primaryColor: "#eef2ff",
+          primaryTextColor: "#1f2937",
+          primaryBorderColor: "#4338ca",
+          lineColor: "#4b5563",
+          fontFamily: '"Pretendard","Inter","SF Pro Text",-apple-system,sans-serif',
+          fontSize: "14px",
+        },
+        flowchart: { curve: "basis", padding: 20 },
+      });
+    });
+  </script>
+  <style>
+    :root {
+      --c-bg: #f7f8fa;
+      --c-fg: #1f2937;
+      --c-muted: #6b7280;
+      --c-line: #d1d5db;
+      --c-global: #4b5563;
+      --c-peer: #2563eb;
+      --c-room: #16a34a;
+      --c-member: #7c3aed;
+      --c-stream: #ea580c;
+      --c-ctx: #0891b2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--c-bg);
+      color: var(--c-fg);
+      font-family: "Pretendard", "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, sans-serif;
+      font-feature-settings: "tnum", "ss01";
+      line-height: 1.55;
+    }
+    header {
+      background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
+      color: #fff;
+      padding: 56px 48px 40px;
+    }
+    header h1 {
+      margin: 0 0 10px;
+      font-size: 30px;
+      letter-spacing: -0.5px;
+      font-weight: 700;
+    }
+    header .subtitle {
+      opacity: 0.85;
+      font-size: 15px;
+    }
+    header .meta {
+      margin-top: 18px;
+      font-size: 13px;
+      opacity: 0.75;
+      font-family: ui-monospace, "JetBrains Mono", monospace;
+    }
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 40px 48px 80px;
+    }
+    section { margin-bottom: 56px; }
+    section h2 {
+      margin: 0 0 18px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--c-line);
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+    }
+    section h2 .num {
+      color: var(--c-muted);
+      font-weight: 500;
+      margin-right: 10px;
+      font-family: ui-monospace, "JetBrains Mono", monospace;
+      font-size: 16px;
+    }
+    .intro {
+      background: #fff;
+      padding: 20px 24px;
+      border-radius: 10px;
+      border: 1px solid var(--c-line);
+      font-size: 15px;
+    }
+    .intro ul { margin: 8px 0 0; padding-left: 20px; }
+    .intro li { margin: 4px 0; }
+    .diagram {
+      background: #fff;
+      border: 1px solid var(--c-line);
+      border-radius: 10px;
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--c-line);
+      border-radius: 10px;
+      padding: 18px 20px;
+      border-left: 4px solid var(--c-line);
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .card:hover {
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+    .card .title {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card .scope {
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+      color: var(--c-muted);
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #f3f4f6;
+      font-weight: 500;
+    }
+    .card .desc {
+      font-size: 13px;
+      color: var(--c-muted);
+      margin: 0 0 10px;
+    }
+    .card .fields {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 12.5px;
+      font-family: ui-monospace, "JetBrains Mono", "SF Mono", monospace;
+    }
+    .card .fields li {
+      padding: 4px 0;
+      border-top: 1px dashed #e5e7eb;
+      color: #374151;
+    }
+    .card .fields li:first-child { border-top: none; }
+    .card .fields .key { color: var(--c-fg); font-weight: 600; }
+    .card .fields .ty { color: var(--c-muted); }
+
+    .card.global { border-left-color: var(--c-global); }
+    .card.peer   { border-left-color: var(--c-peer); }
+    .card.ctx    { border-left-color: var(--c-ctx); }
+    .card.room   { border-left-color: var(--c-room); }
+    .card.member { border-left-color: var(--c-member); }
+    .card.stream { border-left-color: var(--c-stream); }
+
+    table.rel {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border: 1px solid var(--c-line);
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 13.5px;
+    }
+    table.rel th, table.rel td {
+      padding: 10px 14px;
+      text-align: left;
+      border-top: 1px solid var(--c-line);
+    }
+    table.rel th {
+      background: #f3f4f6;
+      font-weight: 600;
+      font-size: 12.5px;
+      letter-spacing: 0.3px;
+      color: var(--c-muted);
+      text-transform: uppercase;
+      border-top: none;
+    }
+    table.rel td.from { color: var(--c-peer); font-weight: 600; font-family: ui-monospace, monospace; }
+    table.rel td.to   { color: var(--c-room); font-weight: 600; font-family: ui-monospace, monospace; }
+    table.rel td.kind {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--c-muted);
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+      font-weight: 600;
+    }
+    .pill-own  { background: #dcfce7; color: #15803d; }
+    .pill-ref  { background: #dbeafe; color: #1e40af; }
+    .pill-weak { background: #fef3c7; color: #a16207; }
+
+    .principles {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      padding: 24px 28px;
+      border-radius: 10px;
+      border-left: 4px solid #ca8a04;
+    }
+    .principles h3 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      color: #713f12;
+    }
+    .principles ul { margin: 0; padding-left: 20px; font-size: 13.5px; color: #422006; }
+    .principles li { margin: 5px 0; }
+    .principles code {
+      font-family: ui-monospace, monospace;
+      background: rgba(0, 0, 0, 0.08);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    footer {
+      margin-top: 60px;
+      padding: 20px 48px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--c-muted);
+      font-family: ui-monospace, monospace;
+      border-top: 1px solid var(--c-line);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>OxLens SFU — Peer / Room 자료구조 + 계층 관계도</h1>
+    <div class="subtitle">user-scope (Peer) ↔ room-scope (Room) 양축 + 5층 자료 분리. F29 (2026-05-18) 응집도 정합 반영.</div>
+    <div class="meta">crates/oxsfud · main HEAD c13ea22 · 2026-05-18</div>
+  </header>
+
+  <main>
+    <!-- ============================================================ -->
+    <section>
+      <h2><span class="num">§1</span>개요</h2>
+      <div class="intro">
+        OxLens SFU 의 자료는 <b>5층</b>으로 구성:
+        <ul>
+          <li><b>전역 (Global)</b> — <code>PeerMap</code> (user-scope index 4종) / <code>RoomHub</code> (room-scope index)</li>
+          <li><b>user-scope</b> — <code>Peer</code> (user 당 1개, cross-room 공유). PC pair 자원 소유.</li>
+          <li><b>PC-scope</b> — <code>PublishContext</code> / <code>SubscribeContext</code> (PC 단위 자원 컨테이너)</li>
+          <li><b>room-scope</b> — <code>Room</code> (방 당 1개) / <code>RoomMember</code> (방-user 멤버십)</li>
+          <li><b>stream-scope</b> — <code>PublisherStream</code> / <code>SubscriberStream</code> / <code>Slot</code> (RTP 흐름 단위)</li>
+        </ul>
+        <b>핵심 원칙</b>: PC 자원 = <code>Peer</code> 소유 (Room 아님). <code>RoomMember.peer: Arc&lt;Peer&gt;</code> 로 user-scope 위임. cross-room 시 user 1명 = Peer 1개, 방마다 RoomMember 별도.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section>
+      <h2><span class="num">§2</span>계층 다이어그램</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+  subgraph GLOBAL["전역 자료 (state.rs)"]
+    PM["PeerMap<br/>4-index DashMap<br/>by_user · by_ufrag · by_addr · by_room_subscriber"]
+    RH["RoomHub<br/>DashMap&lt;RoomId, Arc&lt;Room&gt;&gt;"]
+  end
+
+  subgraph PEER["Peer (user-scope)"]
+    direction TB
+    P_ID["user_id · phase · last_seen"]
+    P_ROOM["pub_room: ArcSwap&lt;Option&lt;RoomId&gt;&gt;<br/>sub_rooms: ArcSwap&lt;RoomSet&gt;<br/>rooms: HashSet"]
+    P_PUB["publish: PublishContext"]
+    P_SUB["subscribe: SubscribeContext"]
+    P_STATS["pub_stats: PublishPipelineStats"]
+  end
+
+  subgraph PUBCTX["PublishContext"]
+    PUB_M["MediaSession (ICE/DTLS/SRTP)"]
+    PUB_S["streams: ArcSwap&lt;PublisherStreamIndex&gt;"]
+    PUB_X["stream_map · recv_stats · twcc<br/>pli_state · dc · rtx_seq"]
+  end
+
+  subgraph SUBCTX["SubscribeContext"]
+    SUB_M["MediaSession (ICE/DTLS/SRTP)"]
+    SUB_S["streams: ArcSwap&lt;SubscriberStreamIndex&gt;"]
+    SUB_X["mid_pool · mid_map<br/>egress_tx/rx · nack · rtx_budget"]
+  end
+
+  subgraph ROOM["Room (room-scope)"]
+    direction TB
+    R_ID["RoomId · capacity · active_since"]
+    R_FLOOR["floor: FloorController"]
+    R_SLOTS["slots[0] Audio / slots[1] Video<br/>(per-room PTT virtual_ssrc)"]
+    R_PART["participants: DashMap&lt;user_id, Arc&lt;RoomMember&gt;&gt;"]
+    R_SP["speaker_tracker"]
+  end
+
+  subgraph MEMBER["RoomMember"]
+    M_ID["room_id · role · joined_at"]
+    M_PEER["peer: Arc&lt;Peer&gt;"]
+    M_STATS["sub_stats: SubscribePipelineStats"]
+  end
+
+  subgraph STREAM["RTP 흐름 자료"]
+    PS["PublisherStream<br/>ssrc · kind · duplex · simulcast"]
+    SS["SubscriberStream<br/>mid · virtual_ssrc · publisher_ref"]
+    SLOT["Slot (PTT virtual)<br/>virtual_ssrc · kind · room_id"]
+  end
+
+  PM ==>|"owns Arc"| PEER
+  RH ==>|"owns Arc"| ROOM
+  PEER -. "pub_room (1방)" .-> ROOM
+  PEER -. "sub_rooms (N방)" .-> ROOM
+  R_PART ==>|"owns Arc"| MEMBER
+  MEMBER -. "Arc 역참조" .-> PEER
+  P_PUB --> PUBCTX
+  P_SUB --> SUBCTX
+  PUB_S ==>|"owns Arc"| PS
+  SUB_S ==>|"owns Arc"| SS
+  R_SLOTS ==>|"owns Arc"| SLOT
+  SS -. "publisher_ref Weak (Direct)" .-> PS
+  SS -. "publisher_ref Weak (ViaSlot)" .-> SLOT
+        </pre>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section>
+      <h2><span class="num">§3</span>자료별 카드</h2>
+      <div class="grid">
+
+        <div class="card global">
+          <div class="title">PeerMap <span class="scope">global</span></div>
+          <div class="desc">전역 user-scope index. 4-index DashMap 으로 user 1명을 4 경로 모두 O(1) 조회.</div>
+          <ul class="fields">
+            <li><span class="key">by_user</span> <span class="ty">: DashMap&lt;String, Arc&lt;Peer&gt;&gt;</span></li>
+            <li><span class="key">by_ufrag</span> <span class="ty">: DashMap&lt;String, (Arc&lt;Peer&gt;, PcType)&gt;</span></li>
+            <li><span class="key">by_addr</span> <span class="ty">: DashMap&lt;SocketAddr, (Arc&lt;Peer&gt;, PcType)&gt;</span></li>
+            <li><span class="key">by_room_subscriber</span> <span class="ty">: DashMap&lt;RoomId, DashMap&lt;String, Arc&lt;Peer&gt;&gt;&gt;</span></li>
+          </ul>
+        </div>
+
+        <div class="card global">
+          <div class="title">RoomHub <span class="scope">global</span></div>
+          <div class="desc">전역 room-scope index. 방 자료 소유 자리.</div>
+          <ul class="fields">
+            <li><span class="key">rooms</span> <span class="ty">: DashMap&lt;RoomId, Arc&lt;Room&gt;&gt;</span></li>
+          </ul>
+        </div>
+
+        <div class="card peer">
+          <div class="title">Peer <span class="scope">user-scope</span></div>
+          <div class="desc">user × sfud 단일 세션 컨테이너. PC pair 소유, cross-room 시 공유. <b>방 수와 무관하게 user 당 1개</b>.</div>
+          <ul class="fields">
+            <li><span class="key">user_id</span> <span class="ty">: String</span></li>
+            <li><span class="key">phase</span> <span class="ty">: AtomicU8 (Alive/Suspect/Zombie)</span></li>
+            <li><span class="key">pub_room</span> <span class="ty">: ArcSwap&lt;Option&lt;RoomId&gt;&gt;</span> · 1방 발언</li>
+            <li><span class="key">sub_rooms</span> <span class="ty">: ArcSwap&lt;RoomSet&gt;</span> · N방 청취</li>
+            <li><span class="key">publish</span> <span class="ty">: PublishContext</span></li>
+            <li><span class="key">subscribe</span> <span class="ty">: SubscribeContext</span></li>
+            <li><span class="key">pub_stats</span> <span class="ty">: PublishPipelineStats</span></li>
+            <li><span class="key">last_seen / suspect_since</span> <span class="ty">: AtomicU64</span></li>
+          </ul>
+        </div>
+
+        <div class="card ctx">
+          <div class="title">PublishContext <span class="scope">PC-scope</span></div>
+          <div class="desc">Publish PC 자원 컨테이너. 클라이언트 → 서버 RTP 수신 자리.</div>
+          <ul class="fields">
+            <li><span class="key">media</span> <span class="ty">: MediaSession (ICE/DTLS/SRTP)</span></li>
+            <li><span class="key">streams</span> <span class="ty">: ArcSwap&lt;PublisherStreamIndex&gt;</span> · RCU</li>
+            <li><span class="key">stream_map</span> <span class="ty">: Mutex&lt;MediaIntent&gt;</span></li>
+            <li><span class="key">recv_stats</span> <span class="ty">: DashMap&lt;u32, Mutex&lt;RecvStats&gt;&gt;</span></li>
+            <li><span class="key">twcc_recorder · pli_state</span></li>
+            <li><span class="key">dc</span> <span class="ty">: DcState</span> · DataChannel</li>
+            <li><span class="key">rtx_seq · last_video_rtp_ms</span></li>
+          </ul>
+        </div>
+
+        <div class="card ctx">
+          <div class="title">SubscribeContext <span class="scope">PC-scope</span></div>
+          <div class="desc">Subscribe PC 자원 컨테이너. 서버 → 클라이언트 RTP 송신 자리.</div>
+          <ul class="fields">
+            <li><span class="key">media</span> <span class="ty">: MediaSession (ICE/DTLS/SRTP)</span></li>
+            <li><span class="key">streams</span> <span class="ty">: ArcSwap&lt;SubscriberStreamIndex&gt;</span> · RCU</li>
+            <li><span class="key">mid_pool</span> <span class="ty">: Mutex&lt;MidPool&gt;</span> · mid 할당/재활용</li>
+            <li><span class="key">mid_map</span> <span class="ty">: HashMap&lt;track_id, (mid, kind)&gt;</span></li>
+            <li><span class="key">egress_tx/rx</span> <span class="ty">: mpsc&lt;EgressPacket&gt;</span></li>
+            <li><span class="key">nack_suppress · rtx_budget</span></li>
+          </ul>
+        </div>
+
+        <div class="card room">
+          <div class="title">Room <span class="scope">room-scope</span></div>
+          <div class="desc">방 자료. 방 멤버십 + Floor + PTT Slot 소유. <b>PC 자원은 보유 X</b> (Peer 가 소유).</div>
+          <ul class="fields">
+            <li><span class="key">id</span> <span class="ty">: RoomId</span></li>
+            <li><span class="key">capacity · active_since · rec</span></li>
+            <li><span class="key">floor</span> <span class="ty">: FloorController (PTT 발언권)</span></li>
+            <li><span class="key">slots</span> <span class="ty">: Vec&lt;Arc&lt;Slot&gt;&gt;</span> · [0] Audio / [1] Video</li>
+            <li><span class="key">participants</span> <span class="ty">: DashMap&lt;user_id, Arc&lt;RoomMember&gt;&gt;</span></li>
+            <li><span class="key">speaker_tracker</span> <span class="ty">: Mutex&lt;SpeakerTracker&gt;</span> (RFC 6464 EWMA)</li>
+          </ul>
+        </div>
+
+        <div class="card member">
+          <div class="title">RoomMember <span class="scope">room × user</span></div>
+          <div class="desc">방-user 멤버십. <b>user-scope state 는 peer 에 위임</b>. 방별 N개 존재.</div>
+          <ul class="fields">
+            <li><span class="key">room_id · role · joined_at</span></li>
+            <li><span class="key">peer</span> <span class="ty">: Arc&lt;Peer&gt;</span> · user-scope 위임</li>
+            <li><span class="key">sub_stats</span> <span class="ty">: SubscribePipelineStats</span> · room-scope</li>
+          </ul>
+        </div>
+
+        <div class="card stream">
+          <div class="title">PublisherStream <span class="scope">SSRC 단위</span></div>
+          <div class="desc">publisher 가 발행하는 RTP 흐름 1개. Janus videoroom 정합. <code>Peer.publish.streams</code> 가 소유.</div>
+          <ul class="fields">
+            <li><span class="key">ssrc</span> <span class="ty">: u32</span> · identity</li>
+            <li><span class="key">user_id</span> <span class="ty">: Arc&lt;str&gt;</span></li>
+            <li><span class="key">kind</span> <span class="ty">: TrackKind (Audio/Video)</span></li>
+            <li><span class="key">duplex</span> <span class="ty">: AtomicU8 (Full/Half)</span></li>
+            <li><span class="key">simulcast · video_codec · actual_pt</span></li>
+            <li><span class="key">rtx_ssrc · rtp_cache · virtual_ssrc</span></li>
+            <li><span class="key">phase</span> <span class="ty">: AtomicU8 (Created/Intended/Active)</span></li>
+          </ul>
+        </div>
+
+        <div class="card stream">
+          <div class="title">SubscriberStream <span class="scope">mid 단위</span></div>
+          <div class="desc">subscriber 가 수신하는 (publisher × kind) 단위 fan-out. LiveKit DownTrack 정합. <code>Peer.subscribe.streams</code> 가 소유.</div>
+          <ul class="fields">
+            <li><span class="key">mid</span> <span class="ty">: u8</span></li>
+            <li><span class="key">virtual_ssrc</span> <span class="ty">: u32</span></li>
+            <li><span class="key">kind · subscriber_id</span></li>
+            <li><span class="key">publisher_ref</span> <span class="ty">: ArcSwap&lt;PublisherRef&gt;</span> · Direct/ViaSlot/None</li>
+            <li><span class="key">mode</span> <span class="ty">: SubscribeMode</span></li>
+            <li><span class="key">room_stats</span> <span class="ty">: DashMap&lt;RoomId, Arc&lt;RoomStats&gt;&gt;</span></li>
+            <li><span class="key">gate · pli_state · phase</span></li>
+          </ul>
+        </div>
+
+        <div class="card stream">
+          <div class="title">Slot <span class="scope">PTT virtual</span></div>
+          <div class="desc">PTT half-duplex 트랙용 가상 트랙. per-room random <code>virtual_ssrc</code> alloc. <code>Room.slots</code> 가 소유.</div>
+          <ul class="fields">
+            <li><span class="key">virtual_ssrc</span> <span class="ty">: u32</span> · 방마다 random</li>
+            <li><span class="key">kind</span> <span class="ty">: SlotKind (Audio/Video)</span></li>
+            <li><span class="key">room_id · rewriter (PttRewriter)</span></li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section>
+      <h2><span class="num">§4</span>관계 자리 표</h2>
+      <table class="rel">
+        <thead>
+          <tr><th>From</th><th>To</th><th>관계</th><th>자리</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="from">PeerMap.by_user</td>
+            <td class="to">Peer</td>
+            <td><span class="pill pill-own">owns Arc</span></td>
+            <td class="kind">user_id → Arc&lt;Peer&gt;</td>
+          </tr>
+          <tr>
+            <td class="from">RoomHub.rooms</td>
+            <td class="to">Room</td>
+            <td><span class="pill pill-own">owns Arc</span></td>
+            <td class="kind">RoomId → Arc&lt;Room&gt;</td>
+          </tr>
+          <tr>
+            <td class="from">Peer.pub_room</td>
+            <td class="to">Room</td>
+            <td><span class="pill pill-ref">RoomId 참조</span></td>
+            <td class="kind">ArcSwap&lt;Option&lt;RoomId&gt;&gt; · 1방 발언</td>
+          </tr>
+          <tr>
+            <td class="from">Peer.sub_rooms</td>
+            <td class="to">Room</td>
+            <td><span class="pill pill-ref">RoomSet 참조</span></td>
+            <td class="kind">ArcSwap&lt;RoomSet&gt; · N방 청취</td>
+          </tr>
+          <tr>
+            <td class="from">Room.participants</td>
+            <td class="to">RoomMember</td>
+            <td><span class="pill pill-own">owns Arc</span></td>
+            <td class="kind">DashMap&lt;user_id, Arc&lt;RoomMember&gt;&gt;</td>
+          </tr>
+          <tr>
+            <td class="from">RoomMember.peer</td>
+            <td class="to">Peer</td>
+            <td><span class="pill pill-ref">Arc 역참조</span></td>
+            <td class="kind">user-scope state 위임</td>
+          </tr>
+          <tr>
+            <td class="from">Peer.publish</td>
+            <td class="to">PublishContext</td>
+            <td><span class="pill pill-own">owns (값)</span></td>
+            <td class="kind">PC pair · Pub 측</td>
+          </tr>
+          <tr>
+            <td class="from">Peer.subscribe</td>
+            <td class="to">SubscribeContext</td>
+            <td><span class="pill pill-own">owns (값)</span></td>
+            <td class="kind">PC pair · Sub 측</td>
+          </tr>
+          <tr>
+            <td class="from">PublishContext.streams</td>
+            <td class="to">PublisherStream</td>
+            <td><span class="pill pill-own">owns Arc</span></td>
+            <td class="kind">ArcSwap&lt;PublisherStreamIndex&gt; RCU</td>
+          </tr>
+          <tr>
+            <td class="from">SubscribeContext.streams</td>
+            <td class="to">SubscriberStream</td>
+            <td><span class="pill pill-own">owns Arc</span></td>
+            <td class="kind">ArcSwap&lt;SubscriberStreamIndex&gt; RCU</td>
+          </tr>
+          <tr>
+            <td class="from">Room.slots</td>
+            <td class="to">Slot</td>
+            <td><span class="pill pill-own">owns Arc</span></td>
+            <td class="kind">[0] Audio / [1] Video</td>
+          </tr>
+          <tr>
+            <td class="from">SubscriberStream.publisher_ref</td>
+            <td class="to">PublisherStream</td>
+            <td><span class="pill pill-weak">Weak (Direct)</span></td>
+            <td class="kind">full-duplex / simulcast · 1:1</td>
+          </tr>
+          <tr>
+            <td class="from">SubscriberStream.publisher_ref</td>
+            <td class="to">Slot</td>
+            <td><span class="pill pill-weak">Weak (ViaSlot)</span></td>
+            <td class="kind">half-duplex (PTT) · N:1</td>
+          </tr>
+          <tr>
+            <td class="from">PublisherStream.peer_ref</td>
+            <td class="to">Peer</td>
+            <td><span class="pill pill-weak">Weak</span></td>
+            <td class="kind">Peer drop 시 lazy upgrade None</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <section>
+      <h2><span class="num">§5</span>핵심 원칙 (불변)</h2>
+      <div class="principles">
+        <h3>위반 시 버그 — 부장님 자세</h3>
+        <ul>
+          <li><b>PC 소유자 = Peer (Engine 자리)</b> · Room 은 PC 자원 보유 X. <code>Peer.publish / .subscribe</code> 에 PC pair 자원 집중.</li>
+          <li><b>user-scope state 는 Peer 가 마스터</b> · <code>RoomMember.peer: Arc&lt;Peer&gt;</code> 로 위임. cross-room 시 user 1명 = Peer 1개, 방마다 RoomMember 별도.</li>
+          <li><b>pub_room 은 단수 (1방 발언)</b> · <code>ArcSwap&lt;Option&lt;RoomId&gt;&gt;</code> 타입이 강제. sub_rooms 는 <code>RoomSet</code> (N방 청취).</li>
+          <li><b>subscribe mid 는 서버가 할당</b> · 클라 자체 할당 = m-line 무한 누적 버그. <code>SubscribeContext.mid_pool</code> 가 진실의 단일 원천.</li>
+          <li><b>PTT Slot 의 virtual_ssrc 는 per-room random</b> · universal 상수 (PTT_AUDIO_SSRC) 폐기. cross-room affiliate 시 두 방이 동시 발언해도 NetEQ 충돌 없음 (Phase ①.5, 2026-05-02).</li>
+          <li><b>half-duplex → simulcast 강제 off</b> · <code>TrackType::HalfNonSim</code> 단일 자리. PttRewriter + SimulcastRewriter 충돌 회피.</li>
+          <li><b>SubscriberStream.publisher_ref 는 Weak</b> · Direct (1:1) / ViaSlot (N:1) / None (정리). publisher Peer drop 시 lazy upgrade None — strong cycle 자리 없음.</li>
+          <li><b>fan-out 핫패스는 lock-free</b> · <code>ArcSwap&lt;PublisherStreamIndex&gt;.load()</code> ~4ns. <code>MediaSession.is_media_ready()</code> = atomic 단일 load.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section>
+      <h2><span class="num">§6</span>F29 정합 (2026-05-18)</h2>
+      <div class="intro">
+        본 자료는 <b>F29 participant.rs 해체</b> (2026-05-18 머지, commit <code>8f6f14d</code>) 결과 반영:
+        <ul>
+          <li><code>participant.rs</code>: <b>RoomMember + SubscribePipelineStats</b> 만 잔존 (936 → 308줄, -628)</li>
+          <li><code>peer.rs</code>: PcType / MediaSession / PublishPipelineStats / DC_PENDING_BUF_MAX 등 6 자료 이주</li>
+          <li><code>publisher_stream.rs</code>: TrackKind / VideoCodec / DuplexMode / TrackType / RtpCache / PublisherStreamSnapshot 6 자료 이주</li>
+          <li><code>subscriber_stream.rs</code>: SimulcastRewriter / SubscribeLayerEntry / EgressPacket 3 자료 이주</li>
+          <li><code>tasks.rs</code>: StalledSnapshot 1 자료 이주</li>
+        </ul>
+        <code>pub use re-export</code> 잔재 0. 자료 16건 → 4 모듈 자연 자리 정합 완료.
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    OxLens SFU · oxsfud crate · 자료 정확도 기준: 2026-05-18 main HEAD <code>c13ea22</code>
+  </footer>
+</body>
+</html>

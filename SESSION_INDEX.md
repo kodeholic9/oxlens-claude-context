@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-19 (oxlens-home v3 마이그 Phase 1 — wire.js 신규 + binary frame 재작성 + Pan-Floor 폐기. 5 commits 자율 진행, sdp-builder 82/82 PASS, wire round-trip 5/5 PASS)
+> 최종 업데이트: 2026-05-21 20:30 (Phase 110 본질 정정 완료 — SubscriberStreamIndex lifecycle 3 곳 정정 (helpers/tasks/room_ops) + TRACKS_READY opcode + 어드민 매트릭스 8 보강. commit 2건. 김대리 단독 진행 모드)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -793,6 +793,22 @@
 
 ---
 
+## Phase 109: wire 헤더 정정 + Track Dump 설계+구현 (0520b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0520b | `20260520b_track_dump_impl_done` | 서버+클라+문서 | **두 토픽 통합 세션. (A) wire 헤더 byte 배치 정정** — 클라 oxlens-home 의 `core/signaling.js` 가 카탈로그 doc 의 오기를 따라 `[op,pid,flags,ver]` / `VERSION_V3=0x03` 으로 박혀 있던 잠복 결함 발견. 서버 `oxsig/src/header.rs` + 설계서 `20260516_signaling_v3.md §3.2` 와 정합하도록 `[ver,flags,op,pid]` / `VER_V3=0x01` 로 정정. oxlens-home `deaac06` commit + push 완료. `context/design/wire_v3_catalog.md §0` 표 정정 (working tree). 단위 테스트 회귀 0. **(B) Track Dump 설계+구현** — 방 단위 4-Point 진단 풀 덤프 인프라 신규. 흐름: admin HTTP → hub → WS `TRACK_DUMP_REQ(0x2701)` broadcast → 클라 풀 덤프 수집 → `TRACK_DUMP_REPLY(0x1702)` → hub fan-in 5s timeout → join → HTTP response (row 단위 4-Point JSON + verdict 자동 산출). hub-local Extension 카테고리 (MODERATE 와 동일 카테고리 정합). dump_id 는 hub AtomicU32 자체 발급 (wire pid 와 분리 — broadcast 시 OutboundQueue 재발급으로 매칭 부적합). hot-path 카운팅 추가 금지 (부장님 결재) — packets/bytes/jitter/loss 는 클라 [1]/[4] getStats() 양단 비교만. virtual_ssrc 자료구조 비건드림 (응답에서만 derive). Phase 1 서버 (oxsig 2 op + oxhubd track_dump 신규 ~340줄 + REST handler + WS REPLY 분기 + state + lib + oxsfud ADMIN_SNAPSHOT 살림 + admin.rs derive 헬퍼 + build_room_snapshot, **279 PASS**). Phase 2 클라 SDK (constants 2 op + track-dump-collector.js 신규 ~280줄 + signaling.js TRACK_DUMP_REQ case, 회귀 0). Phase 3 어드민 화면 (index.html 탭 구조 + state.js 신규 필드 + render-track-dump.js 신규 ~230줄 + app.js 핸들러 6종, 회귀 0). 자율주행 모드 (정지점 ① 만 명시 결재, ②~④ 는 "진행해" 사인). 운영 룰 위반 1건 (질문에 코딩으로 반응 — 메모리 강화 `feedback_no_unsolicited_coding.md`). 신규 메모리 3건 (어휘 금지 / context repo commit 금지 / 질문≠코딩). 시험 보정 자리 7건 별도 토픽으로 분리 (admin token 경로 / Pipe/element 접근자 / NetEQ 자료 / verdict 정밀화 / wire round-trip 테스트 재작성 / virtual_ssrc 자료구조 정정 / 서버 RTP 카운터 인프라). commit 대기 (oxlens-sfu-server / oxlens-home 의 본 세션 변경, 부장님 결재 자리) |
+
+---
+
+## Phase 110: Track Dump 재설계 v2 → v2.2 (0520c~d, 자정 걸침 ~ 0521 진입)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0520c~d | `20260520c_track_dump_redesign` + `20260520d_track_dump_v22_session_close` | 설계+클라 | **v1 (Phase 109) 결함 본질 짚음 → v2 → v2.1 → v2.2 정정 (~6시간, 미완료)**. v1 결함 5건 (서버 [2][3] RTP 카운터 빈약 / virtual_ssrc derive 거짓말 / 다중 방 user_id 충돌 / 카르테시안 폭증 / 자율주행 자기부정). **부장님 의도 = track-identity 검증 본질, 4축 (cli_sub) / 5축 (cli_pub rid 추가), 정보 원천 = SDP 또는 브라우저 동등 함수**. v2 설계서 신규 (정지점 ① 결재 통과). 김과장 반박 7건 평가 후 5건 정정 → v2.1 (TD-E 흡수, simulcast pending 분기, verdict 3단계). 실 시험 1차에서 `cli_pub.ssrc=[]` 발견 — **`RTCRtpSender.getParameters().encodings[].ssrc` 가 동등 함수 아님** (W3C webrtc-pc #1174, 브라우저 자동 발급 ssrc 미노출). WebRTC 표준 검색 → **canonical source = `getStats() outbound-rtp` / `inbound-rtp`** 확정 (ssrc/mid/kind/codecId required, RFC 3550 RTP 헤더 일치 보장). v2.2 패치 — `collectIdentityFromStats(stats, mid, role)` 신규, mid 매칭으로 simulcast layer 다중 자료 자연 추출. 단위 시험 33 PASS (Chrome 실 자료 형식 모의). 회귀 0 (sdp-builder 82/datachannel 47/scope 14). 실 시험 2차 — 식별자 추출 통과했으나 **어드민 매트릭스 [1] CLI-PUB 셀 8개 모두 null** = publisher track_id 가 cli (`mic-U297-...`) / srv (`U297_2dbd7ae2`) 다른 ID 체계라 매칭 영원히 불가 (v1 부터 잠복). 비식별자 영역 broken 신호 산재 (`qualityLimitationReason="bandwidth"` 99.93% / `concealedSamples=2956` / pliCount=2) → verdict 산출이 텔레메트리 자료 봐야. 자료구조 거짓말 잔재 노출 (pipe.trackState=inactive 인데 활발 수신 / stream_map audio.codec=VP8 / virtual_ssrc=0x67CC02A3 미사용). **본 세션 진행 모드 = 김대리 단독** (자율주행 회귀 방지). Pipe 진단 접근자 5종 신설 (TD-E 흡수). commit 대기 (oxlens-home + context 양 레포 — 부장님 자리). **상태 = 미완료**, 낼 본 세션에서 이어서. 시간 까먹은 자리 자기 점검 §0 박음 (결재 자료 자체 틀림 반복 / 단위 시험 신뢰 함정 / W3C 검색 설계 결재 전 했어야) |
+
+---
+
 ## 백로그 (다음 세션 진입 자리)
 
 - **9a** PTT 비시뮬 RTP 흐름 분석 — 부장님 *"날 잡고 분석"* 명시. 분석 모드 (코딩 0). 부장님 동석 자리
@@ -801,13 +817,32 @@
 - **F24** Audio/ViaSlot mode pli_state 미사용 Mutex — 측정 후 결정
 - **F19** render-detail.js 분리 — oxlens-home 자리 (클라 재작성 예정)
 - ~~**F28** agg-log 테스트 race~~ ✅ Phase 107 해소 (`b48075c`, serial_test 도입)
+- **Phase 110 자정 후 부장님 본질 짚음 (2026-05-21 ~00:15)** — *"100% 재연되는 버그도 못잡는다"* / *"SDK 로 진실의 방에 한번 댕겨와야지. SFU 가 그랬던 것처럼"*. Track Dump 인프라는 *주변 도구*. 본질 = **SDK 자료구조 거짓말 청산** — *낮 세션 (Phase 110 후속, 0521a) 에서 정정 진입 + 완료*
+- **3차 진실의 방 거리 (별 세션)** — 본 정정 3 곳 (helpers/tasks/room_ops) 동일 패턴 *공통 함수 부재*. `Peer::release_subscribe_track(&self, tid)` 같은 공통 진입 함수 흡수 거리. SDK 진실의 방 (Pipe lifecycle / Endpoint/Room 책임 청산) 도 동석 분석 거리
+
+---
+
+## Phase 111: 재입장 시 영상 미노출 100% 재연 버그 정정 (0521a)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0521a | `20260521a_reentry_bug_fix` | 서버+클라+어드민 | **직전 자정 부장님 짚은 100% 재연 버그 본질 정정** — A 입장 → B 입장 → 영상 정상 → B 퇴장 → B 재입장 → A 측 B 영상 미노출. **본질 = `mid_map` / `mid_pool` / `SubscriberStreamIndex` 세 자료 갱신 흐름 비대칭** — evict / zombie reaper / handle_room_leave 세 정리 흐름이 mid_map + mid_pool 만 정리, SubscriberStreamIndex 정리 호출 누락. 재입장 시 idempotent 분기 (peer.rs:870) 가 옛 publisher_ref 잔재 SubscriberStream 반환. **3 곳 정정** — helpers.rs:603 (Take-over) / tasks.rs:524 (zombie) / room_ops.rs:437 (정상 LEAVE). 클라 `TRACKS_READY` opcode 정정 (sdp-negotiator.js:370 — error 3001 invalid opcode 3번 출력 원인). 어드민 매트릭스 8 보강 (cli_pub 매칭 키 track_id→ssrc / ssrc 배열 표시 / subscribe_state="created" 통과 / ssrc_mismatch 배열 비교 / srv_sub null row 박음 / self-publish row 박음 (opacity-50) / PTT 가상 pipe 수집 (sdk.pttPipes) / ViaSlot verdict 분기 (ptt_idle/ptt_ready)). 회귀: 서버 279 PASS / 클라 176 PASS / 0 fail. commit 2건 (oxlens-sfu-server fe5bd04 / oxlens-home afb0ab5). **김대리 단독 진행 모드** (자율주행 회귀 방지). 어휘 *"자리"* 잔재 부장님 두 번 야단 — feedback_vocab_no_slang.md 강화 거리. push 부장님 자리 |
+
+---
+
+## 백로그 (다음 세션 진입 거리)
+
+- **시뮬캐스트 설정 결함** (Phase 111 마지막 짚음) — demo_conference 의 `simulcast: false` 박힘. Conference 기본은 simulcast 여야 함 (부장님 짐작). presets.js 추적 거리
+- **어드민 매트릭스 simulcast 자료 표시** — KIND / RID / SRV-PUB 어느 셀에도 simulcast 여부 표시 안 함. 진단 도구 보강 거리
+- **3차 진실의 방** — Peer::release_subscribe_track 공통 함수 흡수 (helpers/tasks/room_ops 중복 폐기)
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 277개
-- **기간**: 2026-03-09 ~ 2026-05-18 (71일)
+- **총 세션 파일**: 281개
+- **기간**: 2026-03-09 ~ 2026-05-21 (74일)
+- **최종 업데이트**: 2026-05-21 20:30 (Phase 111 정정 완료 — 재입장 100% 재연 버그 해소)
 
 ---
 
