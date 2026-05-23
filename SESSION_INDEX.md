@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-21 20:30 (Phase 110 본질 정정 완료 — SubscriberStreamIndex lifecycle 3 곳 정정 (helpers/tasks/room_ops) + TRACKS_READY opcode + 어드민 매트릭스 8 보강. commit 2건. 김대리 단독 진행 모드)
+> 최종 업데이트: 2026-05-21 늦은 저녁 (Phase 112 완료 — ingress SRP + RTX 처리 진실의 방. 설계 v1→v4 + Phase A/B/E/D.1/C.1/C.2/D.2/F 진입. 212 PASS / 0 FAIL. 부장님 결재 동석 단계별 진입)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -830,19 +830,27 @@
 
 ---
 
+## Phase 112: ingress SRP + RTX 처리 진실의 방 (0521b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0521b | `20260521b_ingress_srp_rtx_truth_room_done` | 서버+설계 | **ingress.rs 946 줄 SRP 위반 5 곳 + RTX 처리 본질 결함 (분류 후 폐기) 통합 청산**. 설계 v1→v4 4 차 정정 (부장님 검토 단계별 동석) — v1 시작, v2 업계 3 장 조사 (janus/livekit/mediasoup) 반영, v3 부장님 검토 4 건 + half-duplex 47 지점 + ingress 분리 + enum 19 종 조사 반영, v4 부장님 v3 검토 4 건 + cache 자료 조사 반영. (Y) IngressDispatcher 폐기 결재 — mediasoup 도 별 dispatcher 없음. 최종 결재 = (X) 4 Phase + Phase E 통합 / RTX (b) livekit+mediasoup 정합 / Cache (b2) 1024+audio+layer 분리. **Phase A — ingress.rs 4 파일 분리** (`ingress.rs` 946→211 / `ingress_publish.rs` 신규 475 / `ingress_rtcp.rs` 신규 236 / `ingress_subscribe.rs` 유지). **Phase B — 의사결정 헬퍼 2** (`decide_rid_promotion` / `evaluate_publisher_floor`). **Phase E — NackGenerator 본 토대** (publisher 측 손실 감지 + Generic NACK 송신. `bwe_timer` 합류. PLI 정합 패턴). **Phase D.1 — enum 4 신설** (`SsrcKind` / `RtpDispatchResult` / `DiscardReason` / `LookupResult` — allow(dead_code)). **Phase C.1 — process_rtx_packet 신설** (RFC 4588 디캡슐 + 원본 cache 보강 + NackGenerator 회수). **Phase C.2 — cache 512→1024 + audio cache 신설**. **Phase D.2 — Room::lookup_publisher_for_ssrc 통합 lookup** (mediasoup RtpListener::GetProducer 정합). **Phase F — 단위 시험 18 신설** (NackGenerator 10 + build_nack 8). 회귀 0 (194 → 212 PASS). half-duplex 충돌 검증 통과 (build_sr_translation 의 is_half=true → None 분기 보존). 어휘 위반 잔재 ("거리" 단독 다수) — `feedback_vocab_no_slang.md` 보강 박음 (위반 이력 2026-05-21 기록). 잔여 별도 진입 거리: Phase C.3 (simulcast layer 분리 — 실측 부족) / Phase D.3 (호출처 정정 — 부장님 동석 정합) / (b3) 보강 (운영 자료 측정 후) / subscriber RTX 자체 생성 / MediaViaSlot(Weak<Slot>) 실 사용. commit 자리 (oxlens-sfu-server + context 양 레포 — 부장님 자리) |
+| 0521c | `20260521c_ingress_layer_consistency` | 서버 | **ingress 계층구조 정합 + 옛 잔재 청산 + 진단 로그 청산 (Phase 1~4) + 후속 청산 §10**. 부장 ingress.rs 읽고 5 관점 지적 (초기 로그 / RoomMember 인자 부정합 / 계층 정합 전 코드 잔재 / first_room_hint 폐기 / `peer.pub_room` 부정합 — publish 자료 home 분열) → Explore agent 전수조사 → 사전 기록 → 부장 결재 (Phase 1~4 차례 / `peer.publish_room()` 헬퍼 일관성 / API (가) 완전 이주). **Phase 1** — `Peer::pub_room` → `PublishContext::pub_room` 이전 + `Peer::publish_room()` 단일 진입 헬퍼 + PublishContext 메서드 5 + 외부 12 호출처 정합 + `Peer::pub_select`/`pub_deselect` 폐기. **Phase 2** — `first_room_hint` 8 호출처 폐기 + 함수 자체 삭제. publisher 측 = peer.publish_room() / subscriber 측 = peer.sub_rooms 임의 1방 의미 분리. **Phase 3** — RoomMember → Peer 시그너처 축소 5 함수 (`spawn_pli_burst` / `send_dc_to_peer` / `send_dc_wrapped` / `PublisherStream::fanout` / `prefan_out_via_slot`) + ingress.rs::handle_srtp 멤버 룩업 2 곳 폐기 + Peer 헬퍼 2 신설. **Phase 4** — 진단 로그 청산: `[DBG:RTP]` 7 블록 + `[DBG:RTCP:*]` 본문 + `is_detail`/`seq_num` 인자 7 함수 + `DBG_DETAIL_LIMIT`/`DBG_SUMMARY_INTERVAL` 상수 + `dbg_rtp_count` 필드 폐기 + `update_speaker_tracker` / `detect_video_rtp_gap` 헬퍼 분리. **§10 후속 청산 (2026-05-23, 부장 "일관성만 유지하는 관점에서 작업해")** — (C) `Peer::pub_stats` → `PublishContext::pub_stats` 이전 (publish 자료 home 일원화 완성, 8 호출처 정합). (B) RoomMember 위임 메서드 5 폐기 — `touch` (0) / `participant_type` (1) / `get_phase` (2) / `next_rtx_seq` (3) / `cancel_pli_burst` (5). Peer 측 `get_phase()` 헬퍼 신설. 광범위 사용 위임 메서드 (`user_id` 47 / `is_publish_ready` 17 등) 보존. `RtpHeader::marker` 필드 폐기 (release 빌드 warning 청산). 회귀: 매 phase + 후속 청산 cargo build/test 212 PASS / 0 fail 일관. release 빌드 warning 0. **commit 2건** — `30b546c` Phase 1~4 (18 files / +240 / −336) + `94ff5c5` 후속 청산 (13 files / +30 / −52). 누적 31 files / +270 / −388 / 118 줄 순감소. push 부장 영역. 잔여 항목 (별 phase): track_ops.rs (936) / helpers.rs (667) 함수 분해 / Phase 112 잔여 (C.3/D.3/NackGenerator 시험/subscriber RTX) / 시뮬캐스트 설정 결함 / 어드민 매트릭스 simulcast 표시 |
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
-- **시뮬캐스트 설정 결함** (Phase 111 마지막 짚음) — demo_conference 의 `simulcast: false` 박힘. Conference 기본은 simulcast 여야 함 (부장님 짐작). presets.js 추적 거리
-- **어드민 매트릭스 simulcast 자료 표시** — KIND / RID / SRV-PUB 어느 셀에도 simulcast 여부 표시 안 함. 진단 도구 보강 거리
-- **3차 진실의 방** — Peer::release_subscribe_track 공통 함수 흡수 (helpers/tasks/room_ops 중복 폐기)
+- **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
+- 본 영역에 항목 직접 추가 금지 — 갭 추가 발굴 시 위 진열 파일에 누적
 
 ---
 
 ### 통계
 
-- **총 세션 파일**: 281개
-- **기간**: 2026-03-09 ~ 2026-05-21 (74일)
-- **최종 업데이트**: 2026-05-21 20:30 (Phase 111 정정 완료 — 재입장 100% 재연 버그 해소)
+- **총 세션 파일**: 283개
+- **기간**: 2026-03-09 ~ 2026-05-23 (76일)
+- **최종 업데이트**: 2026-05-23 (Phase 113 + §10 후속 청산 완료 — publish 자료 home 완전 일원화 + RoomMember 위임 5 폐기 + release warning 0, 212 PASS 일관, commit 94ff5c5)
 
 ---
 
