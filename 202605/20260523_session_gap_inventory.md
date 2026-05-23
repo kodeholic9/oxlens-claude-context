@@ -17,9 +17,9 @@
 | 정독 세션 | 80 (라운드 1~8) |
 | 시기 | 2026-04-26 ~ 2026-05-23 (약 4주, Phase 60 ~ Phase 113) |
 | 확인 SFU 서버 코드 | 약 30~40 파일 (peer.rs / publisher_stream.rs / subscriber_stream.rs / room.rs / ingress*.rs / egress.rs / hooks/ / track_dump/ / config.rs / opcode.rs 등) |
-| 누적 갭 | 53건 (처리 4건 / 잔여 49건) |
+| 누적 갭 | 53건 (처리 7건 / 잔여 46건) |
 | 진짜 미구현 / 진짜 버그 / 진짜 dead code | 13건 (#38 ✅ / #46 ✅ / #6 ✅ / 잔여 10) |
-| 의도 보류 (부장님 결재 / 측정 후 / 부채 cleanup) | 33건 |
+| 의도 보류 (부장님 결재 / 측정 후 / 부채 cleanup) | 33건 (#28 ✅ / #30 ✅ / #31 ✅ / #43 자료 정정 — 보존 결정 / 잔여 29) |
 | stale 주석 잔재 | 7건 (#22~#54 일괄 ✅ — 모두 완료) |
 
 ---
@@ -132,14 +132,20 @@
 
 ### D. cleanup PR (Phase 90b 부채 7건 중 잔존 4건)
 
-- [ ] **#28 dead op 3개 (RECONNECT/SESSION_END/ADMIN_METRICS)** — ADMIN_SNAPSHOT은 Phase 109 Track Dump에서 살림
-  - 위치: `oxsig/src/opcode.rs:38, 39, 104`
-- [ ] **#29 oxsig v2 alias** (Packet::ok/err/err_raw/wrap/to_json)
+- [x] **#28 dead op cleanup** — **commit `2f6509b` (2026-05-23) 부분 ✅ + 자료 정정**
+  - 본 진열 자료 정정: 사용처 grep 재검증 결과 RECONNECT (admin REST 핸들러 broadcast 트리거) / ADMIN_METRICS (telemetry path) **살아있음** 확인. 진짜 dead = `SESSION_END` 1개만
+  - 변경: SESSION_END 단독 폐기 (opcode.rs 정의 + ALL_OPS 엔트리 + session_category 시험 array + catalog_size 시험 42 → 41 + 헤더 주석 정합) + oxhubd/ws/mod.rs:753 주석 정합
+  - 검증: cargo build --release PASS warning 0, oxsig --lib 54 / oxsfud --lib 214 PASS 일관
+  - 잔재: RECONNECT / ADMIN_METRICS / ADMIN_SNAPSHOT 모두 살아있음 (보존), 추가 폐기 안건 없음
+- [ ] **#29 oxsig v2 alias** (Packet::ok/err/err_raw/wrap/to_json) — **별 phase 권고**
   - 위치: `oxsig/src/lib.rs:97~133`
-- [ ] **#30 `WireAckState` 별칭 직접 폐기**
-  - 위치: `helpers.rs:32`, `sfu_service.rs:22`
-- [ ] **#31 `common::signaling::header.rs / code.rs` dead placeholder**
-  - 위치: 10줄 / 6줄 파일 자체 dead
+  - 자료 정정 (2026-05-24): 사용처 grep **71 자리** — `helpers.rs` / `room_ops.rs` / `track_ops.rs` / `floor_ops.rs` / `admin.rs` 등 광범위 분산. mechanical refactor 면적 크고 회귀 위험 검토 필요. 본 cleanup segment 부적합
+- [x] **#30 `WireAckState` 별칭 직접 폐기** — **commit `788842d` (2026-05-23) ✅**
+  - 변경: `helpers.rs` + `sfu_service.rs` 12 자리 (import 2 + 본문 10) — `AckState as WireAckState` → `AckState` 통일
+  - 검증: cargo build --release PASS warning 0, oxsfud --lib 214 PASS, grep WireAckState 0건 (완전 폐기)
+- [x] **#31 `common::signaling::header.rs / code.rs` dead placeholder** — **commit `e8cf6a8` (2026-05-23) ✅**
+  - 변경: 2 파일 git rm (-16줄). mod.rs 에 선언 없어 컴파일 대상 아닌 진짜 dead
+  - 검증: cargo build --release PASS warning 0, common --lib 18 PASS, oxsfud --lib 214 PASS
 
 ### E. Code Review Defects (Phase 90c 17건 중 잔재 5건)
 
@@ -147,8 +153,9 @@
   - 위치: `oxhubd/src/state.rs`
 - [ ] **#33 #3 Room 목록 JSON `serde_json::Value` → native struct 리팩터**
   - 위치: `oxhubd/src/rest/admin.rs` 등
-- [ ] **#34 #4 message.rs Request 레벨 중복 PT/MID 필드**
+- [ ] **#34 #4 message.rs Request 레벨 중복 PT/MID 필드** — **별 phase 권고** (wire 영향 우려)
   - 위치: `oxsfud/src/signaling/message.rs:76-85, 116`
+  - 자료 정정 (2026-05-24): top-level fallback 패턴 (Item 안 None 시 top-level 으로 fallback, line 101 코멘트). 폐기 시 클라 정합 + wire 영향 검토 필요. 본 cleanup segment 부적합
 - [ ] **#35 #7 SubscribeMode 이름과 실제 어긋남** — enum 단일이지만 실 라우팅 상태 분산
   - 위치: `subscriber_stream.rs:218`
 - [ ] **#37 #15 clock_rate PT 기반 추정 → sub_stream.kind 사용 정정**
@@ -168,8 +175,9 @@
 - [ ] **#16 `track_ops.rs` (936줄) / `helpers.rs` (667줄) 함수 분해** — 별 phase
 - [ ] **#17 F30 ④ Streams 관리 메서드 → Context 이동** — Peer 메서드 10건 그대로
   - 위치: `peer.rs:755, 796, 830, 834, 883, 891, 901, 932, 941, 945`
-- [ ] **#43 `Layer` enum 보존** — 외부 import 미검증 ("안전 우선")
+- [ ] **#43 `Layer` enum 보존** — 외부 사용처 다수 (검증 완료, 폐기 불가)
   - 위치: `pli_governor.rs:23`
+  - 자료 정정 (2026-05-24): grep 검증 결과 `tasks.rs:352/394`, `floor_broadcast.rs:347`, `publisher_stream.rs:836/838/903`, `subscriber_stream.rs:196-198` (Display impl) 등 다수 외부 사용처 살아있음. **폐기 불가 — 보존 결정**. 본 안건 종료
 - [ ] **#44 `Room::find_publisher_by_vssrc` 메서드 이름 변경** — 부장님 네이밍 결정 후
   - 위치: `room.rs:319`
 - [ ] **#45 9 vssrc 일괄 rename** — "나중에 고민" 보류
