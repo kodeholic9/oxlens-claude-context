@@ -52,11 +52,16 @@
   - 위치: `room.rs:67-69` 자백 주석 "본 enum 안 직접 참조 박지 않음"
   - 출처: Phase 112 v3 결재 1 (Weak<Slot> 정정)
 
-- [x] **#6 3차 진실의 방 — `Peer::release_subscribe_track` 공통 함수 흡수** — **commit `5e19c15` (2026-05-23) ✅**
-  - 변경: `peer.rs` 헬퍼 신설 (+27줄, Lock 순서 정합 = mid_map drop 후 mid_pool 진입) + 3 호출처 (helpers/tasks/room_ops) 정정. net +6 줄
-  - 검증: cargo build --release PASS warning 0, cargo test --lib **214 passed / 0 failed** (직전 214 유지)
-  - 부수 효과: 옛 코드 mid_map lock 잡은 채로 mid_pool lock 호출 → 새 패턴 drop 후 진입 (deadlock 위험 회피)
-  - 출처: Phase 111 §6 "공통 함수 부재가 본질" 짚으심, Phase 113 §10.5 잔여
+- [x] **#6 3차 진실의 방 — `Peer::release_subscribe_track` 공통 함수 흡수** — **commit `5e19c15` (2026-05-23) → 본문 순서 본질 후퇴, commit `53aea9c` + `81a99c4` (0524a, 2026-05-24) 정정 ✅**
+  - 옛 변경 (5e19c15): `peer.rs` 헬퍼 신설 (+27줄, Lock 순서 = mid_map drop 후 mid_pool 진입) + 3 호출처 (helpers/tasks/room_ops) 정정. net +6 줄
+  - 옛 검증: cargo build --release PASS warning 0, cargo test --lib 214 passed / 0 failed
+  - 옛 부수 효과: 옛 코드 mid_map lock 잡은 채로 mid_pool lock 호출 → 새 패턴 drop 후 진입 (deadlock 위험 회피)
+  - 자료 정정 (2026-05-24): 옛 본문 순서 (mid_map → mid_pool → SubscriberStreamIndex) = 옛 3중복 코드 (helpers/tasks/room_ops) 순서 그대로 헬퍼에 묶음 (mechanical refactor 함정 — 본질 점검 누락). 부장님 짚음 "퇴장 시 의식의 흐름상 peer 에서 sub 를 빼는게 먼저 아닌가? 그 다음에 관련 자료 구조 정리하고."
+  - 후속 변경 (0524a Phase 1, commit `53aea9c`): 본문 순서 재정렬 mid_map → SubscriberStreamIndex → mid_pool. 근거 = mid_pool.release 가 다음 add 의 시작 신호. 그 전에 SubscriberStreamIndex 깨끗해야 `add_subscriber_stream` idempotent 분기에 옛 publisher_ref 잔재 안 끼어듦
+  - 후속 변경 (0524a Phase 2, commit `81a99c4`): 옛 잔재 호출 측 `emit_leaver_room_remove` (helpers.rs:453) 본문 mid_map + mid_pool 동시 lock 패턴 폐기 → release_subscribe_track 호출 통합. 단일 진입점 정합 (helpers / tasks / room_ops / leaver-emit 모두 통합)
+  - 후속 검증: cargo build --all-targets OK, cargo test --all 299 pass / 0 fail / 1 ignored (각 Phase 별 정지점 확보)
+  - 본질 학습: mechanical refactor 함정 (옛 코드 순서 답습, 본질 점검 누락). #30 가명 폐기 후퇴 (788842d → 24b2bf5) 와 같은 본질 — 본인 작업 시 옛 코드/별칭의 **의도** 점검 필수 (게으름 답습 vs 본질 정공)
+  - 출처: Phase 111 §6 "공통 함수 부재가 본질" 짚으심, Phase 113 §10.5 잔여, 0524a 부장님 짚음
 
 - [ ] **#7 `virtual_ssrc` 자료구조 정정 (TD-B)** — 122자리 cascade refactor. 자백 주석 5개월 잔존
   - 위치: `subscriber_stream.rs:336-340`
@@ -140,9 +145,20 @@
 - [ ] **#29 oxsig v2 alias** (Packet::ok/err/err_raw/wrap/to_json) — **별 phase 권고**
   - 위치: `oxsig/src/lib.rs:97~133`
   - 자료 정정 (2026-05-24): 사용처 grep **71 자리** — `helpers.rs` / `room_ops.rs` / `track_ops.rs` / `floor_ops.rs` / `admin.rs` 등 광범위 분산. mechanical refactor 면적 크고 회귀 위험 검토 필요. 본 cleanup segment 부적합
-- [x] **#30 `WireAckState` 별칭 직접 폐기** — **commit `788842d` (2026-05-23) ✅**
-  - 변경: `helpers.rs` + `sfu_service.rs` 12 자리 (import 2 + 본문 10) — `AckState as WireAckState` → `AckState` 통일
-  - 검증: cargo build --release PASS warning 0, oxsfud --lib 214 PASS, grep WireAckState 0건 (완전 폐기)
+- [x] **#30 `WireAckState` 별칭 직접 폐기** — **commit `788842d` (2026-05-23) → 본질 후퇴, commit `24b2bf5` (2026-05-24) 본명 정합 ✅**
+  - 옛 변경 (788842d): `helpers.rs` + `sfu_service.rs` 12 자리 (import 2 + 본문 10) — `AckState as WireAckState` → `AckState` 통일
+  - 옛 검증: cargo build --release PASS warning 0, oxsfud --lib 214 PASS, grep WireAckState 0건 (완전 폐기)
+  - 자료 정정 (2026-05-24): 옛 호출 측 가명 (`AckState as WireAckState`) = 호출자 명료성 의도 (모듈 prefix `header` 잃은 채 import 시 wire layer 측 ack 인지 application 측 ack 인지 모호 → 가명으로 명시). 본인 옛 788842d = 가명 폐기 = **본질 후퇴** (명료 가명을 모호 본명으로 되돌림). 정공 = oxsig 측 type 본명 자체를 `WireAckState` 로 정합 (`WireHeader` 짝 일관) + 호출 측 가명 없이 직접 import. 부장님 짚음 (`WireAck` prefix grep 0건 → 호출 측 가명 박은 의도 본질 점검)
+  - 후속 변경 (commit `24b2bf5`, 2026-05-24):
+    - `oxsig::header::AckState` enum → `WireAckState` 본명 (정의 + impl + Display + 단위 시험)
+    - `oxsig::lib::Packet::ack_state()` 반환 type 정합
+    - `oxsig` / `common::signaling` re-export 정합
+    - 호출 측 8 파일 일괄 (oxhubd 4, oxsfud 2, oxrtc 1, common/ws 1)
+    - `HeaderError::ReservedAckState` variant 보존 (본 variant 의미 = wire ack_state field reserved bit pattern 0b11 — type 본명 prefix 와 의미 차원 분리)
+    - variant 이름 (`Msg / AckOk / AckFail`) 보존
+    - 영향 범위: 11 파일, 83 자리 (+83 / -83)
+  - 후속 검증: cargo build --all-targets OK, cargo test --all 299 pass / 0 fail / 1 ignored
+  - 본질 학습: mechanical refactor 함정 (옛 패턴 / 옛 별칭 그대로 답습, 본질 점검 누락). 5e19c15 의식의 흐름 순서 함정과 같은 본질 — 본인 작업 시 호출 측 가명 / 옛 코드 순서 같은 자료의 **의도** 점검 필수 (게으름 가명 vs 명료성 가명 / 옛 순서 답습 vs 본질 정공 순서)
 - [x] **#31 `common::signaling::header.rs / code.rs` dead placeholder** — **commit `e8cf6a8` (2026-05-23) ✅**
   - 변경: 2 파일 git rm (-16줄). mod.rs 에 선언 없어 컴파일 대상 아닌 진짜 dead
   - 검증: cargo build --release PASS warning 0, common --lib 18 PASS, oxsfud --lib 214 PASS
