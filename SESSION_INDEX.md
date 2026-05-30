@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-30 (Phase 114 oxe2e 헤드리스 SFU 회귀 gate — 봇 oxrtc 전환 + conf_basic/ptt_rapid/gating, Phase 1~3 실측 PASS, 서버 0 변경)
+> 최종 업데이트: 2026-05-31 (Phase 115 Publisher 2계층 Stage 1~4 완성 — PublishContext⊃PublisherStream(논리)⊃PublisherTrack(물리), 명제 B+catch4 해결, recv_stats Track 귀속, 211 PASS, 커밋 dadc342+96ded24)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -863,6 +863,20 @@
 
 ---
 
+## Phase 115: Publisher 2계층 (Stream 논리 / Track 물리) Stage 1~4 (0530~0531)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0530 | `20260530c_publisher_2layer_stage1_done` | 서버 | **Stage 1** — `PublisherStream`→`PublisherTrack` 순수 rename (물리=SSRC 명명 교정). 토큰 149/133 + 파일 git mv 2 + 파생 Index/Snapshot. 211 PASS. commit `dadc342`. (지침: `20260530c_..._roadmap` §4 / 1차 시도 `20260530a` 빌드폭발식 → 롤백) |
+| 0530 | `20260530c_publisher_2layer_stage2_done` | 서버 | **Stage 2** — 논리 `PublisherStream` 신설(`room/publisher_stream.rs`: source/kind/tracks + pli_state/pli_burst_handle/last_pli_relay_ms/simulcast_pli_pending) + PublisherTrack에 `stream:Weak` 역참조. `PublishContext.logical_streams`(source,kind 묶음). **PLI 자료 publisher-단위→논리 Stream 단위 이주 = 명제 B + catch4 해결** (camera-h/screen layers[High] 슬롯 공유 오염 차단). pli_state 7곳 전환(fanout self.stream()/stream_for_ssrc/stream_for_pli_target). 211 PASS. commit `96ded24` |
+| 0530 | `20260530d_publisher_2layer_stage3_done` | 서버 | **Stage 3** — 명명 청산(순수 rename). PublishContext 물리 `streams`→`tracks`/논리 `logical_streams`→`streams`. Peer 메서드 first_stream_of_kind→first_track_of_kind(물리)/_logical→first_stream_of_kind(논리)/switch·set 정합. fan-out 구조 0 변경(Stream 진입 전환 폐기 — fanout Track 진입이 물리적 정답). subscribers 승격 보류(simulcast h-only attach=중복 없음). 211 PASS. commit `96ded24`. (지침 `20260530d` — 로드맵 §2 단계3 정정) |
+| 0531 | `20260530_publisher_2layer_stage4_done` | 서버 | **Stage 4** — `recv_stats: DashMap`→각 `PublisherTrack.recv_stats: Mutex<RecvStats>` 귀속(호출처 3: update/on_sr/RR, egress는 비-RTX Track 순회 media당 1). `simulcast_group` 약한 끈 전량 폐기(Stream이 h/l 묶음 소유, placeholder=sentinel ssrc). **2계층 완성**. 211 PASS. commit `96ded24`. 잔여=camera+screen 동시 keyframe oxe2e 회귀(봇 환경) 미수행 |
+
+> 명제 B: `PublishContext.pli_state` 가 publisher당 단일 → camera-h(simulcast High)와 screen(non-sim Layer::High)이 같은 `layers[High]` 공유 → screen keyframe이 camera pending 거짓 해제. 2계층으로 source 단위 분리하여 해결.
+> 미커밋 사고 회고: Stage 2~4 진행 중 도구 배치 호출로 stale-string Edit 실패 반복(매번 빌드가 잡아 순차 복구). 1차 `20260530a` 빌드폭발 방식은 롤백 후 GREEN 점진(`20260530c` 로드맵)으로 재설계.
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -872,9 +886,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 288개
-- **기간**: 2026-03-09 ~ 2026-05-30 (83일)
-- **최종 업데이트**: 2026-05-30 (Phase 114: oxe2e 헤드리스 SFU 회귀 gate — 봇 oxrtc(v3) 전환 + conf_basic + ptt_rapid floor + gating 음성 검증. oxrtc 발행/DC 표면 보강, 서버 0 변경. Phase 1~3 정지점 전부 실측 PASS. 후속=admin 삼각)
+- **총 세션 파일**: 293개
+- **기간**: 2026-03-09 ~ 2026-05-31 (84일)
+- **최종 업데이트**: 2026-05-31 (Phase 115: Publisher 2계층 Stage 1~4 — `PublishContext ⊃ PublisherStream(논리,camera/screen) ⊃ PublisherTrack(물리,SSRC)` 자료구조 완성. 명제 B(camera/screen PLI 오염) + catch4 해결, recv_stats Track 귀속, simulcast_group 폐기. 211 PASS. commit dadc342+96ded24. 잔여=camera+screen oxe2e 회귀)
 
 ---
 
