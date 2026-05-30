@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-24 (옛 commit 본질 후퇴 정정 3건 — WireAckState 본명 정합 + release_subscribe_track 본문 순서 + emit_leaver_room_remove 단일 진입점 통합. 299 PASS / 0 FAIL. mechanical refactor 함정 본질 학습)
+> 최종 업데이트: 2026-05-30 (Phase 114 oxe2e 헤드리스 SFU 회귀 gate — 봇 oxrtc 전환 + conf_basic/ptt_rapid/gating, Phase 1~3 실측 PASS, 서버 0 변경)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -840,6 +840,29 @@
 
 ---
 
+## Phase 113: 무참조 완성 + catch 4 분석 + catch 2 MediaIntent 분해/폐기 (0529)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0529 | `20260528e_unref_completion_step1_done` | 서버 | 무참조 완성 (catch 7 1차) — Subscriber/Publisher peer_ref 폐기 + `set_phase_state(target,room_id,cause)` 대칭화 + `publisher_user_id` pli_sweep vssrc 역탐색 + `subscriber_stream::Layer` → `pli_governor::Layer` 통합(Display impl 흡수). 1 commit `930d3f2`. 218 PASS |
+| 0529 | `20260529a_catch4_analysis_done` + `20260529c_catch2_mediaintent_analysis_done` | 서버 | catch 4 옵션 D 분석 (`spawn_pli_burst` 9 호출처 → SIM:PLI 단 1자리 흡수 / PacketContext 옵션 A 권고 / AtomicBool fast path 사전 박기 / `request_simulcast_keyframe` 시그너처). catch 2 사전 분석 — MediaIntent 3역할 분해 + twcc 죽은 필드 + simulcast RTP-first 대안 A+B 결합 + 6 sub-phase 단계 분할 권고 |
+| 0529 | `20260529d_catch2_mediaintent_dissolve_done` | 서버 | catch 2 MediaIntent 분해/폐기 6 sub-phase — 3-A(twcc dead) / 3-B(extmap 4 atomic) / 3-C(audio_mid ArcSwap, audio_duplex AtomicU8) / 3-D★(simulcast placeholder sim_group sentinel `0xF000_0000`) / 3-E★(video_sources PublisherStream 흡수) / 3-F(struct 폐기). 6 commit `37539e0`~`98f2431`. 핫패스 `stream_map.lock()` 0건. 218→211 PASS (self-test 6건 자연 소멸). E2E verify 보류(향후 한묶음) |
+
+---
+
+## Phase 114: oxe2e — 헤드리스 SFU 회귀 gate (봇 oxrtc 전환 + conf_basic + ptt_rapid + gating) (0530)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0530 | `design/20260530_oxe2e_design` | 설계 | oxe2e 설계 — 단위시험↔브라우저E2E 사이 Layer 1 회귀 gate. OXLABS(3월) 계승/폐기/신규 명시. **약속↔이행 범용 판정**(L1-XX 폐기) + admin 삼각 + 충실도 경계("서버가 읽는 것만 충실") + 참여자 조합 TOML |
+| 0530 | `20260530_oxe2e_phase1_done` | 서버 | **Phase 1** — 봇 oxrtc(v3) 전환 + conf_basic 실측 PASS. `crates/oxe2e` 신설(workspace, path dep oxrtc/oxsig). **oxrtc 발행 표면 보강**: `SrtpSession::new`(new_publish 불필요—DTLS role) + `encrypt_rtp` + `ServerConfig.pub_ufrag/pwd` + `send_request`. 약속↔이행+존재 판정. 함정: WS 인증=URL `?token=`, recorder도 발행 허용. 정지점 1(핸드셰이크)/2(conf PASS, 402/401). commit `33977c2`/`e1cd083`/`892cb45` |
+| 0530 | `20260530_oxe2e_phase2_done` | 서버 | **Phase 2** — oxrtc 클라 DC 스택(서버 받는쪽 거울, publish PC DTLS app data 위) + ptt_rapid floor. `dc/{mod,dcep,mbcp}`: SCTP `Endpoint::connect`(4-way) + DCEP unreliable OPEN/ACK + MBCP 빌더/파서(byte-level). `dtls_handshake_keep`(DTLSConn 유지) + `SignalSession.initial_tracks`(half slot vssrc는 방생성 시 할당, room-join 응답에만 배포—"PTT Unified Model"). 정지점 1(SCTP)/2(DCEP)/3(MBCP floor+이행) 전부 PASS. 서버 0 변경. commit `a67cc6c` |
+| 0530 | `20260530_oxe2e_phase3_done` | 서버 | **Phase 3** — gating 음성 검증(floor 이벤트 구간 검산). `FloorEdge{OnSelf,OnOther,Off}` half-duplex self-gating 관점(자기발화=미수신 정상/타화자=수신/idle=미수신). `build_segments`+`evaluate_gating`. **guard band 양쪽 경계**(silence flush 3프레임 60ms=전환 경계 현상, 250ms). 봇 측 시각 기록→oxrtc 무수정, 서버 0 변경. 정지점 1(시각 인프라)/2(구간 gating) PASS. conf 회귀 PASS. commit `35f80bc` |
+
+> 후속(별 토픽): admin 삼각검증(track-dump 4-Point) — 설계 §9 ssrc 조회 경로/교차 시점 미결.
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -849,9 +872,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 284개
-- **기간**: 2026-03-09 ~ 2026-05-24 (77일)
-- **최종 업데이트**: 2026-05-24 (옛 commit 본질 후퇴 정정 3건 — `24b2bf5` WireAckState 본명 정합 + `53aea9c` release_subscribe_track 순서 정렬 + `81a99c4` emit_leaver_room_remove 통합. 299 pass 일관. mechanical refactor 함정 일관 본질 학습)
+- **총 세션 파일**: 288개
+- **기간**: 2026-03-09 ~ 2026-05-30 (83일)
+- **최종 업데이트**: 2026-05-30 (Phase 114: oxe2e 헤드리스 SFU 회귀 gate — 봇 oxrtc(v3) 전환 + conf_basic + ptt_rapid floor + gating 음성 검증. oxrtc 발행/DC 표면 보강, 서버 0 변경. Phase 1~3 정지점 전부 실측 PASS. 후속=admin 삼각)
 
 ---
 
