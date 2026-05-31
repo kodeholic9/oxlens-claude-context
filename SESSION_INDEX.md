@@ -832,11 +832,11 @@
 
 ## Phase 112: ingress SRP + RTX 처리 진실의 방 (0521b)
 
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0521b | `20260521b_ingress_srp_rtx_truth_room_done` | 서버+설계 | ingress.rs 946줄 SRP 위반 + RTX 본질 결함 통합 청산. 설계 v1→v4 (업계 3장 조사). Phase A (ingress 4파일 분리) + B (헬퍼 2) + C.1/C.2 (RTX 디캡슐 + cache 1024+audio) + D.1/D.2 (enum 4 + lookup 통합) + E (NackGenerator) + F (시험 18). 194 → 212 PASS |
-| 0521c | `20260521c_ingress_layer_consistency` | 서버 | ingress 계층구조 정합 — Phase 1 (`PublishContext::pub_room` 이전 + `publish_room()` 헬퍼) / 2 (first_room_hint 폐기) / 3 (RoomMember → Peer 시그너처 축소 5함수) / 4 (`[DBG:RTP]` 진단 로그 청산). §10 후속 (0523): `pub_stats` 이전 + RoomMember 위임 5폐기. 212 PASS, commit 2건 (31 files / −118 net) |
-| 0524 | `20260524_session_summary` | 서버 | 옛 commit 본질 후퇴 정정 3건 — `24b2bf5` WireAckState 본명 정합 (11파일/83자리) + `53aea9c` `release_subscribe_track` 본문 순서 정렬 (mid_map → Index → mid_pool) + `81a99c4` `emit_leaver_room_remove` 단일 진입점 통합. 299 PASS. mechanical refactor 함정 본질 학습 (별칭/순서 의도 점검) |
+| 날짜    | 파일                                          | 영역    | 요약                                                                                                                                                                                                                                                                    |
+| ----- | ------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0521b | `20260521b_ingress_srp_rtx_truth_room_done` | 서버+설계 | ingress.rs 946줄 SRP 위반 + RTX 본질 결함 통합 청산. 설계 v1→v4 (업계 3장 조사). Phase A (ingress 4파일 분리) + B (헬퍼 2) + C.1/C.2 (RTX 디캡슐 + cache 1024+audio) + D.1/D.2 (enum 4 + lookup 통합) + E (NackGenerator) + F (시험 18). 194 → 212 PASS                                              |
+| 0521c | `20260521c_ingress_layer_consistency`       | 서버    | ingress 계층구조 정합 — Phase 1 (`PublishContext::pub_room` 이전 + `publish_room()` 헬퍼) / 2 (first_room_hint 폐기) / 3 (RoomMember → Peer 시그너처 축소 5함수) / 4 (`[DBG:RTP]` 진단 로그 청산). §10 후속 (0523): `pub_stats` 이전 + RoomMember 위임 5폐기. 212 PASS, commit 2건 (31 files / −118 net) |
+| 0524  | `20260524_session_summary`                  | 서버    | 옛 commit 본질 후퇴 정정 3건 — `24b2bf5` WireAckState 본명 정합 (11파일/83자리) + `53aea9c` `release_subscribe_track` 본문 순서 정렬 (mid_map → Index → mid_pool) + `81a99c4` `emit_leaver_room_remove` 단일 진입점 통합. 299 PASS. mechanical refactor 함정 본질 학습 (별칭/순서 의도 점검)                     |
 
 ---
 
