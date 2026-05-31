@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-31 (Phase 115 Publisher 2계층 Stage 1~4 완성 — PublishContext⊃PublisherStream(논리)⊃PublisherTrack(물리), 명제 B+catch4 해결, recv_stats Track 귀속, 211 PASS, 커밋 dadc342+96ded24)
+> 최종 업데이트: 2026-05-31 (Phase 116 Duplex Activeness 서버 3-Phase 완성 — 분류 권위 TrackType 단일화 + full→half 캐싱(republish 폐기) + TRACK_STATE_REQ 전환 단일화/통지(결정 D). oxsig 54+oxsfud 211 PASS, duplex_cache 회귀 신규. 커밋 923559f+b1f3a59+4b7f970. 클라(발신·통지수신·UI)=범위 밖)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -877,6 +877,21 @@
 
 ---
 
+## Phase 116: Duplex Activeness — half↔full 전환 경량화 (분류 단일화 + 캐싱 + 통지) (0531)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0531 | `design/20260531_duplex_activeness` | 설계 | half↔full duplex 전환을 상태 통지 수준 경량화(mute 처럼 송출 경로만 토글). **진단=자료 부정합 아니라 행위(분류 판단) 분산** → 처방=단일 주체로 수렴. 결정 A(TrackType 단일화)/B(republish→캐싱)/C(생명주기=mid_map 보유)/D(전환 통지 스펙). 클라 기대값(grid↔PTT슬롯 패러다임)을 서버 출력 스펙으로 번역 |
+| 0531 | `20260531a_classify_authority_phase1_done` | 서버 | **Phase 1** — 분류 권위 `TrackType` 단일화(동작보존). fanout `is_half`/`is_simulcast_video` 즉석 재조합 → `track_type()` match / forward `via_slot`/`forwarder` 자료분기 → `ctx.publisher.track_type()` match. `Half⇒simulcast=false` 불변 하 동치(hot-swap 보존 구멍은 FullSim placeholder 경로상 실현불가=범위밖). 자료 미이동. 211 PASS + conf_basic/ptt_rapid 회귀. commit `923559f` |
+| 0531 | `20260531b_duplex_caching_phase2_done` | 서버 | **Phase 2** — full→half 캐싱. hot-swap republish(`emit_per_user_tracks_update remove`+mid회수+`remove_subscriber_stream`) 폐기→개인 stream/mid 보존 / `collect_subscribe_tracks` half 트랙이 subscriber mid_map 보유(full 이력) 시 `active:false` push(생명주기 기준 C, `release_stale_mids` 본문 무변경). 보존 stream→fanout HalfNonSim arm 자동 미송출. **oxe2e `duplex_cache` 신규**(republish 액션+ROOM_SYNC 프로브+`evaluate_caching`, 음성대조 stash→FAIL 로 판별성). commit `b1f3a59` |
+| 0531 | `20260531c_duplex_notify_phase3_done` | 서버(마지막) | **Phase 3** — `TRACK_STATE_REQ 0x1106` 신설(catalog 41→42) + `do_track_state_req`: full→half=`TRACK_STATE{active:false}` 통지, half→full=`floor.release`+per-sub 분기(보존 sub→`active:true`+PLI burst, 신규 sub→`add`). 보존 Weak 이 broadcast_full 자동 재송출(§0-4, Phase 1+2 토대로 재활성 코드 최소). **PUBLISH_TRACKS hot-swap duplex 분기 폐기=전환 단일 경로(이중화 금지)**. oxe2e duplex_cache→TRACK_STATE_REQ 왕복+통지검증. commit `4b7f970` |
+
+> 결정 D 통지: "트랙 최초 등장"=TRACKS_UPDATE / "아는 트랙 상태 변경"=TRACK_STATE(active 필드셋, mute 의 muted 와 공존). 모든 전환 통지에 `user_id+source+duplex` 동반(클라가 개인/슬롯 두 track_id 를 같은 userId 로 묶는 단서).
+> **클라(범위 밖, 별도 작업)**: 웹/Android 의 TRACK_STATE_REQ 발신 + active 통지 수신 + UI 패러다임 전환(개인 grid 타일 ↔ PTT 슬롯). 서버는 신호 스펙까지.
+> 검증 패턴: oxe2e 회귀에 **음성 대조**(서버 변경 stash→FAIL) 도입 — tautology 아닌 판별 테스트 확인 절차.
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -886,9 +901,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 293개
+- **총 세션 파일**: 297개
 - **기간**: 2026-03-09 ~ 2026-05-31 (84일)
-- **최종 업데이트**: 2026-05-31 (Phase 115: Publisher 2계층 Stage 1~4 — `PublishContext ⊃ PublisherStream(논리,camera/screen) ⊃ PublisherTrack(물리,SSRC)` 자료구조 완성. 명제 B(camera/screen PLI 오염) + catch4 해결, recv_stats Track 귀속, simulcast_group 폐기. 211 PASS. commit dadc342+96ded24. 잔여=camera+screen oxe2e 회귀)
+- **최종 업데이트**: 2026-05-31 (Phase 116: Duplex Activeness 서버 3-Phase — 분류 권위 `TrackType` 단일화(Phase 1) + full→half 캐싱(republish 폐기, Phase 2) + `TRACK_STATE_REQ 0x1106` 전환 단일화·통지(결정 D, Phase 3). 보존 stream→fanout 자동 미송출/재송출로 재활성 코드 최소. oxsig 54+oxsfud 211 PASS, oxe2e duplex_cache 회귀 신규(음성대조 판별). commit 923559f+b1f3a59+4b7f970. 클라(TRACK_STATE_REQ 발신·통지수신·UI 패러다임 전환)=범위 밖)
 
 ---
 
