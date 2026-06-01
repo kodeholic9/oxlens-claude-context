@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-05-31 (Phase 116 Duplex Activeness 서버 3-Phase 완성 — 분류 권위 TrackType 단일화 + full→half 캐싱(republish 폐기) + TRACK_STATE_REQ 전환 단일화/통지(결정 D). oxsig 54+oxsfud 211 PASS, duplex_cache 회귀 신규. 커밋 923559f+b1f3a59+4b7f970. 클라(발신·통지수신·UI)=범위 밖)
+> 최종 업데이트: 2026-06-01 (Phase 117 Slot.subscribers 도입 — Half fanout lookup #2 소거 + broadcast_full→broadcast 일반화로 Half/Full 단일 본문 합류. AttachTarget enum(home=slot.rs). + Publisher 2계층 doc 정합(배선 기커밋 96ded24). 211 PASS + conf_basic/ptt_rapid/duplex_cache 회귀. 커밋 fdceff3+a7a41be)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -892,6 +892,18 @@
 
 ---
 
+## Phase 117: Publisher 2계층 doc 정합 + Slot.subscribers — fanout broadcast 통일 (0531~0601)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0531 | `20260531e_publisher_2layer_doc_sync_done` | 서버 | Publisher 2계층 배선 완료 반영 (**동작 0**) — 배선은 기커밋 `96ded24`, 주석/attribute/마스터만 stale. `publisher_stream.rs` 파일 전체 `#![allow(dead_code)]` 제거(cargo check warn 0 = 전 항목 배선) + "배선 완료" doc. `publisher_track.rs` fan-out 방향역전 doc + 자료구조 `recv_stats`/`subscribers`/`stream`(Weak) 보강 + `Peer.publish.tracks` 타입 오표기 `ArcSwap<Vec<..>>`→`ArcSwap<PublisherTrackIndex>` 정정. PROJECT_MASTER 마일스톤 "Stage 2~4 미커밋"→"Stage 1~4 배선 완료(96ded24)". 정지점=allow 제거 후 dead_code warn 0 확인(은폐 금지 원칙). commit `fdceff3`/`f876054` |
+| 0601 | `20260601_slot_subscribers_done` | 서버 | **Slot.subscribers 도입** — Half fanout 의 lookup #2(`subscribers_snapshot`+`find_subscriber_stream_by_vssrc`) 소거. `Slot` 에 `subscribers`(Weak Vec) + `attach_subscriber`(PublisherTrack 복제) + `AttachTarget` enum{Track,Slot,None}(home=`slot.rs`, import 순환 0 — slot→publisher_track 기존 edge 재활용). `collect_subscribe_tracks` PTT `attach_target` None→`Slot(room.audio_slot/video_slot)`. `broadcast_full`→`broadcast(subs,prefan)` 일반화 → **Half(Slot.subscribers)/Full(self.subscribers) 단일 본문 합류**. detach 없음(retain 자연청소, Full 과 동일 정책). floor 회전 무관(subscribers=출력 청취자). 211 PASS + conf_basic/ptt_rapid(gating 음성 무변)/duplex_cache 회귀 PASS. commit `a7a41be`/`fc0ff40` |
+
+> `AttachTarget` enum MUTEX 로 "Track∧Slot" 불가능 상태를 타입이 차단 (tuple 에 `Option<Arc<Slot>>` 한 칸 추가 방식 기각). detach=retain 자연청소(소유=peer.subscribe.streams, Slot=Weak 캐시 — 명시 detach=이중 생명주기 기각).
+> cross-room 방별 Slot 분리 attach 는 단일방 회귀 미보증 → 브라우저 E2E(QA_GUIDE) 별도 확인 거리.
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -901,9 +913,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 297개
-- **기간**: 2026-03-09 ~ 2026-05-31 (84일)
-- **최종 업데이트**: 2026-05-31 (Phase 116: Duplex Activeness 서버 3-Phase — 분류 권위 `TrackType` 단일화(Phase 1) + full→half 캐싱(republish 폐기, Phase 2) + `TRACK_STATE_REQ 0x1106` 전환 단일화·통지(결정 D, Phase 3). 보존 stream→fanout 자동 미송출/재송출로 재활성 코드 최소. oxsig 54+oxsfud 211 PASS, oxe2e duplex_cache 회귀 신규(음성대조 판별). commit 923559f+b1f3a59+4b7f970. 클라(TRACK_STATE_REQ 발신·통지수신·UI 패러다임 전환)=범위 밖)
+- **총 세션 파일**: 299개
+- **기간**: 2026-03-09 ~ 2026-06-01 (85일)
+- **최종 업데이트**: 2026-06-01 (Phase 117: Publisher 2계층 doc 정합(배선 기커밋 96ded24, 주석/마스터 stale 정합, allow 제거 후 warn 0) + **Slot.subscribers 도입** — Half fanout lookup #2 소거, `broadcast_full`→`broadcast` 일반화로 Half(Slot.subscribers)/Full(self.subscribers) 단일 본문 합류. `AttachTarget` enum(home=slot.rs). 211 PASS + conf_basic/ptt_rapid/duplex_cache 회귀 PASS. commit fdceff3+a7a41be. cross-room 방별 Slot=브라우저 E2E 별도)
 
 ---
 
