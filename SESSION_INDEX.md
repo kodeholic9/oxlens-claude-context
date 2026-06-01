@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-01 (Phase 117 Slot.subscribers 도입 — Half fanout lookup #2 소거 + broadcast_full→broadcast 일반화로 Half/Full 단일 본문 합류. AttachTarget enum(home=slot.rs). + Publisher 2계층 doc 정합(배선 기커밋 96ded24). 211 PASS + conf_basic/ptt_rapid/duplex_cache 회귀. 커밋 fdceff3+a7a41be)
+> 최종 업데이트: 2026-06-01 (Phase 118 oxe2e simulcast publish 커버 — 봇 표준 rid-based(h/l) 송출만, placeholder→promote→virtual ssrc fan-out PASS 로 catch 2 verify 닫음. 서버·judge 0 변경. 커밋 a33d83c. / Phase 117 Slot.subscribers 도입 — Half fanout lookup #2 소거 + broadcast 단일 본문. 커밋 fdceff3+a7a41be)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -904,6 +904,16 @@
 
 ---
 
+## Phase 118: oxe2e simulcast publish 커버 — catch 2 verify 닫음 (0601b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0601b | `20260601b_oxe2e_simulcast_done` | 서버(회귀) | oxe2e 에 simulcast publish 시나리오 추가 — **봇 송출만, 서버·judge 0 변경**. 표준 rid-based(RFC 8852/8285/8853): config `RID_EXTMAP_ID=4`/h/l, media `RtpSender.rid`+`video_sim`+next_packet ext(MID 2B+RID 2B=1word), mod build_tracks simulcast arm(h/l 2 SSRC+entry 1개 simulcast=true, ssrc 는 sentinel 대체용 non-zero — t.ssrc==0 가드 통과). `simulcast_basic.toml` 2명. **PASS = sim2←sim1 video virtual ssrc 743패킷** = placeholder→promote(rid=h)→SimulcastRewriter(h→virtual) fan-out 체인 → **catch 2(placeholder PUBLISH_TRACKS-시점 등록) E2E verify 닫음**. judge evaluate 무변경(약속 virtual↔이행 virtual). conf_basic/ptt_rapid 무손상. 레이어 전환(SUBSCRIBE_LAYER)·RTX 제외. commit `a33d83c`. 봇=표준 송출/서버=검증대상(역산 금지 원칙) |
+
+> §7 원칙(부장님 정정): 서버 역산해 봇 맞추기=거울(금지), home JS=wire 없음(RFC 가 출처), 실측=보조, ssrc-group(SIM)=레거시(rid-based 표준), 서버 기본값 의존 금지.
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -913,9 +923,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 299개
+- **총 세션 파일**: 300개
 - **기간**: 2026-03-09 ~ 2026-06-01 (85일)
-- **최종 업데이트**: 2026-06-01 (Phase 117: Publisher 2계층 doc 정합(배선 기커밋 96ded24, 주석/마스터 stale 정합, allow 제거 후 warn 0) + **Slot.subscribers 도입** — Half fanout lookup #2 소거, `broadcast_full`→`broadcast` 일반화로 Half(Slot.subscribers)/Full(self.subscribers) 단일 본문 합류. `AttachTarget` enum(home=slot.rs). 211 PASS + conf_basic/ptt_rapid/duplex_cache 회귀 PASS. commit fdceff3+a7a41be. cross-room 방별 Slot=브라우저 E2E 별도)
+- **최종 업데이트**: 2026-06-01 (Phase 118: oxe2e simulcast publish 커버 — 봇 표준 rid-based(h/l) 송출만(서버·judge 0 변경), placeholder→promote→virtual ssrc fan-out PASS 로 **catch 2 verify 닫음**. commit a33d83c. / Phase 117: Slot.subscribers 도입 — Half fanout lookup #2 소거 + broadcast 단일 본문 통일, AttachTarget enum(home=slot.rs). commit fdceff3+a7a41be)
 
 ---
 
