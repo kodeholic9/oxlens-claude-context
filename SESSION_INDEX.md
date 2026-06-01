@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-01 (Phase 118 oxe2e simulcast publish 커버 — 봇 표준 rid-based(h/l) 송출만, placeholder→promote→virtual ssrc fan-out PASS 로 catch 2 verify 닫음. 서버·judge 0 변경. 커밋 a33d83c. / Phase 117 Slot.subscribers 도입 — Half fanout lookup #2 소거 + broadcast 단일 본문. 커밋 fdceff3+a7a41be)
+> 최종 업데이트: 2026-06-01 (Phase 118 oxe2e simulcast publish 커버(catch 2 verify, a33d83c) + judge negative 그물(수신 ssrc ⊆ 약속, simulcast l 누수·self-echo 검출, 5154155). 봇·시나리오·서버 0 변경(judge 1곳). / Phase 117 Slot.subscribers — Half fanout lookup #2 소거 + broadcast 단일 본문)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -904,13 +904,15 @@
 
 ---
 
-## Phase 118: oxe2e simulcast publish 커버 — catch 2 verify 닫음 (0601b)
+## Phase 118: oxe2e simulcast publish 커버 + judge negative 그물 (0601b~c)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
 | 0601b | `20260601b_oxe2e_simulcast_done` | 서버(회귀) | oxe2e 에 simulcast publish 시나리오 추가 — **봇 송출만, 서버·judge 0 변경**. 표준 rid-based(RFC 8852/8285/8853): config `RID_EXTMAP_ID=4`/h/l, media `RtpSender.rid`+`video_sim`+next_packet ext(MID 2B+RID 2B=1word), mod build_tracks simulcast arm(h/l 2 SSRC+entry 1개 simulcast=true, ssrc 는 sentinel 대체용 non-zero — t.ssrc==0 가드 통과). `simulcast_basic.toml` 2명. **PASS = sim2←sim1 video virtual ssrc 743패킷** = placeholder→promote(rid=h)→SimulcastRewriter(h→virtual) fan-out 체인 → **catch 2(placeholder PUBLISH_TRACKS-시점 등록) E2E verify 닫음**. judge evaluate 무변경(약속 virtual↔이행 virtual). conf_basic/ptt_rapid 무손상. 레이어 전환(SUBSCRIBE_LAYER)·RTX 제외. commit `a33d83c`. 봇=표준 송출/서버=검증대상(역산 금지 원칙) |
+| 0601c | `20260601c_oxe2e_judge_negative_done` | 서버(회귀) | judge `evaluate` 에 **negative 절** 추가(judge 1곳만, 봇/시나리오/서버 0 변경) — **수신 ssrc ⊆ 약속 ssrc**, 약속 외 1패킷이라도 도착=FAIL. 전 시나리오 공통 그물(simulcast l 누수 + self-echo + 오fan-out). **20260601b §2-3 "judge 무변경" 결정 대체**. 검증: simulcast 수신 2종==약속 2종=**l 누수 없음**(원본/l ssrc 누출 시 3번째 ssrc→FAIL), ptt_rapid floor gating false positive 미발생. 봇 가능 영역(누수 negative)만 닫음 — "l promote 됨"(positive)은 봇 원천 불가(l fan-out 안 됨)→SUBSCRIBE_LAYER 레이어 전환 작업 몫. commit `5154155` |
 
 > §7 원칙(부장님 정정): 서버 역산해 봇 맞추기=거울(금지), home JS=wire 없음(RFC 가 출처), 실측=보조, ssrc-group(SIM)=레거시(rid-based 표준), 서버 기본값 의존 금지.
+> negative 범위 경계: 봇으로 닫는 "l 누수 없음"(negative)과 봇 불가 "l promote positive"(레이어 전환 몫)를 가름 — 억지 positive 검증 금지(§7-1).
 
 ---
 
@@ -923,9 +925,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 300개
+- **총 세션 파일**: 301개
 - **기간**: 2026-03-09 ~ 2026-06-01 (85일)
-- **최종 업데이트**: 2026-06-01 (Phase 118: oxe2e simulcast publish 커버 — 봇 표준 rid-based(h/l) 송출만(서버·judge 0 변경), placeholder→promote→virtual ssrc fan-out PASS 로 **catch 2 verify 닫음**. commit a33d83c. / Phase 117: Slot.subscribers 도입 — Half fanout lookup #2 소거 + broadcast 단일 본문 통일, AttachTarget enum(home=slot.rs). commit fdceff3+a7a41be)
+- **최종 업데이트**: 2026-06-01 (Phase 118: oxe2e simulcast publish 커버(봇 rid-based h/l 송출, catch 2 verify 닫음, commit a33d83c) + judge **negative 그물**(수신 ssrc ⊆ 약속 ssrc, simulcast l 누수·self-echo·오fan-out 검출, judge 0601c §2-3 대체, commit 5154155). 서버·봇·시나리오 0 변경(judge 1곳만). simulcast 2종==약속 2종=l 누수 없음 + conf_basic/ptt_rapid 무손상)
 
 ---
 
