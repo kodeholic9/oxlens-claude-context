@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-01 (Phase 118 oxe2e simulcast publish 커버(catch 2 verify, a33d83c) + judge negative 그물(수신 ssrc ⊆ 약속, simulcast l 누수·self-echo 검출, 5154155). 봇·시나리오·서버 0 변경(judge 1곳). / Phase 117 Slot.subscribers — Half fanout lookup #2 소거 + broadcast 단일 본문)
+> 최종 업데이트: 2026-06-02 (Phase 120 통계 자료구조 트랙 차원 정렬 — 개명(RrStats/SrStats) + room_stats 잉여 제거(room_id 정체 필드 승격) + 텔레메트리 PublisherTrack/SubscriberStream 직속(pub/sub 대칭). 동작 0 변경, test 211 + oxe2e 4/4, commit b4733d9·10ffcca·9abdf43·b5b9172. 설계자 room_id 오류 적발 / Phase 119 room→domain rename b5f76a1)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -916,6 +916,29 @@
 
 ---
 
+## Phase 119: room → domain 모듈 rename (0602)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0602 | `20260602_domain_rename_done` | 서버 | **`crates/oxsfud/src/room/` → `domain/` 디렉토리 rename** — 순수 mechanical(경로 토큰만, 로직/주석/문자열/타입명/변수·필드명 **0 변경**). room/ 는 더 이상 방만 담지 않음(Peer/Stream/Track/Floor/Slot 등 SFU 미디어 라우팅 도메인 엔티티 전부) → 내용<이름 불일치 정정. `git mv`(23 파일 rename, 이력 보존) + `crate::room::`→`crate::domain::`(35 files/243 자리) + `lib.rs` `pub mod room;`→`pub mod domain;`. **함정: `pub mod room;` 2곳** — lib.rs(치환) vs `domain/mod.rs`(내부 `room.rs` 선언, 내부 파일명 불변이라 보존). 부수효과 `crate::domain::room::Room` 자연스러워짐. 외부 crate 참조 0. cargo check GREEN + test **211=baseline**. 합치기/enum 정리 제외(별도). commit `b5f76a1` |
+
+> 합격선=로직 0 변경 → test 증감 0(211). 컴파일러 unresolved import 가 경로 누락 100% 적발 = 안전망.
+> 잔여 작업(부장님 별도, 소스 정독 후): subscriber_stream+index 합치기, floor_routing→broadcast 합치기, enum 정리.
+
+---
+
+## Phase 120: 통계 자료구조 트랙 차원 정렬 — 개명 + room_stats 제거 + 텔레메트리 트랙 이동(pub/sub 대칭) (0602b~c)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0602b | `20260602b_stats_track_alignment_done` | 서버 | **통계 4종 트랙 차원 정렬 3-Phase** (각 별 commit, 동작 0 변경, oxe2e 4/4). **A 개명**(`b4733d9`): RecvStats→RrStats / SendStats→SrStats (타입+필드 `recv_stats`→`rr_stats`). **B room_stats 잉여 제거**(`10ffcca`): `SubscriberStream.room_stats: DashMap<RoomId>` 폐기 → `sr_stats`/`stalled`/`stats_primed` 직속 + **`room_id` 정체 필드 승격**. **C(pub)**(`9abdf43`): `PublishPipelineStats` PublishContext→PublisherTrack 직속(rtp_in RTX 제외 재배치, admin 트랙 합산). ★결정: created→**stats_primed**(forward `!swap` + ACK prime 양쪽 → 구 lazy-create 동작 보존, simulcast 743패킷 검증) / EgressPacket.room_id **제거**. cargo test 211 + oxe2e conf·ptt·duplex·simulcast 4/4 PASS |
+| 0602c | `20260602c_sub_telemetry_track_move_done` | 서버 | **C(sub) 정공 — pub/sub 대칭 완성**(`b5b9172`). 0602b에서 "1:1 귀속 불가"로 보류했던 sub 텔레메트리를 **정공 이동**(struct-split 땜빵 배제). `SubscribePipelineStats` participant.rs→subscriber_stream.rs **직속**(`RoomMember.sub_stats` 폐기→순수 멤버십 메타), **rtx_received 삭제**(producer 0 dead)=4필드. inc 시점 교정: rtp_relayed/dropped①=forward self / rtp_dropped②(RTX)=nack.media_ssrc 해소 / **sr_relayed**=build_sr_translation이 sub_stream 동봉반환(`Option<(SrTranslation, Option<Arc<SubscriberStream>>)>`)→블록별 inc / nack_sent=handle_nack_block 진입 block당 +1(총량 보존). admin=`sub_pipeline_snapshot_for_room` room_id 필터 합산(room-scope 보존). test 211 + oxe2e 4/4 |
+
+> **설계자(claude.ai) 결함 적발**(부장님 "김대리 멍청" 경고대로 코드 검증): ① **room_id 핵심 오류** — "DashMap<RoomId> 죽은 차원" 주장이 절반 틀림. 구조는 잉여여도 room_id **값**은 STALLED 체커가 floor/publisher 조회에 쓰는 산 자료 → 정체 필드 승격. ② §5 영향범위 누락(track_ops/hooks/helpers/floor_broadcast). ③ rtx_received=존재 안 하는 호출처(dead). ④ rtp_dropped 2번째 자리(RTX) 누락.
+> 발견_사항: web 대시보드(oxlens-home JS)가 admin JSON `rtx_received` 키 참조 시 정리 필요(값 늘 0, 표시 키만). 서버 레포 밖.
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -925,9 +948,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 301개
-- **기간**: 2026-03-09 ~ 2026-06-01 (85일)
-- **최종 업데이트**: 2026-06-01 (Phase 118: oxe2e simulcast publish 커버(봇 rid-based h/l 송출, catch 2 verify 닫음, commit a33d83c) + judge **negative 그물**(수신 ssrc ⊆ 약속 ssrc, simulcast l 누수·self-echo·오fan-out 검출, judge 0601c §2-3 대체, commit 5154155). 서버·봇·시나리오 0 변경(judge 1곳만). simulcast 2종==약속 2종=l 누수 없음 + conf_basic/ptt_rapid 무손상)
+- **총 세션 파일**: 304개
+- **기간**: 2026-03-09 ~ 2026-06-02 (86일)
+- **최종 업데이트**: 2026-06-02 (Phase 120: 통계 자료구조 트랙 차원 정렬 — A 개명(RecvStats→RrStats/SendStats→SrStats) + B room_stats DashMap 잉여 제거(sr_stats/stalled/stats_primed 직속 + **room_id 정체 필드 승격** — 설계자 "죽은 차원" 오류 교정) + C 텔레메트리 PublishPipelineStats→PublisherTrack / SubscribePipelineStats→SubscriberStream 직속(pub/sub 대칭, rtx_received dead 삭제, sr_relayed/nack_sent stream 해소 inc 교정). 동작 0 변경, test 211=baseline + oxe2e 4/4 PASS. commit b4733d9·10ffcca·9abdf43·b5b9172. 발견_사항: web JS rtx_received 키 정리)
 
 ---
 
