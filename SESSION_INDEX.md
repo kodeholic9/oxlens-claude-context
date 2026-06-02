@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 (Phase 121 domain/ 파편·래퍼 정리 — enum 5종 types.rs 단일출처(stream_map 폐기, 3558faf) + scope.rs 폐기(RoomSet/RoomSetId 래퍼 제거, sub_rooms→bare HashSet, 8291ff0; 다방청취 유지·set_id wire 폐기; hub shadow 영향 0 검증). 동작 0 변경, test 205, oxe2e 4/4 / Phase 120 통계 트랙 차원 정렬(b4733d9·10ffcca·9abdf43·b5b9172) / Phase 119 room→domain rename b5f76a1)
+> 최종 업데이트: 2026-06-03 (Phase 122 Track State 통일+식별 계층 재설계 서버 A·B — track_id(불투명)·vssrc(값) 논리 PublisherStream 이주, mute/duplex Stream 단위, 응답 d.tracks(self-unicast 폐기). test 204, oxe2e 4/4. 정정 bf51697(active 통지 track_id) + 회귀 강화 4efaf4a(judge track_id 검증+단위테스트). commit 8b0627a·208a498. 클라 별도 세션 / Phase 121 domain 파편·래퍼 정리(3558faf·8291ff0) / Phase 120 통계 트랙 정렬)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -951,6 +951,17 @@
 
 ---
 
+## Phase 122: Track State 통일 + 식별 계층(track_id/vssrc) 재설계 — 서버 A·B (0603)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603_track_state_unification_server_done` | 서버 | **식별 3평면 분리** — track_id(불투명)·vssrc(값) → 논리 `PublisherStream`, 실 ssrc → 물리 `PublisherTrack`. 지침 20260531f rev.3 / 설계서 rev.3. **A 식별 이주**(`8b0627a`): PublisherStream 에 track_id+vssrc 신설(simulcast eager `{user}_{vssrc}`, non-sim/PTT `{user}_{ssrc}`), PublisherTrack 의 track_id/virtual_ssrc + ensure/load 제거(snapshot=stream() 역참조), attach_track_to_stream 발급, find_stream_by_track_id/by_vssrc, room.rs vssrc 매칭 Stream 전환, switch_track_duplex dead 청산. **B 발신/통지/응답/가드**(`208a498`): message track_id 필드, set_track_muted→mute_stream(Stream 단위 h/l 비대칭 해소), do_track_state_req track_id 키+simulcast reject+Stream 단위 duplex, do_publish_tracks 응답 d.tracks=[{mid,track_id}](self-unicast 폐기), notify_new_stream track_id=Stream.track_id. ★정지점=Phase A(위험 phase). test 204 / clippy 신규 0 / oxe2e 4/4 PASS(A·B 각). 라우팅·fan-out·실 ssrc ingress 평면 무변경 |
+
+> **정정 + 회귀 강화**(부장님 적발): do_track_state_req active 통지 2곳 track_id 누락(`bf51697`) — 클라 pipe 해소 불가(설계 §5 D.1). oxe2e 가 통지 wire 필드 미판정(REGRESSION_GUIDE §4)이라 회귀가 못 잡음 → **judge 강화**(`4efaf4a`): evaluate_caching 에 active 통지 track_id 동봉 검증 + 단위테스트 2종(양성/음성=누락 시 FAIL 고정). 전체 oxe2e 4/4 재확인.
+> 남은 일: **클라(oxlens-home/Android) 별도 세션** — sdp-negotiator transceiver.mid 적재 / setTrackState 게이트 / TRACK_STATE 수신(track_id 키, muted+active) / dead 청산 + 데모 + 문서. 의도 변경: simulcast track_id `{user}_{vssrc}` 통일(#5b).
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -960,9 +971,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 306개
+- **총 세션 파일**: 307개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 (Phase 121: domain/ 파편·래퍼 정리 — ① enum 5종(StreamKind/TrackKind/VideoCodec/DuplexMode/TrackType) → `domain/types.rs` 단일 출처, stream_map.rs 폐기, 갈아끼우기(re-export 없음), commit 3558faf. ② scope.rs 폐기 — RoomSet/RoomSetId 래퍼 제거, `sub_rooms: ArcSwap<RoomSet>`→`ArcSwap<HashSet<RoomId>>`, 다방 청취·SCOPE op 유지, set_id wire 필드 정석 폐기(클라는 서버에 맞춤), hub shadow 영향 0 검증(ROOM_EVENT만 누적), commit 8291ff0 + doc청소 26f120b. 동작 0 변경, test 205(scope 테스트 6 동반 삭제), oxe2e 4/4 PASS. 발견_사항: pub_add/remove·pub_set_id dead wire 잔재(별 토픽) / 클라 SCOPE set_id 정합)
+- **최종 업데이트**: 2026-06-03 (Phase 122: Track State 통일 + 식별 계층(track_id/vssrc) 재설계 서버 A·B — 식별 3평면 분리(track_id 불투명·vssrc 값 → 논리 PublisherStream / 실 ssrc → 물리 PublisherTrack). A 식별 이주(8b0627a) + B 발신/통지/응답/가드(208a498, mute/duplex Stream 단위·응답 d.tracks·self-unicast 폐기). test 204 / oxe2e 4/4 PASS. 정정 bf51697(do_track_state_req active 통지 track_id 누락) + **회귀 강화** 4efaf4a(judge 가 통지 track_id 검증 — REGRESSION_GUIDE §4 사각 메움 + 단위테스트 양성/음성). 의도 변경: simulcast track_id {user}_{vssrc} 통일(#5b). 클라(oxlens-home/Android) 별도 세션)
 
 ---
 
