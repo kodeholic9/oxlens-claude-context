@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-02 (Phase 120 통계 자료구조 트랙 차원 정렬 — 개명(RrStats/SrStats) + room_stats 잉여 제거(room_id 정체 필드 승격) + 텔레메트리 PublisherTrack/SubscriberStream 직속(pub/sub 대칭). 동작 0 변경, test 211 + oxe2e 4/4, commit b4733d9·10ffcca·9abdf43·b5b9172. 설계자 room_id 오류 적발 / Phase 119 room→domain rename b5f76a1)
+> 최종 업데이트: 2026-06-03 (Phase 121 domain/ 파편·래퍼 정리 — enum 5종 types.rs 단일출처(stream_map 폐기, 3558faf) + scope.rs 폐기(RoomSet/RoomSetId 래퍼 제거, sub_rooms→bare HashSet, 8291ff0; 다방청취 유지·set_id wire 폐기; hub shadow 영향 0 검증). 동작 0 변경, test 205, oxe2e 4/4 / Phase 120 통계 트랙 차원 정렬(b4733d9·10ffcca·9abdf43·b5b9172) / Phase 119 room→domain rename b5f76a1)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -939,6 +939,18 @@
 
 ---
 
+## Phase 121: domain/ 파편·래퍼 정리 — enum types 통합 + scope.rs 폐기 (0602d~e)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0602d | `20260602d_enum_types_consolidation_done` | 서버 | **도메인 어휘 enum 5종 → `domain/types.rs` 단일 출처**(`3558faf`, 정의 위치 이동+use 경로, 로직 0). StreamKind/TrackKind/VideoCodec/DuplexMode/TrackType. `stream_map.rs` 파일째 폐기(StreamKind 1개 파편). publisher_track.rs 4 enum 정의 제거+use types. ★결정 **갈아끼우기**(re-export 없음 — 단일 출처). 호출처 일괄 = regex(full-path+단일 use) + brace import 11곳 수동(mixed 6 split). 경계 enum(PauseReason/상태 enum) 미이동. net 59+/234−. build 0/test 211/check 0 warn/oxe2e 4/4. §5 누락 차단=grep+빌드에러 교차 |
+| 0602e | `20260602e_scope_wrapper_removal_done` | 서버 | **scope.rs 폐기 — RoomSet/RoomSetId 래퍼 제거, `sub_rooms: ArcSwap<RoomSet>`→`ArcSwap<HashSet<RoomId>>`**(`8291ff0`). 다방 청취·SCOPE op **유지**(부장님 정정 ①: 기능제거 아님 래퍼만 / ② 정석 — set_id wire 필드째 폐기, 클라는 서버에 맞춤). RoomSet=HashSet 위 set_id(결정값)+RCU헬퍼 잉여 래퍼, `RoomId: Borrow<str>`로 contains 무변. set_id 완전 폐기(ScopeEventPayload.{sub_set_id,pub_set_id}+admin 키). **baseline 211→205**(scope.rs 5 + peer set_id 1 테스트 동반 삭제, 실패 0). oxe2e 4/4. doc-청소 `26f120b`(scope_ops/message/peer 헤더/state.rs stale 주석) |
+
+> **★ hub shadow 검증**(부장님 지적 — 클라 아닌 서버 경로): oxhubd `ShadowState`는 `ROOM_EVENT` join/left만 누적, SCOPE/sub_set_id 미참조. SCOPE_EVENT broadcast op=정의만 미emit. 재연결 SCOPE 재emit 0 → sub_set_id 영향 **클라 한정** 확정.
+> 발견_사항(별 토픽): `pub_add`/`pub_remove`(ScopeUpdateRequest)·`pub`(ScopeSetRequest)·mbcp `pub_set_id` = set_id 동성격 dead wire 잔재(Phase A 이후) — 일관성 정석 폐기 후보. / 클라(oxlens-home·Android) SCOPE 응답 set_id 키 제거 정합 필요.
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -948,9 +960,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 304개
-- **기간**: 2026-03-09 ~ 2026-06-02 (86일)
-- **최종 업데이트**: 2026-06-02 (Phase 120: 통계 자료구조 트랙 차원 정렬 — A 개명(RecvStats→RrStats/SendStats→SrStats) + B room_stats DashMap 잉여 제거(sr_stats/stalled/stats_primed 직속 + **room_id 정체 필드 승격** — 설계자 "죽은 차원" 오류 교정) + C 텔레메트리 PublishPipelineStats→PublisherTrack / SubscribePipelineStats→SubscriberStream 직속(pub/sub 대칭, rtx_received dead 삭제, sr_relayed/nack_sent stream 해소 inc 교정). 동작 0 변경, test 211=baseline + oxe2e 4/4 PASS. commit b4733d9·10ffcca·9abdf43·b5b9172. 발견_사항: web JS rtx_received 키 정리)
+- **총 세션 파일**: 306개
+- **기간**: 2026-03-09 ~ 2026-06-03 (87일)
+- **최종 업데이트**: 2026-06-03 (Phase 121: domain/ 파편·래퍼 정리 — ① enum 5종(StreamKind/TrackKind/VideoCodec/DuplexMode/TrackType) → `domain/types.rs` 단일 출처, stream_map.rs 폐기, 갈아끼우기(re-export 없음), commit 3558faf. ② scope.rs 폐기 — RoomSet/RoomSetId 래퍼 제거, `sub_rooms: ArcSwap<RoomSet>`→`ArcSwap<HashSet<RoomId>>`, 다방 청취·SCOPE op 유지, set_id wire 필드 정석 폐기(클라는 서버에 맞춤), hub shadow 영향 0 검증(ROOM_EVENT만 누적), commit 8291ff0 + doc청소 26f120b. 동작 0 변경, test 205(scope 테스트 6 동반 삭제), oxe2e 4/4 PASS. 발견_사항: pub_add/remove·pub_set_id dead wire 잔재(별 토픽) / 클라 SCOPE set_id 정합)
 
 ---
 
