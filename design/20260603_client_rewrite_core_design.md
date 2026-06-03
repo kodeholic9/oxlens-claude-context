@@ -5,6 +5,7 @@
 > 짝 문서: `20260603_client_rewrite_knowledge.md`(보존 자산·이식 지식). 레퍼런스 검토: `202606/20260603o_reference_review_local_done.md`.
 > 원칙: **목록이 아니라 메커니즘으로.** 코어는 적게 가정하고, 모든 기능(PTT 포함)이 일관된 훅으로 붙고 떨어진다.
 > 정독: 1차 engine/room/endpoint/pipe/power-manager/floor-fsm, 2차 sdp-negotiator/datachannel/scope/signaling, 3차 lifecycle, 4차 device-manager, 5차 telemetry (§9). 미정독: media-acquire/sdp-builder/health-monitor (§8).
+> 구현 진행: §12 (Phase 별 완료/추적).
 
 ---
 
@@ -200,8 +201,8 @@ PTT 서브시스템 (코어 안, 응집된 한 덩어리)
 - ✓ **관측 평면 격상 — Telemetry 중심축(부가 아님), 단방향 push/pull 구분(틈⑫)**.
 
 **남은 정독 (영향 적음, 확인만)**:
-- `media-acquire.js` — getUserMedia 게이트. §2 배치됨, 인터페이스 확인.
-- `sdp-builder.js` — serverConfig→SDP 순수 함수. 이식 자산, Transport 호출 표면 확인.
+- `media-acquire.js` — getUserMedia 게이트. §2 배치됨, 인터페이스 확인. (3b publish 에서 소비)
+- `sdp-builder.js` — serverConfig→SDP 순수 함수. 이식 자산, Transport 호출 표면 확인. (2a 에서 verbatim 이식 — subscribe builders 포함, 2b/3a 사용 중)
 - `health-monitor.js` — 관측사실→가벼운 복구. 복구 묶음과 함께 정독.
 
 **설계 숙제 (정독 후 결정)**:
@@ -211,6 +212,9 @@ PTT 서브시스템 (코어 안, 응집된 한 덩어리)
 - EnvAdapter 경계(틈⑥·⑪): 환경 신호 → 코어 이벤트 매핑 목록.
 - 관측 단방향 강제(틈⑫): push(이벤트) 허용 / pull(metrics 조회) 금지를 코드 레벨에서 어떻게 보장 — Telemetry 가 평면을 읽되 평면은 Telemetry 핸들을 안 가짐(의존 역전).
 - engine.js 공개 API 표면: 구 Engine v1 호환 getter 유지/폐기 선별.
+- **floor_bearer 소유 (Phase 2a 발견)** — 현 Transport 가 `serverConfig.floor_bearer` 읽어 DC 셋업 분기에 사용. bearer 는 PTT/floor 도메인 개념인데 Transport 가 가짐. 지금은 "DC 만들지 말지"라는 Transport 내부 결정에만 쓰여 무해. cross-sfu 에서 sfu별 bearer 상이 가능성? 아니면 상위(engine/ptt) 소유로 이동 — PTT 서브시스템 설계 때 결정.
+- **Pipe unbindSender 게이트 (Phase 2a 발견)** — `deactivatePublishTrack` 이 `pipe.sender = null` 직접 대입(원본 negotiator 답습). "_sender 설정 유일 경로=bindSender" 원칙의 작은 균열. Phase 3b domain publish 이식 때 `pipe.unbindSender()` 게이트 신설로 갈아탈 것.
+- **멀티룸 subscribe 합집합 (Phase 3a 발견)** — §12 추적 참조. 해소처 = TransportSet Phase.
 
 **별 트랙 (서버측 백로그, 클라 무관)**:
 - signal_client connect_and_join 분리 / ptt_rapid floor flake / sfu 영구다운 재배치 / REST /media/rooms 인증 불일치.
@@ -251,13 +255,13 @@ Engine 4역할 겸직(소유/조립/버스/facade)이 비대화 정체. PowerMan
 폴더가 평면이면, 새 기능을 짤 때 "이게 어느 평면이냐"만 답하면 위치가 정해진다. PTT 가 `ptt/` 한 폴더에 모이는 게 "응집된 서브시스템"의 물리적 증거.
 
 ```
-core/
-├── engine.js                 # 얇은 facade + 조립 (구 engine.js, 물리 소유 ✗ — 역할만 다름)
+sdk/
+├── engine.js                 # 얇은 facade + 조립 (구 engine.js, 물리 소유 ✗ — 역할만 다름) [◑ 3a: 조립 배선 최소]
 ├── index.js                  # export
 │
 ├── runtime/                  # ── 코어 설비 (순수 인프라) ──
-│   ├── event-bus.js          #   ① 훅의 실체 (구 event-emitter 토대)
-│   └── env-adapter.js        #   [신설] 브라우저/장치 종속 격리 → env:* 정규화
+│   ├── event-bus.js          #   ① 훅의 실체 (구 event-emitter 토대) [✓ Phase 1]
+│   └── env-adapter.js        #   [신설] 브라우저/장치 종속 격리 → env:* 정규화 [✓ Phase 1]
 │
 ├── observability/            # ── 관측 평면 (중심축 — 디버깅 자산 1호, 5차 §9) ──
 │   ├── lifecycle.js          #   Phase FSM + Recovery + status 취합 [보존, status 취합 재작성]
@@ -269,26 +273,25 @@ core/
 │   └── op-registry.js        #   [신설] op dispatch 등록제 (틈⑦)
 │
 ├── transport/                # ── 미디어 평면 (sfu별 N) ──
-│   ├── transport.js          #   [신설] PC pair + ICE/DTLS + bindSender + collectStats + status
-│   ├── transport-set.js      #   [신설] Map<sfuId, Transport>
-│   ├── negotiator.js         #   구 sdp-negotiator — SDP 협상 + 직렬화 큐
-│   ├── sdp-builder.js        #   serverConfig→SDP 순수 함수 [이식 자산]
-│   └── dc-channel.js         #   DC svc 멀티플렉싱 + onChannelMessage 등록제
+│   ├── transport.js          #   [신설] PC pair + ICE/DTLS + bindSender + collectStats + status [✓ 2a publish + 2b subscribe·관측]
+│   ├── transport-set.js      #   [신설] Map<sfuId, Transport> + 멀티룸 recv 합집합 (예정)
+│   ├── sdp-builder.js        #   serverConfig→SDP 순수 함수 [✓ Phase 2a: verbatim 이식]
+│   └── (negotiator.js / dc-channel.js 별 파일 안 만듦 — transport.js 단일 흡수, §12 추적)
 │
 ├── domain/                   # ── 논리 축 (보존, 구 room/ — 서버 domain/ 과 용어 정합) ──
-│   ├── room.js
-│   ├── endpoint.js
-│   └── pipe.js
+│   ├── room.js               #   [✓ 3a: 수신 배선 — track:received 구독·queueSubscribeRenego·assignMids. publish/floor=TODO]
+│   ├── endpoint.js           #   [✓ 3a: Pipe 관리·조회·outputHook. publish=3b TODO]
+│   └── pipe.js               #   [✓ 3a: verbatim 이식 + filter 무력화]
 │
 ├── media/                    # ── 장치 평면 ──
-│   ├── media-acquire.js      #   getUserMedia 게이트 [이식 자산]
+│   ├── media-acquire.js      #   getUserMedia 게이트 [이식 자산 — 3b]
 │   └── device-manager.js     #   열거/입력전환/출력전환/출력제어/핫플러그 [보존, 4차 §9]
 │
 ├── ptt/                      # ── PTT 서브시스템 (코어 안 응집된 한 덩어리) ──
 │   ├── ptt.js                #   [신설] floor+power+virtual 조립 + ①②③ 훅 등록
 │   ├── floor.js              #   구 floor-fsm — MBCP FSM + T101/T104
 │   ├── power.js              #   구 power-manager — 전력 FSM
-│   ├── mbcp.js               #   MBCP TS 24.380 codec [datachannel.js 에서 발췌]
+│   ├── mbcp.js               #   MBCP TS 24.380 codec [datachannel.js 에서 발췌 — buildFrame/parseFrame 포함]
 │   └── freeze.js             #   수신 표시제어(② 훅) — left:-9999px+rVFC
 │
 ├── scope/
@@ -300,12 +303,12 @@ core/
 │   └── annotate.js
 │
 └── shared/
-    └── constants.js          #   프로토콜 상수 [이식 자산]
+    └── constants.js          #   프로토콜 상수 [✓ Phase 1: verbatim 이식]
 ```
 
 **현 파일 → 새 위치 매핑**:
-- engine.js → engine.js(얇게 재작성) / room·endpoint·pipe.js → domain/ / sdp-negotiator → transport/negotiator + sdp-builder → transport/
-- signaling.js → signaling/{signaling, wire(구 wire.js 흡수분), op-registry} / datachannel.js → transport/dc-channel(frame codec) + ptt/mbcp(MBCP TLV) 분리
+- engine.js → engine.js(얇게 재작성) / room·endpoint·pipe.js → domain/ / sdp-negotiator → transport/(transport.js 에 흡수) + sdp-builder → transport/
+- signaling.js → signaling/{signaling, wire(구 wire.js 흡수분), op-registry} / datachannel.js → frame codec(transport 가 쓰는 buildFrame/parseFrame) + MBCP TLV → ptt/mbcp 분리
 - floor-fsm → ptt/floor / power-manager → ptt/power / **lifecycle → observability/ / telemetry → observability/(plugins 아님)** / event-emitter → runtime/event-bus
 - media-acquire → media/ / device-manager → media/(보존) / scope → scope/(재작성) / constants → shared/
 - **폐기**: filters/ · annotation/ · media-filter.js · radio-voice-filter.js · annotation-filter.js · extensions/(plugins/ 대체) / health-monitor.js → 복구 묶음(§8)에서 위치 결정
@@ -356,6 +359,29 @@ core/
   · Floor ⇄ Power 양방향 = 같은 서브시스템 내부 결합 허용(틈③).
   · cross-sfu = TransportSet 만 N개로. 나머지 평면 불변.
 ```
+
+---
+
+## 12. 구현 진행 로그
+
+| Phase | 토픽 | 지침 / 완료보고 | 상태 | 핵심 |
+|---|---|---|---|---|
+| 1 | 골격 scaffold | `claudecode/.../20260603p` / `202606/20260603p_..._done` | ✓ 완료(미커밋) | sdk/ 11평면 + EventBus/EnvAdapter 본체 + 평면 stub. load OK(exports 36). core/ 무수정 |
+| 2a | Transport publish | `claudecode/.../20260603q` / `202606/20260603q_transport_publish_done` | ✓ 완료(미커밋) | sdp-negotiator publish → transport.js. engine 의존 0(bus+sfuId+serverConfig). ③ 훅 등록제(_resolveFloorFromMsg 미이식). enrich sig.send 제거 |
+| 2b | Transport subscribe | (지침 누락 — 김과장 자체 진행) / `202606/20260603q_transport_subscribe_done` | ✓ 완료(미커밋) | 직렬화 큐(_subQueue) + ontrack→track:received(물리 사실만) + collectStats(raw) + status getter + sub teardown. **BWE=Telemetry 몫(김과장이 2a 매핑표 오기 교정 — 틈⑫)**. assignMids/resolveSourceUser/overrideHalfDuplexVideoPt = domain/PTT 이관 |
+| 3a | domain 이식 + 수신 배선 | `claudecode/.../20260603r` / `202606/20260603r_domain_subscribe_wiring_done` | ✓ 완료(미커밋, ★정지점 통과) | room/endpoint/pipe → domain/. engine 의존 0(bus+transport 주입). 수신 배선 3점(track:received 직접 구독 / queueSubscribeRenego 호출 / assignMids 이식). Pipe verbatim + filter 무력화. Floor=null+TODO, publish=3b 보류. 2b 인터페이스 첫 실증. matchPipeByMid/light- 폴백 원본 verbatim 보존 확인 |
+| 3b | domain publish | (예정) | 대기 | Endpoint publishAudio/Video/toggleMute → transport.addPublishTrack + acquire + sig. acquire/sig stub 완성 동반. Pipe unbindSender 게이트. 실 SDP·브라우저 통합 E2E |
+| — | TransportSet | (예정) | 대기 | Map<sfuId,Transport> + 멀티룸 recv 합집합 배선(아래 추적). cross-sfu 묶음 |
+
+**추적 (잊으면 부채)**:
+- **멀티룸 subscribe 합집합 미구현 (3a 발견_사항 1 — 중요)** — 같은 transport 공유 다중 Room 이 각자 `queueSubscribeRenego(자기 pipes)` 호출 시 서로 덮어씀(sub PC 1개인데 Room A renego 가 Room B pipe 를 SDP 에서 누락). 단일방/단일sfu 정상. **원본은 engine `_collectAllRecvPipes`(전 Room recv 합집합)로 해소했음** — 합집합 책임은 Room 이 아니라 engine/RoomSet 층. 3a 는 지침 §2 가 "멀티룸 합집합=engine 후속"으로 명시 제외 → 3a 결함 아님. Room 에 `triggerSubscribeRenego()` public 노출로 승격 지점 마련됨. **해소처 = TransportSet Phase**(engine 이 RoomSet recv 합집합 → 해당 sfu Transport.queueSubscribeRenego).
+- **TEMP core/ import** — `transport.js` 가 `core/datachannel.js`의 buildFrame/parseFrame 를 임시 import 중. **ptt/mbcp 발췌 Phase 의 명시적 산출물 = 이 import 를 sdk 내부로 이전 + core/ 의존 0 복원.** sdk 독립 원칙의 유일한 임시 구멍.
+- **negotiator.js / dc-channel.js 별 파일 불요 (확정)** — 2a/2b 에서 transport.js 가 publish+subscribe nego + DC 를 직접 흡수. §10 의 negotiator.js/dc-channel.js 별 파일 안 만들어짐(transport.js 단일). §10 매핑 갱신 반영됨.
+- **light- stream id 폴백 매직 문자열** — `room._onTrackReceived` 의 `stream.id.startsWith('light-')` (원본 verbatim 보존). 매직 문자열이나 최소변경 원칙으로 3a 미수정. constants 이동은 별도 정리 대상.
+- **Pipe unbindSender 게이트 (2a 발견)** — `deactivatePublishTrack` 의 `pipe.sender=null` 직접 대입. 3b publish 이식 때 `pipe.unbindSender()` 게이트 신설로 갈아탈 것.
+- **커밋 타이밍** — 전부 미커밋(scaffold p + transport q[2a/2b] + domain r[3a]). 권고: 한 묶음 1커밋(`feat(sdk): client rewrite — scaffold + transport + domain subscribe`). 부장님 결정 대기. SESSION_INDEX 는 커밋 시점 갱신.
+
+**프로세스 메모**: 2b 는 지침 없이 김과장 자체 진행됨(분업 위반 — 지침→GO→구현). 결과물은 설계 정합(BWE 교정 포함)이라 사후 done 으로 갈음. 3a 부터 지침→GO→구현 순서 복구. 김과장에 순서 재확인 필요.
 
 ---
 
