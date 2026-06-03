@@ -10,13 +10,13 @@
 
 한 달 전 설계서는 코어가 탄탄해 백지 재설계가 아닌 **델타 갱신**으로 처리한다. 그 사이 hub 측에서 바뀐 전제를 반영한다.
 
-| 구분 | 20260426 | 20260603 현행화 | 근거 |
-|---|---|---|---|
-| **[정정] hub graceful shutdown** | "hub main 단계 **통합**" 전제 (step 1~4 존재 가정) | hub main 에 종료 골격이 **아예 없음** → "통합" 아니라 **신설**. 1차 선행 과제로 격상 | `oxhubd/src/main.rs` = `axum::serve().await.expect()` 로 끝. SIGTERM 핸들러·종료 단계·supervisor attach 전무 |
-| **[정정] 클라 종료 통지** | step 3 `클라 SESSION_DISCONNECT(op=80) broadcast` | **삭제** → WS close frame 도 안 보냄. hub exit 시 TCP FIN 으로 갈음. `signaling.js onclose` 가 close code 를 분기에 안 씀(아래 §5-D 근거) | proto / signaling.js 코드 |
-| **[정정] sfud drain** | step 4 `sfud 에 graceful drain gRPC` | **삭제** → drain 전용 RPC 없음. SIGTERM + `timeout_stop_sec` 로 갈음 | proto `SfuService` = Handle/Subscribe/SubscribeAdmin 3개뿐, drain RPC 부재 |
-| **[갱신] shadow 명분** | "shadow 복구 결합" (명분 1) | shadow 가 0602e 에서 `ROOM_EVENT join/left` 만 누적(set_id 폐기)으로 경량화 → **push 부담 감소, 순서 결합은 유효**. 명분 1 한 다리만 가벼워짐 | PROJECT_SERVER "Scope 모델 불변 원칙" — hub shadow 미참조 set_id |
-| **유지** | 불변 원칙 3 / ground truth 5 / Level 1~3 / 데이터 구조 전체 / backoff / intensity / ReadyCheck / StopMethod / 1Hz tick / config / healthz / metrics / fixtures | 그대로 | 코드 위치 비종속, 한 달로 썩지 않음 |
+| 구분                             | 20260426                                                                                                                                            | 20260603 현행화                                                                                                        | 근거                                                                                                |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **[정정] hub graceful shutdown** | "hub main 단계 **통합**" 전제 (step 1~4 존재 가정)                                                                                                            | hub main 에 종료 골격이 **아예 없음** → "통합" 아니라 **신설**. 1차 선행 과제로 격상                                                         | `oxhubd/src/main.rs` = `axum::serve().await.expect()` 로 끝. SIGTERM 핸들러·종료 단계·supervisor attach 전무 |
+| **[정정] 클라 종료 통지**              | step 3 `클라 SESSION_DISCONNECT(op=80) broadcast`                                                                                                     | **삭제** → WS close frame 도 안 보냄. hub exit 시 TCP FIN 으로 갈음. `signaling.js onclose` 가 close code 를 분기에 안 씀(아래 §5-D 근거) | proto / signaling.js 코드                                                                           |
+| **[정정] sfud drain**            | step 4 `sfud 에 graceful drain gRPC`                                                                                                                 | **삭제** → drain 전용 RPC 없음. SIGTERM + `timeout_stop_sec` 로 갈음                                                         | proto `SfuService` = Handle/Subscribe/SubscribeAdmin 3개뿐, drain RPC 부재                            |
+| **[갱신] shadow 명분**             | "shadow 복구 결합" (명분 1)                                                                                                                               | shadow 가 0602e 에서 `ROOM_EVENT join/left` 만 누적(set_id 폐기)으로 경량화 → **push 부담 감소, 순서 결합은 유효**. 명분 1 한 다리만 가벼워짐         | PROJECT_SERVER "Scope 모델 불변 원칙" — hub shadow 미참조 set_id                                           |
+| **유지**                         | 불변 원칙 3 / ground truth 5 / Level 1~3 / 데이터 구조 전체 / backoff / intensity / ReadyCheck / StopMethod / 1Hz tick / config / healthz / metrics / fixtures | 그대로                                                                                                                 | 코드 위치 비종속, 한 달로 썩지 않음                                                                             |
 
 **명분 재확인** — supervisor 를 외부 systemd 가 아닌 hub 에 두는 3 근거 중:
 - (1) shadow 복구 결합 — *약화* (push 가벼워짐), 그러나 spawn→ready→복원 순서 결합은 유효

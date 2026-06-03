@@ -52,6 +52,20 @@ kill -TERM <oxsfud_pid>
 
 > RPi(aarch64 linux) 배포 타겟에서 supervisor `StopMethod::Signal(SIGTERM)` 동작의 선결. 본 수동 검증 PASS 가 supervisor 1차 구현의 선결 조건.
 
+### 실측 결과 (2026-06-03 15:10, kill -TERM, PASS)
+
+```
+15:10:37.192 lib.rs:291  SIGTERM received, draining connections...   ← sigterm.recv() 경로 진입 확인
+15:10:37.192 tasks.rs    zombie reaper / floor timer / stalled checker / pli governor / active speaker detector stopped (shutdown)
+                          ← shutdown_cancel.cancel() 전 task 전파 확인
+15:10:40.193 lib.rs:304  drain complete, shutting down               ← 37.192 → 40.193 = 정확히 3.001s = SHUTDOWN_DRAIN_MS(3000ms)
+```
+
+- SIGTERM 이 `ctrl_c()` 가 아닌 신규 `sigterm.recv()` 경로로 수신됨 (결함이었다면 이 로그 없이 즉사).
+- `cancel.cancel()` → 전 백그라운드 task 동시 정지 확인.
+- drain sleep 3s 정확히 소요 후 정상 종료.
+- **결론: sfud SIGTERM graceful shutdown 선결 완료.** supervisor `timeout_stop_sec` 가 실 drain 을 보장.
+
 ---
 
 ## §5 기각된 접근법 (지침 §7 박제 유지)
