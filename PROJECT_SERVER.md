@@ -160,7 +160,7 @@ oxlens-sfu-server/
 ### Fan-out 방향 역전 (0528~0601)
 - **물리 Track 이 다운스트림을 직접 보유**: `PublisherTrack.subscribers: ArcSwap<Vec<Weak<SubscriberStream>>>` (Full), Half(PTT)는 방 `Slot.subscribers`.
 - **fan-out 단일 본문**: `fanout() → track_type() 분기 → broadcast(subs, prefan)` — Full=`self.subscribers` / Half=방 `Slot.subscribers` 를 **직접 순회**. 두 경로가 broadcast 한 본문에 합류.
-- **vssrc 역탐색 폐기**: 구 `find_subscriber_stream_by_vssrc` 매칭 fan-out 폐기. **vssrc 는 라우팅 키가 아니라 값** — subscribe 등록(cold-path)에서 `SubscriberStream.virtual_ssrc` 로 복사돼 egress rewrite hot-path 가 그 복사본 사용.
+- **vssrc 역탐색 폐기**: 구 `find_subscriber_stream_by_vssrc` 매칭 fan-out 폐기. **vssrc 는 라우팅 키가 아니라 값** — subscribe 등록(cold-path)에서 `SubscriberStream.vssrc` 로 복사돼 egress rewrite hot-path 가 그 복사본 사용.
 - dead Weak 는 attach_subscriber 의 retain 으로 자연 청소 (명시 detach 없음).
 - 설계서: `context/design/20260528_fanout_direction_redesign.md`.
 
@@ -219,7 +219,7 @@ oxlens-sfu-server/
 | 평면 | 식별자 | 소유 | 쓰임 |
 |---|---|---|---|
 | 시그널링(지목) | **track_id**(불투명) | 논리 `PublisherStream` | MUTE_UPDATE·TRACK_STATE_REQ(발신)·TRACK_STATE·TRACKS_UPDATE(통지). **키 조회, 파싱 금지** |
-| egress SSRC(값) | **vssrc** | 논리 `PublisherStream` | subscriber 단일 SSRC 의 publisher측 원천. subscribe 등록(cold-path)에서 `SubscriberStream.virtual_ssrc` 로 복사 — **라우팅 키 아님** |
+| egress SSRC(값) | **vssrc** | 논리 `PublisherStream` | subscriber 단일 SSRC 의 publisher측 원천. subscribe 등록(cold-path)에서 `SubscriberStream.vssrc` 로 복사 — **라우팅 키 아님** |
 | ingress(식별) | 실 `ssrc` | 물리 `PublisherTrack` | publisher RTP 수신 매칭·NACK/RTX (`PublisherTrackIndex.by_ssrc`) |
 
 - **track_id 생성 = `{user}_{대표 ssrc}`** — non-sim/PTT=원본ssrc, simulcast=vssrc. **`attach_track_to_stream` 의 `PublisherStream::new` 1회 발급**(eager vssrc). 물리 Track 교체(분화)돼도 논리 Stream 생존 → track_id/vssrc 보존.

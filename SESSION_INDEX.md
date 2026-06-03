@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 (Phase 123 PROJECT_MASTER 3파일 분리(MASTER/SERVER/WEB) + 0602e 현행화 — 코드 종속 격리, 손실 0, 071cef5 / Phase 122 Track State 통일+식별 계층 재설계 서버 A·B — track_id(불투명)·vssrc(값) 논리 PublisherStream 이주, mute/duplex Stream 단위, 응답 d.tracks(self-unicast 폐기). test 204, oxe2e 4/4. 정정 bf51697(active 통지 track_id) + 회귀 강화 4efaf4a(judge track_id 검증+단위테스트). commit 8b0627a·208a498. 클라 별도 세션 / Phase 121 domain 파편·래퍼 정리(3558faf·8291ff0) / Phase 120 통계 트랙 정렬)
+> 최종 업데이트: 2026-06-03 (Phase 125 SubscriberStream.virtual_ssrc→vssrc — 식별 계층 vssrc 통일 마무리, behavior 0(단일 필드+읽는자리 12건 E0609 전수, rewriter/Slot 어휘직교 비대상 무손상, test 204 불변, 6775b06) / Phase 124 식별자/주석 청산 — behavior 0(affiliate/deaffiliate·peer_map·find_publisher_by_ssrc·sync_scope_on_join/_leave rename + stale 주석 청산, 26파일, test 204·oxe2e 4/4, fa365f8) / Phase 123 PROJECT_MASTER 3파일 분리(MASTER/SERVER/WEB) + 0602e 현행화 — 코드 종속 격리, 손실 0, 071cef5 / Phase 122 Track State 통일+식별 계층 재설계 서버 A·B — track_id(불투명)·vssrc(값) 논리 PublisherStream 이주, mute/duplex Stream 단위, 응답 d.tracks(self-unicast 폐기). test 204, oxe2e 4/4. 정정 bf51697(active 통지 track_id) + 회귀 강화 4efaf4a(judge track_id 검증+단위테스트). commit 8b0627a·208a498. 클라 별도 세션 / Phase 121 domain 파편·래퍼 정리(3558faf·8291ff0) / Phase 120 통계 트랙 정렬)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -968,6 +968,18 @@
 |------|------|------|------|
 | 0603 | `20260603_track_state_and_doc_split` | 문서 | **PROJECT_MASTER → MASTER/SERVER/WEB 3분리**(코드 종속=서버/웹클라 격리, 마스터=원칙만). 마스터 0531 정지 ↔ 코드 0602e 간극 해소. Phase A 이동(헤더 단위 verbatim, 21섹션 손실 0, `9a2ec84`) + B~D 현행화(SERVER domain/ 트리·fan-out 방향역전·stats 트랙직속·scope HashSet·식별 3평면, 마스터 슬림화 202606, `071cef5`). 발견_사항: engine.scope.* SDK API → WEB 이전 / Telemetry·Android 마스터 잔류. 세션 파일에 track_state rev.3 재정초 경위 동봉. 코드 0 |
 
+## Phase 124: 식별자/주석 청산 — 네이밍 정합 (0603b, behavior-0)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603b_naming_cleanup_done` | 서버 | **domain/signaling/transport 식별자 rename + stale 주석 청산 — behavior 0**(로직·제어흐름·자료구조 무변경). 지침 20260603b. **C(의미)**: sub_insert/sub_remove_one→`affiliate`/`deaffiliate`(클라·doc·서버 3자정합), scope_insert/scope_remove→`sync_scope_on_join`/`_leave`(scope 우산명사 유지, verb오용만), find_by_track_ssrc→`find_publisher_by_ssrc`, find_publisher_by_vssrc→`find_publisher_by_simulcast_vssrc`, ensure_simulcast_video_ssrc 폐기/통합(eager vssrc 이주). **B(변수)**: new_stream→new_track, pub_stream(_arc)→pub_track(+충돌분 pub_track_opt), broadcast streams→tracks, endpoint_map→`peer_map`, with_added 인자. **A(주석)**: TRACKS_ACK→TRACKS_READY, EndpointMap→PeerMap, Prepared 제거(floor=Idle/Taken), SWITCH_DUPLEX→TRACK_STATE_REQ, recv_stats→rr_stats, 모듈doc track_id/virtual_ssrc 정정 — 역사 이주노트(RtpStream 대체·mediasoup 정합)는 보존. 26파일 +144/−155. **test 204 불변 + oxe2e 4/4 PASS**. 별토픽 이관: A1 SubscriberStream.virtual_ssrc→egress_ssrc, scope/SCOPE op 전면청산. `fa365f8` |
+
+## Phase 125: SubscriberStream.virtual_ssrc → vssrc — 식별 계층 vssrc 통일 마무리 (0603c, behavior-0)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603c_subscriber_vssrc_align_done` | 서버 | **0603 식별 계층 vssrc 통일의 마지막 미아 청산** — `SubscriberStream.virtual_ssrc` 단일 필드 → `vssrc`(+`::new`/`add_subscriber_stream` 파라미터). **behavior 0**(로직·자료구조 무변경). 읽는 자리 12건(index/track_ops/tasks/admin/hooks)을 컴파일러 E0609가 전수 안내. 필드 doc 보강(egress SSRC 평면값, "virtual 거짓말" 자백주석 제거). JSON 출력 키("vssrc"/"stream_vssrc")는 wire라 미변경·값만 정합. **★핵심 함정=타입 분리**: `.virtual_ssrc` 표기 같은 **rewriter 토대 어휘 전부 비대상 무손상**(SimulcastRewriter[같은 파일 다른 struct]·RtpRewriter·PttRewriter·Slot — 어휘 직교 vssrc=평면/virtual_ssrc=rewriter). **E0609 12건 전부 SubscriberStream 타입에만 발생=분리 clean 입증**. 8파일 +30/−29. test 204 불변. `6775b06` |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -981,7 +993,7 @@
 
 - **총 세션 파일**: 308개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 (Phase 123: PROJECT_MASTER 3파일 분리(MASTER 원칙/SERVER 코드종속/WEB 코드종속) + 0602e 현행화 — 마스터 0531 정지 ↔ 코드 0602e 간극 해소. Phase A 이동(헤더 단위 verbatim, 21섹션 손실 0, `9a2ec84`) + B~D 현행화(SERVER domain/ 트리·fan-out 방향역전·stats 트랙직속·scope HashSet·식별 3평면 / 마스터 슬림화 202606·마일스톤 / engine.scope.* SDK API → WEB 이전, `071cef5`). 코드 0. Telemetry·Android 마스터 잔류. 세션 파일 20260603_track_state_and_doc_split / Phase 122 track_state 서버 A·B(8b0627a·208a498)+회귀강화)
+- **최종 업데이트**: 2026-06-03 (Phase 125: SubscriberStream.virtual_ssrc→vssrc 식별 계층 vssrc 통일 마무리 — behavior 0(단일 필드 rename + 읽는자리 12건 컴파일러 E0609 전수, rewriter/Slot 어휘직교 비대상 무손상[타입 분리 함정], test 204 불변, `6775b06`) / Phase 124: 식별자/주석 청산 네이밍 정합 — **behavior 0**(로직·자료구조 무변경). affiliate/deaffiliate·sync_scope_on_join/_leave·find_publisher_by_ssrc·peer_map rename + stale 주석(TRACKS_ACK→READY·EndpointMap→PeerMap·floor Prepared 제거·SWITCH_DUPLEX→TRACK_STATE_REQ) 청산. 26파일 +144/−155. test 204 불변 + oxe2e 4/4. 별토픽 이관: A1 virtual_ssrc→egress_ssrc·SCOPE op 전면청산. `fa365f8` / Phase 123 PROJECT_MASTER 3파일 분리 + 0602e 현행화(9a2ec84·071cef5) / Phase 122 track_state 서버 A·B(8b0627a·208a498))
 
 ---
 
