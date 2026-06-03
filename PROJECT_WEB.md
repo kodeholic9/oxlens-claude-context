@@ -149,3 +149,25 @@ Conference 3 (화상회의, 발표+토론, 웨비나) + PTT 2 (음성무전, 영
 conference, voice_radio, video_radio, dispatch, support, moderate
 
 ---
+
+## Scope SDK API (`engine.scope.*`)
+
+> PROJECT_SERVER.md 에서 이전(2026-06-03, 발견_사항 3) — 클라 SDK 공개 API. 서버 자료구조(sub_rooms HashSet)·불변 원칙은 [PROJECT_SERVER.md](PROJECT_SERVER.md) "Scope 모델".
+
+```js
+// sub_rooms 변경 — 서버 실제 처리
+engine.scope.affiliate(roomId)     // sub_rooms += {R}
+engine.scope.deaffiliate(roomId)   // sub_rooms -= {R}
+engine.scope.update({ sub_add, sub_remove, change_id? })
+engine.scope.set({ sub, change_id? })   // 전체 지정 (서버 diff 분해)
+
+// 상태 조회 — pub 은 단수 의미 (0/1-element Set). set_id 폐기(0602e — 클라 정합 별 세션)
+engine.scope.{sub, pub, snapshot(), hasSub, hasPub}
+engine.scope.on('changed', ({ sub, pub, cause, change_id }) => ...)
+```
+
+**Server-authoritative**: `affiliate()` 는 전송만. 상태는 서버 응답 (SCOPE ok / SCOPE_EVENT broadcast) 수신 시 `applyEvent` 로만 갱신. partial success 경로 대응 — SDK 낙관적 업데이트 금지.
+
+**JSON key**: SCOPE wire body `"sub"` array 만 의미. SCOPE_EVENT broadcast payload = `{sub, pub, cause, change_id}` (`pub`=0/1-element Vec, serde rename). **`sub_set_id`/`pub_set_id` 필드 폐기(0602e)** — RoomSetId 제거 동반.
+
+---
