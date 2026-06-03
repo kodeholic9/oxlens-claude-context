@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 (Phase 122 Track State 통일+식별 계층 재설계 서버 A·B — track_id(불투명)·vssrc(값) 논리 PublisherStream 이주, mute/duplex Stream 단위, 응답 d.tracks(self-unicast 폐기). test 204, oxe2e 4/4. 정정 bf51697(active 통지 track_id) + 회귀 강화 4efaf4a(judge track_id 검증+단위테스트). commit 8b0627a·208a498. 클라 별도 세션 / Phase 121 domain 파편·래퍼 정리(3558faf·8291ff0) / Phase 120 통계 트랙 정렬)
+> 최종 업데이트: 2026-06-03 (Phase 123 PROJECT_MASTER 3파일 분리(MASTER/SERVER/WEB) + 0602e 현행화 — 코드 종속 격리, 손실 0, 071cef5 / Phase 122 Track State 통일+식별 계층 재설계 서버 A·B — track_id(불투명)·vssrc(값) 논리 PublisherStream 이주, mute/duplex Stream 단위, 응답 d.tracks(self-unicast 폐기). test 204, oxe2e 4/4. 정정 bf51697(active 통지 track_id) + 회귀 강화 4efaf4a(judge track_id 검증+단위테스트). commit 8b0627a·208a498. 클라 별도 세션 / Phase 121 domain 파편·래퍼 정리(3558faf·8291ff0) / Phase 120 통계 트랙 정렬)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -962,6 +962,14 @@
 
 ---
 
+## Phase 123: PROJECT_MASTER 3파일 분리 + 0602e 현행화 (0603)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603_track_state_and_doc_split` | 문서 | **PROJECT_MASTER → MASTER/SERVER/WEB 3분리**(코드 종속=서버/웹클라 격리, 마스터=원칙만). 마스터 0531 정지 ↔ 코드 0602e 간극 해소. Phase A 이동(헤더 단위 verbatim, 21섹션 손실 0, `9a2ec84`) + B~D 현행화(SERVER domain/ 트리·fan-out 방향역전·stats 트랙직속·scope HashSet·식별 3평면, 마스터 슬림화 202606, `071cef5`). 발견_사항: engine.scope.* SDK API → WEB 이전 / Telemetry·Android 마스터 잔류. 세션 파일에 track_state rev.3 재정초 경위 동봉. 코드 0 |
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -971,9 +979,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 307개
+- **총 세션 파일**: 308개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 (Phase 122: Track State 통일 + 식별 계층(track_id/vssrc) 재설계 서버 A·B — 식별 3평면 분리(track_id 불투명·vssrc 값 → 논리 PublisherStream / 실 ssrc → 물리 PublisherTrack). A 식별 이주(8b0627a) + B 발신/통지/응답/가드(208a498, mute/duplex Stream 단위·응답 d.tracks·self-unicast 폐기). test 204 / oxe2e 4/4 PASS. 정정 bf51697(do_track_state_req active 통지 track_id 누락) + **회귀 강화** 4efaf4a(judge 가 통지 track_id 검증 — REGRESSION_GUIDE §4 사각 메움 + 단위테스트 양성/음성). 의도 변경: simulcast track_id {user}_{vssrc} 통일(#5b). 클라(oxlens-home/Android) 별도 세션)
+- **최종 업데이트**: 2026-06-03 (Phase 123: PROJECT_MASTER 3파일 분리(MASTER 원칙/SERVER 코드종속/WEB 코드종속) + 0602e 현행화 — 마스터 0531 정지 ↔ 코드 0602e 간극 해소. Phase A 이동(헤더 단위 verbatim, 21섹션 손실 0, `9a2ec84`) + B~D 현행화(SERVER domain/ 트리·fan-out 방향역전·stats 트랙직속·scope HashSet·식별 3평면 / 마스터 슬림화 202606·마일스톤 / engine.scope.* SDK API → WEB 이전, `071cef5`). 코드 0. Telemetry·Android 마스터 잔류. 세션 파일 20260603_track_state_and_doc_split / Phase 122 track_state 서버 A·B(8b0627a·208a498)+회귀강화)
 
 ---
 
