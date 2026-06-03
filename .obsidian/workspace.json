@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "SESSION_INDEX.md",
+                "file": "design/20260603_oxhubd_supervisor_design.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "SESSION_INDEX"
+              "title": "20260603_oxhubd_supervisor_design"
             }
           }
         ]
@@ -185,34 +185,34 @@
   },
   "active": "4816d2ca7fe07f39",
   "lastOpenFiles": [
+    "202606/20260603e_sfud_sigterm_graceful_done.md",
+    "claudecode/202606/20260603e_sfud_sigterm_graceful.md",
+    "SESSION_INDEX.md",
+    "design/20260603_oxhubd_supervisor_design.md",
+    "202606/20260603d_cleanup_tail_done.md",
+    "claudecode/202606/20260603d_cleanup_tail.md",
+    "202606/20260603c_subscriber_vssrc_align_done.md",
+    "claudecode/202606/20260603c_subscriber_vssrc_align.md",
+    "202606/20260603b_naming_cleanup_done.md",
+    "202604/20260412_★_ai_활용_조언.md",
+    "claudecode/202606/20260603b_naming_cleanup.md",
+    "PROJECT_WEB.md",
+    "202606/20260603_track_state_and_doc_split.md",
+    "PROJECT_SERVER.md",
+    "PROJECT_MASTER.md",
+    "claudecode/202606/20260603_doc_split.md",
+    "202606/20260603_track_state_unification_server_done.md",
+    "202606/20260602e_scope_wrapper_removal_done.md",
+    "202606/20260602d_enum_types_consolidation_done.md",
+    "claudecode/202606/20260602d_enum_types_consolidation.md",
     "design/20260531_track_state_unification.md",
     "202606/20260602c_sub_telemetry_track_move_done.md",
     "claudecode/202606/20260602c_sub_telemetry_track_move.md",
     "202606/20260602b_stats_track_alignment_done.md",
     "claudecode/202606/20260602b_stats_track_alignment.md",
     "202606/20260602_domain_rename_done.md",
-    "claudecode/202606/20260602_domain_rename.md",
-    "202606/20260601c_oxe2e_judge_negative_done.md",
-    "claudecode/202606/20260601c_oxe2e_judge_negative.md",
-    "202606/20260601b_oxe2e_simulcast_done.md",
-    "claudecode/202606/20260601b_oxe2e_simulcast.md",
-    "202606/20260601_slot_subscribers_done.md",
     "202606",
-    "claudecode/202606/20260601_slot_subscribers.md",
     "claudecode/202606",
-    "claudecode/202605/20260531f_track_state_unification_server_p1.md",
-    "design/architecture/20260531_state_ownership.md",
-    "design/architecture/20260531_signaling_lifecycle.md",
-    "design/architecture/20260531_sfu_overview.md",
-    "design/architecture/20260531_scope_crossroom.md",
-    "design/architecture/20260531_ptt_floor.md",
-    "design/architecture/20260531_media_pipeline.md",
-    "202605/20260531e_publisher_2layer_doc_sync_done.md",
-    "claudecode/202605/20260531e_publisher_2layer_doc_sync.md",
-    "design/architecture/_WORKLOG.md",
-    "PROJECT_MASTER.md",
-    "design/architecture",
-    "claudecode/202605/20260531d_master_sync.md",
-    "SESSION_INDEX.md"
+    "design/architecture"
   ]
 }
