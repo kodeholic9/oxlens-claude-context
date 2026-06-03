@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "design/20260603_oxhubd_supervisor_design.md",
+                "file": "design/20260603_cross_sfu_design.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "20260603_oxhubd_supervisor_design"
+              "title": "20260603_cross_sfu_design"
             }
           }
         ]
@@ -185,6 +185,11 @@
   },
   "active": "4816d2ca7fe07f39",
   "lastOpenFiles": [
+    "202606/20260603j_cross_sfu_phase0_done.md",
+    "design/20260603_oxhubd_supervisor_design.md",
+    "design/20260603_cross_sfu_design.md",
+    "claudecode/202606/20260603j_cross_sfu_phase0.md",
+    "claudecode/202606/20260603j_cross_sfu_phase0_done.md",
     "202606/20260603i_supervisor_observability_done.md",
     "claudecode/202606/20260603i_supervisor_observability.md",
     "202606/20260603h_supervisor_rename_unit_done.md",
@@ -196,7 +201,6 @@
     "202606/20260603e_sfud_sigterm_graceful_done.md",
     "claudecode/202606/20260603e_sfud_sigterm_graceful.md",
     "SESSION_INDEX.md",
-    "design/20260603_oxhubd_supervisor_design.md",
     "202606/20260603d_cleanup_tail_done.md",
     "claudecode/202606/20260603d_cleanup_tail.md",
     "202606/20260603c_subscriber_vssrc_align_done.md",
@@ -207,10 +211,6 @@
     "PROJECT_WEB.md",
     "202606/20260603_track_state_and_doc_split.md",
     "PROJECT_SERVER.md",
-    "PROJECT_MASTER.md",
-    "claudecode/202606/20260603_doc_split.md",
-    "202606/20260603_track_state_unification_server_done.md",
-    "202606/20260602e_scope_wrapper_removal_done.md",
     "202606",
     "claudecode/202606",
     "design/architecture"
