@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 (Phase 125 SubscriberStream.virtual_ssrc→vssrc — 식별 계층 vssrc 통일 마무리, behavior 0(단일 필드+읽는자리 12건 E0609 전수, rewriter/Slot 어휘직교 비대상 무손상, test 204 불변, 6775b06) / Phase 124 식별자/주석 청산 — behavior 0(affiliate/deaffiliate·peer_map·find_publisher_by_ssrc·sync_scope_on_join/_leave rename + stale 주석 청산, 26파일, test 204·oxe2e 4/4, fa365f8) / Phase 123 PROJECT_MASTER 3파일 분리(MASTER/SERVER/WEB) + 0602e 현행화 — 코드 종속 격리, 손실 0, 071cef5 / Phase 122 Track State 통일+식별 계층 재설계 서버 A·B — track_id(불투명)·vssrc(값) 논리 PublisherStream 이주, mute/duplex Stream 단위, 응답 d.tracks(self-unicast 폐기). test 204, oxe2e 4/4. 정정 bf51697(active 통지 track_id) + 회귀 강화 4efaf4a(judge track_id 검증+단위테스트). commit 8b0627a·208a498. 클라 별도 세션 / Phase 121 domain 파편·래퍼 정리(3558faf·8291ff0) / Phase 120 통계 트랙 정렬)
+> 최종 업데이트: 2026-06-03 (Phase 126 naming_cleanup 꼬리 청소 — behavior 0(#5 streams 변수→tracks[도메인 어휘 61건 보존, ingress_rtcp 0건] + #4 dead variant NotPttRoom 제거[ping은 LIVE 전제 정정], test 204 불변·0 warning, c36cfc8) / Phase 125 SubscriberStream.virtual_ssrc→vssrc — 식별 계층 vssrc 통일 마무리, behavior 0(단일 필드+읽는자리 12건 E0609 전수, rewriter/Slot 어휘직교 비대상 무손상, test 204 불변, 6775b06) / Phase 124 식별자/주석 청산 — behavior 0(affiliate/deaffiliate·peer_map·find_publisher_by_ssrc·sync_scope_on_join/_leave rename + stale 주석 청산, 26파일, test 204·oxe2e 4/4, fa365f8) / Phase 123 PROJECT_MASTER 3파일 분리(MASTER/SERVER/WEB) + 0602e 현행화 — 코드 종속 격리, 손실 0, 071cef5 / Phase 122 Track State 통일+식별 계층 재설계 서버 A·B — track_id(불투명)·vssrc(값) 논리 PublisherStream 이주, mute/duplex Stream 단위, 응답 d.tracks(self-unicast 폐기). test 204, oxe2e 4/4. 정정 bf51697(active 통지 track_id) + 회귀 강화 4efaf4a(judge track_id 검증+단위테스트). commit 8b0627a·208a498. 클라 별도 세션 / Phase 121 domain 파편·래퍼 정리(3558faf·8291ff0) / Phase 120 통계 트랙 정렬)
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -980,6 +980,12 @@
 |------|------|------|------|
 | 0603 | `20260603c_subscriber_vssrc_align_done` | 서버 | **0603 식별 계층 vssrc 통일의 마지막 미아 청산** — `SubscriberStream.virtual_ssrc` 단일 필드 → `vssrc`(+`::new`/`add_subscriber_stream` 파라미터). **behavior 0**(로직·자료구조 무변경). 읽는 자리 12건(index/track_ops/tasks/admin/hooks)을 컴파일러 E0609가 전수 안내. 필드 doc 보강(egress SSRC 평면값, "virtual 거짓말" 자백주석 제거). JSON 출력 키("vssrc"/"stream_vssrc")는 wire라 미변경·값만 정합. **★핵심 함정=타입 분리**: `.virtual_ssrc` 표기 같은 **rewriter 토대 어휘 전부 비대상 무손상**(SimulcastRewriter[같은 파일 다른 struct]·RtpRewriter·PttRewriter·Slot — 어휘 직교 vssrc=평면/virtual_ssrc=rewriter). **E0609 12건 전부 SubscriberStream 타입에만 발생=분리 clean 입증**. 8파일 +30/−29. test 204 불변. `6775b06` |
 
+## Phase 126: naming_cleanup 꼬리 청소 — streams 변수 + dead variant (0603d, behavior-0)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603d_cleanup_tail_done` | 서버 | **naming_cleanup 그룹② 마지막 꼬리** — behavior 0. **#5**: `publish.tracks.load()`(물리 PublisherTrackIndex) 받는 변수 `streams→tracks`/`stream→track`/`origin_stream→origin_track`/`streams_for_meta→tracks_for_meta`(egress.rs·ingress_publish.rs). **도메인 어휘 61건 보존**(StreamKind/stream_kind/resolve_stream_kind/PublisherStream/`.stream()` 메서드 — word-boundary+`(?!\()` lookahead, `stream.stream()`→`track.stream()`). ingress_rtcp.rs는 #5 대상 0건(변수 없음, stream은 sub_stream/SR 주석뿐). **#4 dead 확정**: `FloorAction::NotPttRoom` 제거(생성 0·소비 0). **★전제 정정**: `Floor::ping`은 tasks.rs:68 호출 LIVE(반환 discard, `last_ping` 갱신 side-effect=RTP liveness) → ping/PingOk/PingDenied 유지. last_ping/ping_timeout_ms 보존. 3파일 +51/−53. test 204 불변·build 0 warning. 발견_사항: ping() 반환값 호출처 discard(값 dead, 정리=로직변경이라 별토픽). `c36cfc8` |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -993,7 +999,7 @@
 
 - **총 세션 파일**: 308개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 (Phase 125: SubscriberStream.virtual_ssrc→vssrc 식별 계층 vssrc 통일 마무리 — behavior 0(단일 필드 rename + 읽는자리 12건 컴파일러 E0609 전수, rewriter/Slot 어휘직교 비대상 무손상[타입 분리 함정], test 204 불변, `6775b06`) / Phase 124: 식별자/주석 청산 네이밍 정합 — **behavior 0**(로직·자료구조 무변경). affiliate/deaffiliate·sync_scope_on_join/_leave·find_publisher_by_ssrc·peer_map rename + stale 주석(TRACKS_ACK→READY·EndpointMap→PeerMap·floor Prepared 제거·SWITCH_DUPLEX→TRACK_STATE_REQ) 청산. 26파일 +144/−155. test 204 불변 + oxe2e 4/4. 별토픽 이관: A1 virtual_ssrc→egress_ssrc·SCOPE op 전면청산. `fa365f8` / Phase 123 PROJECT_MASTER 3파일 분리 + 0602e 현행화(9a2ec84·071cef5) / Phase 122 track_state 서버 A·B(8b0627a·208a498))
+- **최종 업데이트**: 2026-06-03 (Phase 126: naming_cleanup 꼬리 청소 — behavior 0(#5 streams 변수→tracks[egress/ingress_publish, 도메인 어휘 61건 보존, ingress_rtcp 0건] + #4 dead variant NotPttRoom 제거[Floor::ping LIVE 전제 정정], test 204 불변·build 0 warning, `c36cfc8`) / Phase 125: SubscriberStream.virtual_ssrc→vssrc 식별 계층 vssrc 통일 마무리 — behavior 0(단일 필드 rename + 읽는자리 12건 컴파일러 E0609 전수, rewriter/Slot 어휘직교 비대상 무손상[타입 분리 함정], test 204 불변, `6775b06`) / Phase 124: 식별자/주석 청산 네이밍 정합 — **behavior 0**(로직·자료구조 무변경). affiliate/deaffiliate·sync_scope_on_join/_leave·find_publisher_by_ssrc·peer_map rename + stale 주석(TRACKS_ACK→READY·EndpointMap→PeerMap·floor Prepared 제거·SWITCH_DUPLEX→TRACK_STATE_REQ) 청산. 26파일 +144/−155. test 204 불변 + oxe2e 4/4. 별토픽 이관: A1 virtual_ssrc→egress_ssrc·SCOPE op 전면청산. `fa365f8` / Phase 123 PROJECT_MASTER 3파일 분리 + 0602e 현행화(9a2ec84·071cef5) / Phase 122 track_state 서버 A·B(8b0627a·208a498))
 
 ---
 
