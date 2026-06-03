@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 — **Phase 136 새 SDK Phase 2 — Transport 본체**(publish 2a + subscribe·관측 2b). `sdk/transport/transport.js` = webrtc 종속 단일 응집처 완성: PC pair(pub/sub) + DC ③훅 등록제 + SDP 직렬화 큐 + ontrack→track:received(물리→논리 경계) + collectStats/status(관측 단방향). **engine 의존 전부 bus+sfuId+serverConfig 로 제거**. core/ 무수정, node 검증 ALL PASS. 흐름: 레퍼런스(134) → 클라 골격(135) → Transport 본체(136). 다음=Phase 3(TransportSet or domain 배선). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-04 — **Phase 137 새 SDK Phase 3a — domain 이식 + 수신 배선**. domain 3계층(Pipe/Endpoint/Room) stub→본체, engine 의존→bus+transport 주입. 수신 3점: ①Room 이 `track:received` 직접 구독(engine 안 거침)→matchPipeByMid→media:track ②applyTracksUpdate 후 `queueSubscribeRenego` 호출(2b 실증) ③assignMids domain 이식. Pipe=core verbatim(filter import만 제거). 보류=Floor/PTT/publish/sendTracksAck(TODO). 발견=멀티룸 합집합 미구현(TransportSet 사유). core/ 무수정, node ALL PASS. 흐름: 골격(135)→Transport(136)→domain 수신(137). 다음=3b(publish) or TransportSet. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1048,6 +1048,12 @@
 | 0603 | `20260603q_transport_publish_done` | 클라 | **Transport publish 경로 본체**(구 sdp-negotiator publish 흡수). `transport.js`: `constructor(bus,sfuId,serverConfig,opts)` — **engine 의존 제거**(engine.pubPc→this.pubPc / tel.pushCritical→bus.emit('pc:error') / engine.emit→bus.emit pc:ice·conn·failed{sfuId} / mediaConfig→opts). ensurePublishPc/addPublishTrack(bindSender 게이트)/deactivate/_reNegoPublish/enrichPublishIntent(**sig.send 제거**=첨부객체 반환만)/SDP 파서 7종. ③ 훅 등록제(onChannelMessage/_dispatchChannel) — **MBCP 까기·floor 라우팅 제거**(틈⑧ PTT 몫, _resolveFloorFromMsg 미이식). sdp-builder.js=core verbatim 이식. 검증 `_t2a_check.mjs` ALL PASS + `_t2a_check.html`(브라우저 1회). core/ 무수정 |
 | 0603 | `20260603q_transport_subscribe_done` | 클라 | **Transport subscribe·관측 본체**(설계 §3 충족, Transport 완성). queueSubscribeRenego(★Promise 직렬화 큐=glare 차단)/`_setupSubscribePc`(server-offer→client-answer, rollback)/`_pipesToSubscribeTracks`(순수 shape)/`ontrack→bus.emit('track:received')`(**물리 사실만**, mid→pipe/user 매칭은 domain 틈③)/`collectStats()`(getStats raw, Telemetry 호출 틈⑫)/`status` getter(Lifecycle 취합)/sub teardown. **★정정**: BWE monitor=Telemetry 몫(getStats 폴링·해석=관측평면), Transport는 collectStats만 노출(2a §8 잠정 BWE 표기 철회). 선조치: queueSubscribeRenego(recvPipes) serverConfig 인자 생략(per-sfu 보관). 이식 안 함=assignMids/resolveSourceUser/overrideHalfDuplexVideoPt(식별·mutate=domain)/publishTracks류(전송=Phase3). 검증 `_t2b_check.mjs` ALL PASS(직렬화 순서 검증 포함)+2a 회귀 PASS. core/ 무수정. 다음=Phase 3(TransportSet or domain 배선) |
 
+## Phase 137: 새 SDK Phase 3a — domain 이식 + 수신(subscribe) 배선 (0603r)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603r_domain_subscribe_wiring_done` | 클라 | **domain 3계층(Pipe/Endpoint/Room) stub→본체 이식 + Transport 수신 3점 배선**(2b 인터페이스 첫 실증). engine 의존→**bus+transport 주입**. **수신 3점**: ① `track:received` = Room 이 직접 `bus.on` 구독(engine 안 거침=단방향)→sfuId 라우팅→matchPipeByMid→pipe.track→`media:track` 재emit(구 `_handleOnTrack`+`resolveOnTrack` 흡수) ② `queueSubscribeRenego` = applyTracksUpdate(add/remove) 후 `transport.queueSubscribeRenego(recv 합집합)` 호출 ③ `assignMids` = negotiator→domain(`Room._assignMids`) 이식. **Pipe**=core verbatim(트랙 게이트 보존 자산), media-filter.js import만 제거+`_ensureFilterPipeline()→null` 무력화(필터 폐기 §7, 들어내기는 기각=graceful no-op). **Endpoint**=Pipe관리·조회·outputHooks·teardown만(publish/mute=3b, `_engine` 제거). **engine.js**=조립 배선 최소(`assembleRoom`/`_ensureTransport`, join 흐름 재작성 안 함). 보류(TODO): Floor 생성(PTT 미구현→floor=null)·PTT virtual track 분기·sendTracksAck(signaling stub)·overrideHalfDuplexVideoPt·publish. 검증 `_t3a_check.mjs` ALL PASS(14: recv pipe 생성/renego 1회+인자합집합/track:received→media:track/mid·sfuId 실패 skip/PTT TODO skip/teardown bus.off)+index 36+2b 회귀. **발견**: 멀티룸 합집합 미구현(같은 transport 공유 시 각 Room renego 덮어씀)→engine 승격 필요(`triggerSubscribeRenego()` public 지점 마련)=다음 TransportSet 사유. core/ 무수정. 정지점 1. 다음=3b(publish) or TransportSet |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1059,9 +1065,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 332개
-- **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 — Phase 136 새 SDK Phase 2 Transport 본체(publish 2a + subscribe·관측 2b). `sdk/transport/transport.js`=webrtc 단일 응집처 완성(PC pair·DC ③훅·SDP 직렬화 큐·track:received 물리경계·collectStats/status 관측단방향), engine 의존 전부 제거, core/ 무수정, node 검증 ALL PASS. 직전: 135 클라 골격 `39e22a1` / 134 레퍼런스. 다음=Phase 3(TransportSet or domain 배선). 세부는 본문 Phase 표.
+- **총 세션 파일**: 333개
+- **기간**: 2026-03-09 ~ 2026-06-04 (88일)
+- **최종 업데이트**: 2026-06-04 — Phase 137 새 SDK Phase 3a domain 이식+수신 배선. Pipe/Endpoint/Room stub→본체, engine→bus+transport 주입. 수신 3점(track:received 직접 구독→media:track / queueSubscribeRenego 호출=2b 실증 / assignMids domain 이식). Pipe=core verbatim(filter import만 제거), 보류=Floor/PTT/publish/sendTracksAck. 발견=멀티룸 합집합 미구현(TransportSet 사유). engine.js 조립 배선 최소. core/ 무수정, node ALL PASS. 직전: 136 Transport 본체 / 135 골격. 다음=3b(publish) or TransportSet. 세부는 본문 Phase 표.
 
 ---
 
