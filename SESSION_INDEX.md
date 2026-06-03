@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 — **Phase 132 Cross-SFU Phase 2a**(hub room 라우팅: room_sfu/place_room/sfu_for_room + assign_room race 봉합). cross-sfu 진행: Phase 0 sfud arg override(129) → 1 hub registry(130) → 2선행 l ROOM_CREATE 멱등(131) → 2a 라우팅(132). 다음 = Phase 2b(event consumer 복수화 + sfu() 최종 폐기). 직전 도메인 정리는 Phase 124~126(naming/vssrc). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-03 — **Phase 133 Cross-SFU Phase 2b**(event consumer 복수화 + sfu() 폐기 → **양방향 시그널링 완성**). cross-sfu 진행: Phase 0 arg override(129) → 1 hub registry(130) → 2선행 l ROOM_CREATE 멱등(131) → 2a 요청 라우팅(132) → 2b 이벤트 복수화(133). 다음 = Phase 3(클라/SDK: sfu별 PC pair + server_config per-sfu + demo CREATE 전환). **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1023,6 +1023,12 @@
 |------|------|------|------|
 | 0603 | `20260603m_cross_sfu_phase2a_done` | 서버 | **hub 가 방을 sfu 에 배치 + 요청을 그 방의 sfu 로 라우팅**(설계 §7). 하위호환 `sfu()`(default) 유지→events 보호(2b 잔존). 3파일. **state**: `room_sfu: DashMap<RoomId,SfuId>`+`sfu_ids`/`rr_counter`/`placement`. `room_sfu_id`/`place_room`(RoundRobin)/`bind_room`(or_insert 멱등)/`sfu_for_room`(매핑→sfu_by_id, **없으면 None=폴백X=진짜 에러**)/`all_sfu_clients`(fan-out). **★assign_room**(정지점 후 추가): 명시 id sfu 를 `entry().or_insert_with(place_room)` 로 **원자적 결정+기록** — 동시 same-id CREATE **TOCTOU race(방 split: 두 봇 get=None→각자 place→다른 sfu) 봉합**(DashMap per-key 락, place_room rr++도 1회). conf_basic 2봇으로 실제 재현·봉합 입증("qa_test_01 둘 다 sfu-1"). 자동 uuid 는 place_room→handle→응답 id bind(race 없음). **config**: `[routing] placement`(round_robin default)+`PlacementPolicy{RoundRobin,LeastLoad자리}`. **ws**: ROOM_CREATE 배치+기록·ROOM_LIST all_sfu fan-out 병합·generic dispatch/forward/cleanup `sfu()`→`sfu_for_room`. **합격 ① 분산**(qa_test_01→sfu-1·qa_test_02→sfu-2, sfud별 CREATE 2/2) **② 라우팅**(conf_basic sfu-1·ptt_rapid sfu-2 각 PASS, 매핑없음→SfuUnavailable) **③ 회귀**(단일 sfu 폴백 conf_basic/ptt_rapid PASS). test oxhubd 24·common 24(routing 1)·oxsfud 206 무영향·0 warning. ptt_rapid flake(1/4 floor 타이밍, 재실행 PASS, 라우팅 무관). 발견(trade-off, 부장 백로그): assign_room 은 CREATE 성공 전 기록→sfu 영구다운 시 죽은 매핑 잔존(race>가용성 우선, lazy reconnect 가 일시다운 복구). 범위밖: event 복수화/`sfu()` 폐기=2b·클라=3. `745edf8` |
 
+## Phase 133: Cross-SFU Phase 2b — event consumer 복수화 + sfu() 폐기 (양방향 완성) (0603n)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603n_cross_sfu_phase2b_done` | 서버 | **sfu별 event consumer(client+admin)→sfu-N 방 이벤트도 클라 도달 = cross-sfu 양방향 시그널링 완성**(요청 2a+이벤트 2b, 설계 §5/§7). 6파일. **A** `run_event_consumer(state,hub_id,sfu_id)` sfu()→sfu_by_id, main `sfu_ids()` 순회 N spawn. `dispatch_event` 무변경(room_id 라우팅=sfu 무관, 1방1sfu). **B** `run_admin_event_consumer` 동일+`dispatch_admin_event(_,_,is_default)`: hub_metrics flush 는 **default sfu consumer 만**(전역 1개 N중복 차단), sfu_metrics 는 sfu별 broadcast. `is_default_sfu()`. **C REST** 공용 헬퍼 `helpers::sfu_route(state,op,d,user_id)`(ROOM_CREATE assign/place+bind·ROOM_LIST all_sfu fan-out 병합·room op sfu_for_room)→rooms.rs("")·admin.rs("admin") 위임(로컬 sfu_handle 중복 제거). **D** `sfu()`(단수 반환) **폐기**(grep 0), `sfu_is_connected`/`default_sfu_id` 유지(default 개념 유효, 거짓은 "단수 반환"뿐). **합격 ① 양방향**(멀티 conf_basic sfu-1+duplex_cache sfu-2 PASS, admin ROOM_LIST fan-out total=2 [qa_test_01,qa_test_03] 병합) **② sfu() grep 0** **③ 회귀**(단일 conf_basic/ptt_rapid PASS). test oxhubd 24·common 24·oxsfud 206 무영향·0 warning. 발견_사항: REST `/media/rooms`(rooms.rs user_id="")는 sfud 전 op `is_authenticated` 요구로 거부=**사전 존재**(admin 경로 정상), rooms.rs 인증/용도 별토픽. 다음 Phase 3=클라(SDK sfu별 PC pair+server_config per-sfu+demo CREATE 전환). `92aaf02` |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1034,9 +1040,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 324개
+- **총 세션 파일**: 326개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 — Phase 132 Cross-SFU Phase 2a(hub room 라우팅 `745edf8`). 직전: 131 ROOM_CREATE 멱등(l) / 130 hub registry / 129 sfud arg override / 127~128 supervisor. 다음 Phase 2b(event 복수화+sfu() 폐기). 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-03 — Phase 133 Cross-SFU Phase 2b(event consumer 복수화 + sfu() 폐기, 양방향 완성 `92aaf02`). 직전: 132 2a 요청 라우팅 / 131 ROOM_CREATE 멱등(l) / 130 hub registry / 129 arg override. 다음 Phase 3(클라/SDK). 세부는 본문 Phase 표.
 
 ---
 

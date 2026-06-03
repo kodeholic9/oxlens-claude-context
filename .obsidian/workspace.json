@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "design/20260603_cross_sfu_design.md",
+                "file": "SESSION_INDEX.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "20260603_cross_sfu_design"
+              "title": "SESSION_INDEX"
             }
           }
         ]
@@ -185,6 +185,9 @@
   },
   "active": "4816d2ca7fe07f39",
   "lastOpenFiles": [
+    "202606/20260603n_cross_sfu_phase2b_done.md",
+    "claudecode/202606/20260603n_cross_sfu_phase2b.md",
+    "design/20260603_cross_sfu_design.md",
     "202606/20260603m_cross_sfu_phase2a_done.md",
     "202606/20260603l_cross_sfu_room_create_idempotent_done.md",
     "claudecode/202606/20260603m_cross_sfu_phase2a.md",
@@ -193,7 +196,6 @@
     "claudecode/202606/20260603k_cross_sfu_phase1.md",
     "202606/20260603j_cross_sfu_phase0_done.md",
     "design/20260603_oxhubd_supervisor_design.md",
-    "design/20260603_cross_sfu_design.md",
     "claudecode/202606/20260603j_cross_sfu_phase0.md",
     "claudecode/202606/20260603j_cross_sfu_phase0_done.md",
     "202606/20260603i_supervisor_observability_done.md",
@@ -209,8 +211,6 @@
     "SESSION_INDEX.md",
     "202606/20260603d_cleanup_tail_done.md",
     "claudecode/202606/20260603d_cleanup_tail.md",
-    "202606/20260603c_subscriber_vssrc_align_done.md",
-    "claudecode/202606/20260603c_subscriber_vssrc_align.md",
     "202606",
     "claudecode/202606",
     "design/architecture"
