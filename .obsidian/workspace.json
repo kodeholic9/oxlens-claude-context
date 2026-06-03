@@ -185,6 +185,8 @@
   },
   "active": "4816d2ca7fe07f39",
   "lastOpenFiles": [
+    "202606/20260603i_supervisor_observability_done.md",
+    "claudecode/202606/20260603i_supervisor_observability.md",
     "202606/20260603h_supervisor_rename_unit_done.md",
     "claudecode/202606/20260603h_supervisor_rename_unit.md",
     "202606/20260603g_supervisor_intensity_fix_done.md",
@@ -209,8 +211,6 @@
     "claudecode/202606/20260603_doc_split.md",
     "202606/20260603_track_state_unification_server_done.md",
     "202606/20260602e_scope_wrapper_removal_done.md",
-    "202606/20260602d_enum_types_consolidation_done.md",
-    "claudecode/202606/20260602d_enum_types_consolidation.md",
     "202606",
     "claudecode/202606",
     "design/architecture"
