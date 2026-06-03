@@ -896,8 +896,8 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0531 | `20260531e_publisher_2layer_doc_sync_done` | 서버 | Publisher 2계층 배선 완료 반영 (**동작 0**) — 배선은 기커밋 `96ded24`, 주석/attribute/마스터만 stale. `publisher_stream.rs` 파일 전체 `#![allow(dead_code)]` 제거(cargo check warn 0 = 전 항목 배선) + "배선 완료" doc. `publisher_track.rs` fan-out 방향역전 doc + 자료구조 `recv_stats`/`subscribers`/`stream`(Weak) 보강 + `Peer.publish.tracks` 타입 오표기 `ArcSwap<Vec<..>>`→`ArcSwap<PublisherTrackIndex>` 정정. PROJECT_MASTER 마일스톤 "Stage 2~4 미커밋"→"Stage 1~4 배선 완료(96ded24)". 정지점=allow 제거 후 dead_code warn 0 확인(은폐 금지 원칙). commit `fdceff3`/`f876054` |
-| 0601 | `20260601_slot_subscribers_done` | 서버 | **Slot.subscribers 도입** — Half fanout 의 lookup #2(`subscribers_snapshot`+`find_subscriber_stream_by_vssrc`) 소거. `Slot` 에 `subscribers`(Weak Vec) + `attach_subscriber`(PublisherTrack 복제) + `AttachTarget` enum{Track,Slot,None}(home=`slot.rs`, import 순환 0 — slot→publisher_track 기존 edge 재활용). `collect_subscribe_tracks` PTT `attach_target` None→`Slot(room.audio_slot/video_slot)`. `broadcast_full`→`broadcast(subs,prefan)` 일반화 → **Half(Slot.subscribers)/Full(self.subscribers) 단일 본문 합류**. detach 없음(retain 자연청소, Full 과 동일 정책). floor 회전 무관(subscribers=출력 청취자). 211 PASS + conf_basic/ptt_rapid(gating 음성 무변)/duplex_cache 회귀 PASS. commit `a7a41be`/`fc0ff40` |
+| 0531 | `20260531e_publisher_2layer_doc_sync_done` | 서버 | Publisher 2계층 배선 완료 반영(동작 0) — publisher_stream.rs `#![allow(dead_code)]` 제거(warn 0=전 배선)+fan-out 방향역전/subscribers doc+Peer.publish.tracks 타입 정정. MASTER 마일스톤 현행화. `fdceff3`/`f876054` |
+| 0601 | `20260601_slot_subscribers_done` | 서버 | **Slot.subscribers 도입** — Half fanout lookup #2 소거. Slot에 subscribers(Weak)+attach_subscriber+AttachTarget enum{Track,Slot,None}, broadcast 일반화로 Half/Full 단일 본문 합류. detach=retain. 211 PASS+oxe2e 회귀. `a7a41be`/`fc0ff40` |
 
 > `AttachTarget` enum MUTEX 로 "Track∧Slot" 불가능 상태를 타입이 차단 (tuple 에 `Option<Arc<Slot>>` 한 칸 추가 방식 기각). detach=retain 자연청소(소유=peer.subscribe.streams, Slot=Weak 캐시 — 명시 detach=이중 생명주기 기각).
 > cross-room 방별 Slot 분리 attach 는 단일방 회귀 미보증 → 브라우저 E2E(QA_GUIDE) 별도 확인 거리.
@@ -908,8 +908,8 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0601b | `20260601b_oxe2e_simulcast_done` | 서버(회귀) | oxe2e 에 simulcast publish 시나리오 추가 — **봇 송출만, 서버·judge 0 변경**. 표준 rid-based(RFC 8852/8285/8853): config `RID_EXTMAP_ID=4`/h/l, media `RtpSender.rid`+`video_sim`+next_packet ext(MID 2B+RID 2B=1word), mod build_tracks simulcast arm(h/l 2 SSRC+entry 1개 simulcast=true, ssrc 는 sentinel 대체용 non-zero — t.ssrc==0 가드 통과). `simulcast_basic.toml` 2명. **PASS = sim2←sim1 video virtual ssrc 743패킷** = placeholder→promote(rid=h)→SimulcastRewriter(h→virtual) fan-out 체인 → **catch 2(placeholder PUBLISH_TRACKS-시점 등록) E2E verify 닫음**. judge evaluate 무변경(약속 virtual↔이행 virtual). conf_basic/ptt_rapid 무손상. 레이어 전환(SUBSCRIBE_LAYER)·RTX 제외. commit `a33d83c`. 봇=표준 송출/서버=검증대상(역산 금지 원칙) |
-| 0601c | `20260601c_oxe2e_judge_negative_done` | 서버(회귀) | judge `evaluate` 에 **negative 절** 추가(judge 1곳만, 봇/시나리오/서버 0 변경) — **수신 ssrc ⊆ 약속 ssrc**, 약속 외 1패킷이라도 도착=FAIL. 전 시나리오 공통 그물(simulcast l 누수 + self-echo + 오fan-out). **20260601b §2-3 "judge 무변경" 결정 대체**. 검증: simulcast 수신 2종==약속 2종=**l 누수 없음**(원본/l ssrc 누출 시 3번째 ssrc→FAIL), ptt_rapid floor gating false positive 미발생. 봇 가능 영역(누수 negative)만 닫음 — "l promote 됨"(positive)은 봇 원천 불가(l fan-out 안 됨)→SUBSCRIBE_LAYER 레이어 전환 작업 몫. commit `5154155` |
+| 0601b | `20260601b_oxe2e_simulcast_done` | 서버(회귀) | oxe2e simulcast publish 시나리오(봇 송출만, 서버/judge 0) — 표준 rid-based(RFC 8852/8285/8853), simulcast_basic.toml. PASS=virtual ssrc fan-out 체인 verify(placeholder→promote→rewrite). `a33d83c` |
+| 0601c | `20260601c_oxe2e_judge_negative_done` | 서버(회귀) | judge evaluate에 negative 절(judge 1곳) — 수신 ssrc ⊆ 약속 ssrc, 약속 외 도착=FAIL. simulcast l 누수/self-echo/오fan-out 공통 그물. `5154155` |
 
 > §7 원칙(부장님 정정): 서버 역산해 봇 맞추기=거울(금지), home JS=wire 없음(RFC 가 출처), 실측=보조, ssrc-group(SIM)=레거시(rid-based 표준), 서버 기본값 의존 금지.
 > negative 범위 경계: 봇으로 닫는 "l 누수 없음"(negative)과 봇 불가 "l promote positive"(레이어 전환 몫)를 가름 — 억지 positive 검증 금지(§7-1).
@@ -920,7 +920,7 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0602 | `20260602_domain_rename_done` | 서버 | **`crates/oxsfud/src/room/` → `domain/` 디렉토리 rename** — 순수 mechanical(경로 토큰만, 로직/주석/문자열/타입명/변수·필드명 **0 변경**). room/ 는 더 이상 방만 담지 않음(Peer/Stream/Track/Floor/Slot 등 SFU 미디어 라우팅 도메인 엔티티 전부) → 내용<이름 불일치 정정. `git mv`(23 파일 rename, 이력 보존) + `crate::room::`→`crate::domain::`(35 files/243 자리) + `lib.rs` `pub mod room;`→`pub mod domain;`. **함정: `pub mod room;` 2곳** — lib.rs(치환) vs `domain/mod.rs`(내부 `room.rs` 선언, 내부 파일명 불변이라 보존). 부수효과 `crate::domain::room::Room` 자연스러워짐. 외부 crate 참조 0. cargo check GREEN + test **211=baseline**. 합치기/enum 정리 제외(별도). commit `b5f76a1` |
+| 0602 | `20260602_domain_rename_done` | 서버 | **room/ → domain/ 디렉토리 rename** — 순수 mechanical(경로 토큰만, 로직 0). git mv 23파일+crate::room::→domain::(35file/243). 함정 pub mod room 2곳. test 211=baseline. `b5f76a1` |
 
 > 합격선=로직 0 변경 → test 증감 0(211). 컴파일러 unresolved import 가 경로 누락 100% 적발 = 안전망.
 > 잔여 작업(부장님 별도, 소스 정독 후): subscriber_stream+index 합치기, floor_routing→broadcast 합치기, enum 정리.
@@ -931,8 +931,8 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0602b | `20260602b_stats_track_alignment_done` | 서버 | **통계 4종 트랙 차원 정렬 3-Phase** (각 별 commit, 동작 0 변경, oxe2e 4/4). **A 개명**(`b4733d9`): RecvStats→RrStats / SendStats→SrStats (타입+필드 `recv_stats`→`rr_stats`). **B room_stats 잉여 제거**(`10ffcca`): `SubscriberStream.room_stats: DashMap<RoomId>` 폐기 → `sr_stats`/`stalled`/`stats_primed` 직속 + **`room_id` 정체 필드 승격**. **C(pub)**(`9abdf43`): `PublishPipelineStats` PublishContext→PublisherTrack 직속(rtp_in RTX 제외 재배치, admin 트랙 합산). ★결정: created→**stats_primed**(forward `!swap` + ACK prime 양쪽 → 구 lazy-create 동작 보존, simulcast 743패킷 검증) / EgressPacket.room_id **제거**. cargo test 211 + oxe2e conf·ptt·duplex·simulcast 4/4 PASS |
-| 0602c | `20260602c_sub_telemetry_track_move_done` | 서버 | **C(sub) 정공 — pub/sub 대칭 완성**(`b5b9172`). 0602b에서 "1:1 귀속 불가"로 보류했던 sub 텔레메트리를 **정공 이동**(struct-split 땜빵 배제). `SubscribePipelineStats` participant.rs→subscriber_stream.rs **직속**(`RoomMember.sub_stats` 폐기→순수 멤버십 메타), **rtx_received 삭제**(producer 0 dead)=4필드. inc 시점 교정: rtp_relayed/dropped①=forward self / rtp_dropped②(RTX)=nack.media_ssrc 해소 / **sr_relayed**=build_sr_translation이 sub_stream 동봉반환(`Option<(SrTranslation, Option<Arc<SubscriberStream>>)>`)→블록별 inc / nack_sent=handle_nack_block 진입 block당 +1(총량 보존). admin=`sub_pipeline_snapshot_for_room` room_id 필터 합산(room-scope 보존). test 211 + oxe2e 4/4 |
+| 0602b | `20260602b_stats_track_alignment_done` | 서버 | **통계 4종 트랙 차원 정렬 3-Phase**(동작 0, oxe2e 4/4). A 개명 RecvStats→RrStats(`b4733d9`) · B room_stats 제거→직속+room_id 정체필드 승격(`10ffcca`) · C(pub) PublishPipelineStats PublisherTrack 직속+stats_primed(`9abdf43`). test 211 |
+| 0602c | `20260602c_sub_telemetry_track_move_done` | 서버 | **C(sub) pub/sub 대칭 완성**(`b5b9172`) — SubscribePipelineStats subscriber_stream.rs 직속(RoomMember.sub_stats 폐기)+rtx_received 삭제, inc 시점 교정(sr_relayed 동봉반환 등), admin room-scope 합산. test 211+oxe2e 4/4 |
 
 > **설계자(claude.ai) 결함 적발**(부장님 "김대리 멍청" 경고대로 코드 검증): ① **room_id 핵심 오류** — "DashMap<RoomId> 죽은 차원" 주장이 절반 틀림. 구조는 잉여여도 room_id **값**은 STALLED 체커가 floor/publisher 조회에 쓰는 산 자료 → 정체 필드 승격. ② §5 영향범위 누락(track_ops/hooks/helpers/floor_broadcast). ③ rtx_received=존재 안 하는 호출처(dead). ④ rtp_dropped 2번째 자리(RTX) 누락.
 > 발견_사항: web 대시보드(oxlens-home JS)가 admin JSON `rtx_received` 키 참조 시 정리 필요(값 늘 0, 표시 키만). 서버 레포 밖.
@@ -943,8 +943,8 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0602d | `20260602d_enum_types_consolidation_done` | 서버 | **도메인 어휘 enum 5종 → `domain/types.rs` 단일 출처**(`3558faf`, 정의 위치 이동+use 경로, 로직 0). StreamKind/TrackKind/VideoCodec/DuplexMode/TrackType. `stream_map.rs` 파일째 폐기(StreamKind 1개 파편). publisher_track.rs 4 enum 정의 제거+use types. ★결정 **갈아끼우기**(re-export 없음 — 단일 출처). 호출처 일괄 = regex(full-path+단일 use) + brace import 11곳 수동(mixed 6 split). 경계 enum(PauseReason/상태 enum) 미이동. net 59+/234−. build 0/test 211/check 0 warn/oxe2e 4/4. §5 누락 차단=grep+빌드에러 교차 |
-| 0602e | `20260602e_scope_wrapper_removal_done` | 서버 | **scope.rs 폐기 — RoomSet/RoomSetId 래퍼 제거, `sub_rooms: ArcSwap<RoomSet>`→`ArcSwap<HashSet<RoomId>>`**(`8291ff0`). 다방 청취·SCOPE op **유지**(부장님 정정 ①: 기능제거 아님 래퍼만 / ② 정석 — set_id wire 필드째 폐기, 클라는 서버에 맞춤). RoomSet=HashSet 위 set_id(결정값)+RCU헬퍼 잉여 래퍼, `RoomId: Borrow<str>`로 contains 무변. set_id 완전 폐기(ScopeEventPayload.{sub_set_id,pub_set_id}+admin 키). **baseline 211→205**(scope.rs 5 + peer set_id 1 테스트 동반 삭제, 실패 0). oxe2e 4/4. doc-청소 `26f120b`(scope_ops/message/peer 헤더/state.rs stale 주석) |
+| 0602d | `20260602d_enum_types_consolidation_done` | 서버 | **도메인 enum 5종→domain/types.rs 단일 출처**(`3558faf`, 로직 0). StreamKind/TrackKind/VideoCodec/DuplexMode/TrackType, stream_map.rs 폐기, 갈아끼우기(re-export 없음). test 211/oxe2e 4/4 |
+| 0602e | `20260602e_scope_wrapper_removal_done` | 서버 | **scope.rs 폐기 — RoomSet/RoomSetId 래퍼 제거**(`8291ff0`), sub_rooms: ArcSwap<HashSet<RoomId>>. 다방청취/SCOPE op 유지(래퍼만), set_id wire 폐기. baseline 211→205(동반 테스트). oxe2e 4/4. doc청소 `26f120b` |
 
 > **★ hub shadow 검증**(부장님 지적 — 클라 아닌 서버 경로): oxhubd `ShadowState`는 `ROOM_EVENT` join/left만 누적, SCOPE/sub_set_id 미참조. SCOPE_EVENT broadcast op=정의만 미emit. 재연결 SCOPE 재emit 0 → sub_set_id 영향 **클라 한정** 확정.
 > 발견_사항(별 토픽): `pub_add`/`pub_remove`(ScopeUpdateRequest)·`pub`(ScopeSetRequest)·mbcp `pub_set_id` = set_id 동성격 dead wire 잔재(Phase A 이후) — 일관성 정석 폐기 후보. / 클라(oxlens-home·Android) SCOPE 응답 set_id 키 제거 정합 필요.
@@ -955,7 +955,7 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603_track_state_unification_server_done` | 서버 | **식별 3평면 분리** — track_id(불투명)·vssrc(값) → 논리 `PublisherStream`, 실 ssrc → 물리 `PublisherTrack`. 지침 20260531f rev.3 / 설계서 rev.3. **A 식별 이주**(`8b0627a`): PublisherStream 에 track_id+vssrc 신설(simulcast eager `{user}_{vssrc}`, non-sim/PTT `{user}_{ssrc}`), PublisherTrack 의 track_id/virtual_ssrc + ensure/load 제거(snapshot=stream() 역참조), attach_track_to_stream 발급, find_stream_by_track_id/by_vssrc, room.rs vssrc 매칭 Stream 전환, switch_track_duplex dead 청산. **B 발신/통지/응답/가드**(`208a498`): message track_id 필드, set_track_muted→mute_stream(Stream 단위 h/l 비대칭 해소), do_track_state_req track_id 키+simulcast reject+Stream 단위 duplex, do_publish_tracks 응답 d.tracks=[{mid,track_id}](self-unicast 폐기), notify_new_stream track_id=Stream.track_id. ★정지점=Phase A(위험 phase). test 204 / clippy 신규 0 / oxe2e 4/4 PASS(A·B 각). 라우팅·fan-out·실 ssrc ingress 평면 무변경 |
+| 0603 | `20260603_track_state_unification_server_done` | 서버 | **식별 3평면 분리** — track_id(불투명)·vssrc→논리 PublisherStream, 실 ssrc→물리 PublisherTrack(설계 rev.3). A 식별 이주(`8b0627a`)+B 발신/통지 track_id(`208a498`, mute Stream 단위·self-unicast 폐기). 정정+회귀강화(`bf51697`/`4efaf4a`). test 204/oxe2e 4/4. 클라=별 세션 |
 
 > **정정 + 회귀 강화**(부장님 적발): do_track_state_req active 통지 2곳 track_id 누락(`bf51697`) — 클라 pipe 해소 불가(설계 §5 D.1). oxe2e 가 통지 wire 필드 미판정(REGRESSION_GUIDE §4)이라 회귀가 못 잡음 → **judge 강화**(`4efaf4a`): evaluate_caching 에 active 통지 track_id 동봉 검증 + 단위테스트 2종(양성/음성=누락 시 FAIL 고정). 전체 oxe2e 4/4 재확인.
 > 남은 일: **클라(oxlens-home/Android) 별도 세션** — sdp-negotiator transceiver.mid 적재 / setTrackState 게이트 / TRACK_STATE 수신(track_id 키, muted+active) / dead 청산 + 데모 + 문서. 의도 변경: simulcast track_id `{user}_{vssrc}` 통일(#5b).
@@ -966,68 +966,68 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603_track_state_and_doc_split` | 문서 | **PROJECT_MASTER → MASTER/SERVER/WEB 3분리**(코드 종속=서버/웹클라 격리, 마스터=원칙만). 마스터 0531 정지 ↔ 코드 0602e 간극 해소. Phase A 이동(헤더 단위 verbatim, 21섹션 손실 0, `9a2ec84`) + B~D 현행화(SERVER domain/ 트리·fan-out 방향역전·stats 트랙직속·scope HashSet·식별 3평면, 마스터 슬림화 202606, `071cef5`). 발견_사항: engine.scope.* SDK API → WEB 이전 / Telemetry·Android 마스터 잔류. 세션 파일에 track_state rev.3 재정초 경위 동봉. 코드 0 |
+| 0603 | `20260603_track_state_and_doc_split` | 문서 | **PROJECT_MASTER→MASTER/SERVER/WEB 3분리**(코드종속 격리). A 이동(verbatim 21섹션 손실 0 `9a2ec84`)+B~D 현행화(`071cef5`). 발견: engine.scope.* SDK API→WEB 이전. 코드 0 |
 
 ## Phase 124: 식별자/주석 청산 — 네이밍 정합 (0603b, behavior-0)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603b_naming_cleanup_done` | 서버 | **domain/signaling/transport 식별자 rename + stale 주석 청산 — behavior 0**(로직·제어흐름·자료구조 무변경). 지침 20260603b. **C(의미)**: sub_insert/sub_remove_one→`affiliate`/`deaffiliate`(클라·doc·서버 3자정합), scope_insert/scope_remove→`sync_scope_on_join`/`_leave`(scope 우산명사 유지, verb오용만), find_by_track_ssrc→`find_publisher_by_ssrc`, find_publisher_by_vssrc→`find_publisher_by_simulcast_vssrc`, ensure_simulcast_video_ssrc 폐기/통합(eager vssrc 이주). **B(변수)**: new_stream→new_track, pub_stream(_arc)→pub_track(+충돌분 pub_track_opt), broadcast streams→tracks, endpoint_map→`peer_map`, with_added 인자. **A(주석)**: TRACKS_ACK→TRACKS_READY, EndpointMap→PeerMap, Prepared 제거(floor=Idle/Taken), SWITCH_DUPLEX→TRACK_STATE_REQ, recv_stats→rr_stats, 모듈doc track_id/virtual_ssrc 정정 — 역사 이주노트(RtpStream 대체·mediasoup 정합)는 보존. 26파일 +144/−155. **test 204 불변 + oxe2e 4/4 PASS**. 별토픽 이관: A1 SubscriberStream.virtual_ssrc→egress_ssrc, scope/SCOPE op 전면청산. `fa365f8` |
+| 0603 | `20260603b_naming_cleanup_done` | 서버 | **식별자 rename + stale 주석 청산 — behavior 0**. sub_insert→affiliate/scope_insert→sync_scope_on_join/find_publisher_by_ssrc/peer_map, new_stream→new_track, 주석(TRACKS_ACK→READY 등). 26파일. test 204+oxe2e 4/4. `fa365f8` |
 
 ## Phase 125: SubscriberStream.virtual_ssrc → vssrc — 식별 계층 vssrc 통일 마무리 (0603c, behavior-0)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603c_subscriber_vssrc_align_done` | 서버 | **0603 식별 계층 vssrc 통일의 마지막 미아 청산** — `SubscriberStream.virtual_ssrc` 단일 필드 → `vssrc`(+`::new`/`add_subscriber_stream` 파라미터). **behavior 0**(로직·자료구조 무변경). 읽는 자리 12건(index/track_ops/tasks/admin/hooks)을 컴파일러 E0609가 전수 안내. 필드 doc 보강(egress SSRC 평면값, "virtual 거짓말" 자백주석 제거). JSON 출력 키("vssrc"/"stream_vssrc")는 wire라 미변경·값만 정합. **★핵심 함정=타입 분리**: `.virtual_ssrc` 표기 같은 **rewriter 토대 어휘 전부 비대상 무손상**(SimulcastRewriter[같은 파일 다른 struct]·RtpRewriter·PttRewriter·Slot — 어휘 직교 vssrc=평면/virtual_ssrc=rewriter). **E0609 12건 전부 SubscriberStream 타입에만 발생=분리 clean 입증**. 8파일 +30/−29. test 204 불변. `6775b06` |
+| 0603 | `20260603c_subscriber_vssrc_align_done` | 서버 | **SubscriberStream.virtual_ssrc→vssrc**(behavior 0) — 식별 vssrc 통일 마무리. 읽는자리 12건 E0609 전수. ★rewriter 어휘(SimulcastRewriter/RtpRewriter/Slot) 직교 무손상=타입분리 입증. test 204. `6775b06` |
 
 ## Phase 126: naming_cleanup 꼬리 청소 — streams 변수 + dead variant (0603d, behavior-0)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603d_cleanup_tail_done` | 서버 | **naming_cleanup 그룹② 마지막 꼬리** — behavior 0. **#5**: `publish.tracks.load()`(물리 PublisherTrackIndex) 받는 변수 `streams→tracks`/`stream→track`/`origin_stream→origin_track`/`streams_for_meta→tracks_for_meta`(egress.rs·ingress_publish.rs). **도메인 어휘 61건 보존**(StreamKind/stream_kind/resolve_stream_kind/PublisherStream/`.stream()` 메서드 — word-boundary+`(?!\()` lookahead, `stream.stream()`→`track.stream()`). ingress_rtcp.rs는 #5 대상 0건(변수 없음, stream은 sub_stream/SR 주석뿐). **#4 dead 확정**: `FloorAction::NotPttRoom` 제거(생성 0·소비 0). **★전제 정정**: `Floor::ping`은 tasks.rs:68 호출 LIVE(반환 discard, `last_ping` 갱신 side-effect=RTP liveness) → ping/PingOk/PingDenied 유지. last_ping/ping_timeout_ms 보존. 3파일 +51/−53. test 204 불변·build 0 warning. 발견_사항: ping() 반환값 호출처 discard(값 dead, 정리=로직변경이라 별토픽). `c36cfc8` |
+| 0603 | `20260603d_cleanup_tail_done` | 서버 | **naming_cleanup 꼬리**(behavior 0). #5 streams 변수→tracks(도메인 어휘 61건 보존). #4 dead FloorAction::NotPttRoom 제거. ★Floor::ping LIVE 전제 정정(last_ping side-effect). test 204·0 warning. `c36cfc8` |
 
 ## Phase 127: oxhubd Supervisor (Process Control Plane) Level 1 — 신규 (0603e~h)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603e_sfud_sigterm_graceful_done` | 서버 | **supervisor 선결** — sfud 가 SIGTERM 을 graceful 수신. `run_server()` 종료부 `ctrl_c()` 단독(SIGINT 전용) → `#[cfg(unix)]` `SignalKind::terminate()` 추가 + `select!`(SIGTERM/SIGINT). drain(cancel+sleep) 무변경, `#[cfg(not(unix))]` ctrl_c 보존(Windows). test 204 불변. 수동검증 `kill -TERM` → SIGTERM received → drain 3.001s → exit 0. `42476f7` |
-| 0603 | `20260603f/g/h_supervisor_core/intensity_fix/rename` | 서버 | **oxhubd Level 1 supervisor 신설** — 자식 프로세스 control plane. 불변원칙 3(자식종류 무지=UnitSpec만·stop 양쪽 Signal/Command·확장 enum). `supervisor/` 8파일: spawn(Stdio::inherit/kill_on_drop/process_group)→ReadyCheck 4종(PidAlive/GrpcConnect/TcpConnect/HttpGet)→Live→crash 감지→restart(정책+Erlang intensity)→kubelet backoff(10→300s)→stop(Signal=nix kill/Command=spawn+timeout+SIGTERM fallback)→timeout_stop_sec 후 SIGKILL escalation. **hub main 종료 골격 신설**(SIGTERM/SIGINT)+supervisor 배선 — **hub `kill -TERM`→supervisor.shutdown()→sfud SIGTERM→drain→둘 다 exit, 좀비 0** 입증(설계 §5-D). config `[supervisor]`/`[[supervisor.units]]` DTO→UnitSpec 변환(신호명 nix 파싱). HubMetrics supervisor 12필드(Counter10+Gauge2). **[g]** intensity 카운트=재시작 *시도* 시점(record_start[Live전이] 폐기→maybe_restart push, **crash-before-ready도 Blocked**=빌드깨짐 무한respawn 차단) + 안정 Live backoff 리셋(STABLE_RESET_SEC=600) + 전역 intensity config 제거(per-unit 단일출처). **[h]** 용어 Slave→Unit(systemd 정합, mechanical, PASS 불변). nix=`[target.'cfg(unix)']`(Windows hub 보존). 범위밖(다음): REST status/restart·healthz·HubState attach·Level2/3 동작. test oxhubd 21·common 20·oxsfud 204·0 warning. 발견_사항: fixtures=시스템커맨드 기반(설계 §14 바이너리 등가)·supervisor=POSIX전용·HttpGet=raw http. `c761543` |
+| 0603 | `20260603e_sfud_sigterm_graceful_done` | 서버 | **supervisor 선결** — sfud SIGTERM graceful 수신. run_server 종료부 ctrl_c 단독→#[cfg(unix)] SIGTERM/SIGINT select, drain 무변경, Windows ctrl_c 보존. test 204. kill -TERM→drain 3s→exit 0. `42476f7` |
+| 0603 | `20260603f/g/h_supervisor_core/intensity_fix/rename` | 서버 | **oxhubd Level 1 supervisor 신설** — 자식 control plane(불변원칙 3). supervisor/ 8파일: spawn(inherit/kill_on_drop/pgid)→ReadyCheck 4종→restart(Erlang intensity)→kubelet backoff→stop(Signal/Command)→SIGKILL. hub 종료골격+배선(kill-TERM→sfud 연쇄 graceful 입증). [g] intensity=재시작 시도시점(crash-before-ready도 Blocked)+안정 리셋+전역 config 제거. [h] Slave→Unit rename. nix=cfg(unix). test oxhubd 21·oxsfud 204. `c761543` |
 
 ## Phase 128: Supervisor 관측 레이어 — REST status/restart + healthz + HubState attach (0603i)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603i_supervisor_observability_done` | 서버 | **supervisor 코어(Phase 127) 외부 조회/제어** — 설계 §12. **A** `Supervisor::status()→Vec<UnitStatus>`(alias/state/pid/uptime_sec/restart_count/last_exit_code, serde)+`all_units_ready()`(enabled 전부 Live, disabled 제외). restart=기존 cmd_sender 재사용. **B HubState attach**: `#[cfg(unix)] supervisor: Arc<ArcSwap<Option<Arc<Supervisor>>>>`(sfu_slot 패턴), main 사후 store, shutdown=state load(단일 보유). import 순환 없음(supervisor는 metrics Arc만). **C REST**(`rest/supervisor.rs`): `GET /media/admin/supervisor/status`+`POST .../restart/{alias}`(admin verify_admin 재사용, 202 위임, non-unix stub). **D healthz**(`rest/health.rs`, 무인증·크로스): `live`(200)+`ready`(enabled 전부 Live→200/503, supervisor 없으면 hub-only 200). **HTTP e2e 입증**: healthz 200·status 401/200(JSON pid/live/uptime)·restart 202+새 pid 재기동. **fix**: admin kick 라우트 path param `{..}`→`:..`(axum 0.7은 `:param`, `{param}`은 0.8 → 잠재 404 해소, URL/force-leave 무변경). 신규 2+수정 7파일. test oxhubd 24(관측 3 신규)·common 20·oxsfud 204·0 warning. 범위밖(다음): admin UI(웹)·Level2/3·dependency_class healthz 필터. `4bd5caa` |
+| 0603 | `20260603i_supervisor_observability_done` | 서버 | **supervisor 관측 레이어**(설계 §12). status()→Vec<UnitStatus>/all_units_ready, HubState attach(cfg(unix) ArcSwap), REST /admin/supervisor/{status,restart}(admin 인증), healthz live/ready(무인증). HTTP e2e(status 401/200·restart 202+재기동). fix admin kick `{}`→`:`(axum 0.7). test oxhubd 24. `4bd5caa` |
 
 ## Phase 129: Cross-SFU Phase 0 — sfud CLI arg override + 2-unit 시험 환경 (0603j)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603j_cross_sfu_phase0_done` | 서버 | **cross-sfu 토대 — sfud 를 다른 포트로 2개 띄우기**(설계 cross_sfu §6.2). `oxsfud/lib.rs` 단일 파일. `arg_value()` 수동 파싱(clap 미도입, override 4개뿐). `run_server()` 추출부 **우선순위 arg > system.toml > (public_ip만) detect**: `--ws-port`/`--udp-port`(u16)/`--grpc-listen`(addr, 지역변수로 끌어올려 gRPC spawn 전달)/`--public-ip`. config 로그에 GRPC_LISTEN + 적용 override info 1줄씩(★tracing init **이후** emit — init 전이면 subscriber 미설정 유실, 검증 중 발견·정정). 파싱 실패→config fallback. **합격 판정 실측**: supervisor 2-unit(sfud1 args=[] default 50051/19740 · sfud2 args override 50052/19742/19743) 둘 다 spawn→충돌 없이 bind→`/admin/supervisor/status` 2 unit live·다른 pid(관측 레이어 i 를 검증 도구로). healthz/ready 200. test oxsfud 204·oxhubd 24·common 20 무영향·0 warning. 발견_사항: `create_default_rooms` 양쪽 동일 방 ID 생성→Phase 2(routing) 정리. 범위밖: hub sfu_slot/`[[sfu]]` 복수/routing=Phase 1~3. system.toml 2-unit 블록은 done §5 copy-paste(직접수정 금지). `c1a938f` |
+| 0603 | `20260603j_cross_sfu_phase0_done` | 서버 | **cross-sfu 토대 — sfud arg override**(oxsfud/lib.rs). arg_value 수동파싱(--ws-port/--udp-port/--grpc-listen/--public-ip, 우선순위 arg>toml>detect). 합격: supervisor 2-unit(sfud1 50051/sfud2 50052) 충돌 없이 bind·status 2 live. 발견: create_default_rooms 양쪽=Phase 2. test oxsfud 204. `c1a938f` |
 
 ## Phase 130: Cross-SFU Phase 1 — hub sfu 레지스트리 (단일 sfu 가정 해체) (0603k)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603k_cross_sfu_phase1_done` | 서버 | **hub 단일 sfu 가정(config/client/state) 복수화 — 하위호환으로 호출처 무변경**(설계 cross_sfu §6). 3파일. **A config**: `[sfu]`(sfud self) 무변경 + `[[hub.sfu]]`(hub registry 신규) `HubConfig.sfu: Vec<SfuNodeConfig{id,grpc_listen,public_ip,udp_port,ws_port}>` + `SystemConfig::sfu_registry()` 폴백(hub.sfu 비면 `[sfu]`→1-element "sfu-1"=단일배포 하위호환). **B state**: `sfu_slot`(단일 ArcSwap)→`sfu_registry: DashMap<id, Arc<SfuNode{addr,client:ArcSwap,reconnect:Mutex}>>`+`default_sfu_id`. `sfu_by_id(id)` per-id lazy reconnect(DashMap ref 즉시 Arc 복사→await 안전). **★`sfu()`=`sfu_by_id(default)` 시그니처 유지→호출처 7곳(ws3/events2/rooms1/admin1)+sfu_is_connected 무변경**(Phase 2 라우팅 전 회귀 최소화). `set_sfu`→`set_sfu_by_id`. **C main**: `sfu_registry()` 순회 try_connect+`HubState::new(nodes:Vec<(id,addr,client)>)`+per-sfu 로그. **합격 ① 하위호환**: `[[hub.sfu]]` 없는 config→폴백 sfu-1·admin/rooms 200(sfu() lazy). **② 복수 dial**: 2 entry→`sfu[sfu-1] (connected)`+`sfu[sfu-2] (connected)`. 시그니처 선조치: HubState::new 호출처 main 1곳·SfuConfig(self) 무변경(Phase 0 보호). test oxhubd 24·common 23(sfu_registry 3)·oxsfud 204 무영향·0 warning. 범위밖(Phase 2): room_sfu/배치/sfu_for_room/라우팅 전환·create_default_rooms 양쪽 정리. `da29ad8` |
+| 0603 | `20260603k_cross_sfu_phase1_done` | 서버 | **hub sfu 레지스트리 — 단일 sfu 가정 해체**(설계 §6, 하위호환 호출처 무변경). config [[hub.sfu]]+sfu_registry() 폴백, state sfu_slot→sfu_registry DashMap+sfu_by_id(per-id lazy). ★sfu()=sfu_by_id(default) 시그니처 유지→호출처 7곳 무변경. 합격 ① 단일 폴백 회귀 ② 2 entry 둘 다 connected. test oxhubd 24·common 23. `da29ad8` |
 
 ## Phase 131: Cross-SFU Phase 2 선행 — sfud ROOM_CREATE 멱등 + default rooms 제거 (0603l)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603l_cross_sfu_room_create_idempotent_done` | 서버 | **모든 방 ROOM_CREATE 경유(멱등) + default rooms 제거 → room_id 전역 유일(1방 1sfu)**, Phase 2a 라우팅 토대(설계 §7.2/7.3). 4파일. **A 멱등**(`room_ops.rs handle_room_create`): 명시 id 이미 존재→`2006` 거부 폐기→**기존 방 ok 반환**(ensure/get-or-create, name/capacity 무시), name 검증을 생성 경로로 이동(기존 방 반환 시 name 무관). 고정 id 공유+race 안전. **B default rooms 제거**(`startup.rs`+`lib.rs`): `create_default_rooms`(demo_* 10+qa_* 3) 제거, detect_local_ip 유지. **C oxe2e 정합**(`oxrtc/signal_client.rs connect_and_join`): ROOM_JOIN 직전 ROOM_CREATE(ensure, name=room_id) 삽입→봇 CREATE+JOIN, 호출처 oxe2e 1곳뿐(Kotlin SDK=libwebrtc 무관). **합격 ① 멱등 단위시험**(같은 id 2회→둘 다 ok 같은 방·기존 name 유지, AppState=ServerCert+UdpSocket 구성 신규) **② 회귀**(conf_basic ✓PASS 안정·ptt_rapid ✓PASS). test oxsfud 206(멱등 2 신규). 발견_사항: error.rs 2006(RoomAlreadyExists) dead화(무해·별토픽)·demo 웹 demo_* JOIN 깨짐(Phase 3 클라). 백로그(부장 기록): signal_client connect/create/join 분리(트리거 Rust 클라 호출처 2곳+/oxtapd)·ptt_rapid floor 회전 첫회 fan-out flake 1/4(guard band 250ms). 범위밖: hub room_sfu/배치/라우팅=Phase 2a·event=2b. `ca6fcf1` |
+| 0603 | `20260603l_cross_sfu_room_create_idempotent_done` | 서버 | **ROOM_CREATE 멱등 + default rooms 제거 → room_id 전역 유일(1방1sfu)**, Phase 2a 토대. handle_room_create ensure(2006 폐기, 기존 방 ok), create_default_rooms 제거, oxrtc connect_and_join CREATE+JOIN. 합격 ① 멱등 단위시험 ② 회귀. test oxsfud 206. 발견: 2006 dead·demo 웹 Phase 3. `ca6fcf1` |
 
 ## Phase 132: Cross-SFU Phase 2a — hub room 라우팅 (room_sfu + place_room + sfu_for_room) (0603m)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603m_cross_sfu_phase2a_done` | 서버 | **hub 가 방을 sfu 에 배치 + 요청을 그 방의 sfu 로 라우팅**(설계 §7). 하위호환 `sfu()`(default) 유지→events 보호(2b 잔존). 3파일. **state**: `room_sfu: DashMap<RoomId,SfuId>`+`sfu_ids`/`rr_counter`/`placement`. `room_sfu_id`/`place_room`(RoundRobin)/`bind_room`(or_insert 멱등)/`sfu_for_room`(매핑→sfu_by_id, **없으면 None=폴백X=진짜 에러**)/`all_sfu_clients`(fan-out). **★assign_room**(정지점 후 추가): 명시 id sfu 를 `entry().or_insert_with(place_room)` 로 **원자적 결정+기록** — 동시 same-id CREATE **TOCTOU race(방 split: 두 봇 get=None→각자 place→다른 sfu) 봉합**(DashMap per-key 락, place_room rr++도 1회). conf_basic 2봇으로 실제 재현·봉합 입증("qa_test_01 둘 다 sfu-1"). 자동 uuid 는 place_room→handle→응답 id bind(race 없음). **config**: `[routing] placement`(round_robin default)+`PlacementPolicy{RoundRobin,LeastLoad자리}`. **ws**: ROOM_CREATE 배치+기록·ROOM_LIST all_sfu fan-out 병합·generic dispatch/forward/cleanup `sfu()`→`sfu_for_room`. **합격 ① 분산**(qa_test_01→sfu-1·qa_test_02→sfu-2, sfud별 CREATE 2/2) **② 라우팅**(conf_basic sfu-1·ptt_rapid sfu-2 각 PASS, 매핑없음→SfuUnavailable) **③ 회귀**(단일 sfu 폴백 conf_basic/ptt_rapid PASS). test oxhubd 24·common 24(routing 1)·oxsfud 206 무영향·0 warning. ptt_rapid flake(1/4 floor 타이밍, 재실행 PASS, 라우팅 무관). 발견(trade-off, 부장 백로그): assign_room 은 CREATE 성공 전 기록→sfu 영구다운 시 죽은 매핑 잔존(race>가용성 우선, lazy reconnect 가 일시다운 복구). 범위밖: event 복수화/`sfu()` 폐기=2b·클라=3. `745edf8` |
+| 0603 | `20260603m_cross_sfu_phase2a_done` | 서버 | **hub room 라우팅**(설계 §7). state room_sfu/place_room(RoundRobin)/sfu_for_room(매핑없음 None=폴백X)/all_sfu_clients. ★assign_room=entry().or_insert_with(place_room) 로 동시 same-id CREATE TOCTOU race(방 split) 봉합. config [routing] placement. ws dispatch sfu()→sfu_for_room. 합격 ① 분산 ② 라우팅 ③ 회귀. test oxhubd 24·common 24. `745edf8` |
 
 ## Phase 133: Cross-SFU Phase 2b — event consumer 복수화 + sfu() 폐기 (양방향 완성) (0603n)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603n_cross_sfu_phase2b_done` | 서버 | **sfu별 event consumer(client+admin)→sfu-N 방 이벤트도 클라 도달 = cross-sfu 양방향 시그널링 완성**(요청 2a+이벤트 2b, 설계 §5/§7). 6파일. **A** `run_event_consumer(state,hub_id,sfu_id)` sfu()→sfu_by_id, main `sfu_ids()` 순회 N spawn. `dispatch_event` 무변경(room_id 라우팅=sfu 무관, 1방1sfu). **B** `run_admin_event_consumer` 동일+`dispatch_admin_event(_,_,is_default)`: hub_metrics flush 는 **default sfu consumer 만**(전역 1개 N중복 차단), sfu_metrics 는 sfu별 broadcast. `is_default_sfu()`. **C REST** 공용 헬퍼 `helpers::sfu_route(state,op,d,user_id)`(ROOM_CREATE assign/place+bind·ROOM_LIST all_sfu fan-out 병합·room op sfu_for_room)→rooms.rs("")·admin.rs("admin") 위임(로컬 sfu_handle 중복 제거). **D** `sfu()`(단수 반환) **폐기**(grep 0), `sfu_is_connected`/`default_sfu_id` 유지(default 개념 유효, 거짓은 "단수 반환"뿐). **합격 ① 양방향**(멀티 conf_basic sfu-1+duplex_cache sfu-2 PASS, admin ROOM_LIST fan-out total=2 [qa_test_01,qa_test_03] 병합) **② sfu() grep 0** **③ 회귀**(단일 conf_basic/ptt_rapid PASS). test oxhubd 24·common 24·oxsfud 206 무영향·0 warning. 발견_사항: REST `/media/rooms`(rooms.rs user_id="")는 sfud 전 op `is_authenticated` 요구로 거부=**사전 존재**(admin 경로 정상), rooms.rs 인증/용도 별토픽. 다음 Phase 3=클라(SDK sfu별 PC pair+server_config per-sfu+demo CREATE 전환). `92aaf02` |
+| 0603 | `20260603n_cross_sfu_phase2b_done` | 서버 | **event consumer 복수화 + sfu() 폐기 = cross-sfu 양방향 완성**(설계 §5/§7). run_event/admin_consumer(sfu_id) per-sfu spawn, hub_metrics flush default-only. REST helpers::sfu_route 공용 헬퍼(fan-out/배치/sfu_for_room). sfu() 폐기(grep 0), sfu_is_connected/default_sfu_id 유지. 합격 ① 양방향(fan-out total=2) ② sfu() 폐기 ③ 회귀. test oxhubd 24·common 24. `92aaf02` |
 
 ---
 
