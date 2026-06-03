@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 — **Phase 135 새 SDK 재작성 Phase 1 골격**(oxlens-home `sdk/` 신설 29파일, core/ 보존). 평면=폴더 11 + 본체 2(EventBus/EnvAdapter), 나머지 stub. node 로드 OK(exports 32). 흐름: cross-sfu 서버 완성(129~133) → 레퍼런스 검토(134) → 클라 재작성 골격(135). 다음=Phase 2 transport/ 본체(코어의 코어, cross-sfu 직결). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-03 — **Phase 136 새 SDK Phase 2 — Transport 본체**(publish 2a + subscribe·관측 2b). `sdk/transport/transport.js` = webrtc 종속 단일 응집처 완성: PC pair(pub/sub) + DC ③훅 등록제 + SDP 직렬화 큐 + ontrack→track:received(물리→논리 경계) + collectStats/status(관측 단방향). **engine 의존 전부 bus+sfuId+serverConfig 로 제거**. core/ 무수정, node 검증 ALL PASS. 흐름: 레퍼런스(134) → 클라 골격(135) → Transport 본체(136). 다음=Phase 3(TransportSet or domain 배선). **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1041,6 +1041,13 @@
 |------|------|------|------|
 | 0603 | `20260603p_client_rewrite_scaffold_done` | 클라 | **oxlens-home 웹클라 전면 재작성 골격**(설계 `20260603_client_rewrite_core_design`+`_knowledge`). `sdk/` 신설(29 .js), `core/` 참조 보존(무수정). 평면=폴더 11(runtime/observability/signaling/transport/domain/media/ptt/scope/plugins/shared)+engine.js(얇은 facade). **본체 2개**(후속 토대): event-bus.js(구 event-emitter 이식=EventBus)·env-adapter.js(신설, env:* 정규화 단일창구, navigator/document는 start() typeof 가드=최상위 0, 구독+emit만). shared/constants.js=core verbatim. 나머지 평면 stub(껍데기+시그니처, SCAFFOLD 주석, 본체 0). 의존 단방향(부가→코어), 순환 0. **완료정의 충족**: `node import('./sdk/index.js')` → load OK(exports 32)+Engine{} 인스턴스화(EventBus/EnvAdapter 실생성). 시그니처 선조치: 기본 `(engine)`, 단 Transport`(engine,sfuId)`/Negotiator·DcChannel`(transport)`/Floor·Power·Freeze`(ptt)`/EnvAdapter`(bus)`. 발견: constants 죽은상수 없음(PUB_SET_ID/Pan-Floor는 datachannel.js→mbcp 발췌 Phase 몫). core/demo/빌드/서버 무영향·wire 0. 정지점 0. 다음=Phase 2 transport/ 본체(코어의 코어, cross-sfu 직결). `39e22a1` |
 
+## Phase 136: 새 SDK Phase 2 — Transport 본체 (publish 2a + subscribe·관측 2b) (0603q)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603q_transport_publish_done` | 클라 | **Transport publish 경로 본체**(구 sdp-negotiator publish 흡수). `transport.js`: `constructor(bus,sfuId,serverConfig,opts)` — **engine 의존 제거**(engine.pubPc→this.pubPc / tel.pushCritical→bus.emit('pc:error') / engine.emit→bus.emit pc:ice·conn·failed{sfuId} / mediaConfig→opts). ensurePublishPc/addPublishTrack(bindSender 게이트)/deactivate/_reNegoPublish/enrichPublishIntent(**sig.send 제거**=첨부객체 반환만)/SDP 파서 7종. ③ 훅 등록제(onChannelMessage/_dispatchChannel) — **MBCP 까기·floor 라우팅 제거**(틈⑧ PTT 몫, _resolveFloorFromMsg 미이식). sdp-builder.js=core verbatim 이식. 검증 `_t2a_check.mjs` ALL PASS + `_t2a_check.html`(브라우저 1회). core/ 무수정 |
+| 0603 | `20260603q_transport_subscribe_done` | 클라 | **Transport subscribe·관측 본체**(설계 §3 충족, Transport 완성). queueSubscribeRenego(★Promise 직렬화 큐=glare 차단)/`_setupSubscribePc`(server-offer→client-answer, rollback)/`_pipesToSubscribeTracks`(순수 shape)/`ontrack→bus.emit('track:received')`(**물리 사실만**, mid→pipe/user 매칭은 domain 틈③)/`collectStats()`(getStats raw, Telemetry 호출 틈⑫)/`status` getter(Lifecycle 취합)/sub teardown. **★정정**: BWE monitor=Telemetry 몫(getStats 폴링·해석=관측평면), Transport는 collectStats만 노출(2a §8 잠정 BWE 표기 철회). 선조치: queueSubscribeRenego(recvPipes) serverConfig 인자 생략(per-sfu 보관). 이식 안 함=assignMids/resolveSourceUser/overrideHalfDuplexVideoPt(식별·mutate=domain)/publishTracks류(전송=Phase3). 검증 `_t2b_check.mjs` ALL PASS(직렬화 순서 검증 포함)+2a 회귀 PASS. core/ 무수정. 다음=Phase 3(TransportSet or domain 배선) |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1052,9 +1059,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 330개
+- **총 세션 파일**: 332개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 — Phase 135 새 SDK 재작성 Phase 1 골격(oxlens-home sdk/ 신설 29파일 `39e22a1`, core/ 보존). 평면=폴더 11 + 본체 2(EventBus/EnvAdapter) + stub, node 로드 OK(exports 32). 직전: 134 레퍼런스 검토 / 129~133 cross-sfu 서버. 다음=Phase 2 transport/ 본체. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-03 — Phase 136 새 SDK Phase 2 Transport 본체(publish 2a + subscribe·관측 2b). `sdk/transport/transport.js`=webrtc 단일 응집처 완성(PC pair·DC ③훅·SDP 직렬화 큐·track:received 물리경계·collectStats/status 관측단방향), engine 의존 전부 제거, core/ 무수정, node 검증 ALL PASS. 직전: 135 클라 골격 `39e22a1` / 134 레퍼런스. 다음=Phase 3(TransportSet or domain 배선). 세부는 본문 Phase 표.
 
 ---
 
