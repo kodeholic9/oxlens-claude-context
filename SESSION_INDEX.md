@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 — **Phase 134 클라 재작성 전 Reference 검토**(로컬 3종 mediasoup/LiveKit/Jitsi 코드레벨 정독, Q1~Q5, 코드 0). cross-sfu 서버 control plane 완성(Phase 0~2b, 129~133) → **웹 클라 전면 재작성** 진입 단계. Q5 정체성: 레퍼런스엔 PTT floor 부재 → 우리 갈림 3지점(송신 권한게이트·수신 floor분기·floor 시그널 1급화). 다음 = 온라인 검토 합쳐 새 클라 골격 설계. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-03 — **Phase 135 새 SDK 재작성 Phase 1 골격**(oxlens-home `sdk/` 신설 29파일, core/ 보존). 평면=폴더 11 + 본체 2(EventBus/EnvAdapter), 나머지 stub. node 로드 OK(exports 32). 흐름: cross-sfu 서버 완성(129~133) → 레퍼런스 검토(134) → 클라 재작성 골격(135). 다음=Phase 2 transport/ 본체(코어의 코어, cross-sfu 직결). **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -894,10 +894,10 @@
 
 ## Phase 117: Publisher 2계층 doc 정합 + Slot.subscribers — fanout broadcast 통일 (0531~0601)
 
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0531 | `20260531e_publisher_2layer_doc_sync_done` | 서버 | Publisher 2계층 배선 완료 반영(동작 0) — publisher_stream.rs `#![allow(dead_code)]` 제거(warn 0=전 배선)+fan-out 방향역전/subscribers doc+Peer.publish.tracks 타입 정정. MASTER 마일스톤 현행화. `fdceff3`/`f876054` |
-| 0601 | `20260601_slot_subscribers_done` | 서버 | **Slot.subscribers 도입** — Half fanout lookup #2 소거. Slot에 subscribers(Weak)+attach_subscriber+AttachTarget enum{Track,Slot,None}, broadcast 일반화로 Half/Full 단일 본문 합류. detach=retain. 211 PASS+oxe2e 회귀. `a7a41be`/`fc0ff40` |
+| 날짜   | 파일                                         | 영역  | 요약                                                                                                                                                                                                                         |
+| ---- | ------------------------------------------ | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0531 | `20260531e_publisher_2layer_doc_sync_done` | 서버  | Publisher 2계층 배선 완료 반영(동작 0) — publisher_stream.rs `#![allow(dead_code)]` 제거(warn 0=전 배선)+fan-out 방향역전/subscribers doc+Peer.publish.tracks 타입 정정. MASTER 마일스톤 현행화. `fdceff3`/`f876054`                                     |
+| 0601 | `20260601_slot_subscribers_done`           | 서버  | **Slot.subscribers 도입** — Half fanout lookup #2 소거. Slot에 subscribers(Weak)+attach_subscriber+AttachTarget enum{Track,Slot,None}, broadcast 일반화로 Half/Full 단일 본문 합류. detach=retain. 211 PASS+oxe2e 회귀. `a7a41be`/`fc0ff40` |
 
 > `AttachTarget` enum MUTEX 로 "Track∧Slot" 불가능 상태를 타입이 차단 (tuple 에 `Option<Arc<Slot>>` 한 칸 추가 방식 기각). detach=retain 자연청소(소유=peer.subscribe.streams, Slot=Weak 캐시 — 명시 detach=이중 생명주기 기각).
 > cross-room 방별 Slot 분리 attach 는 단일방 회귀 미보증 → 브라우저 E2E(QA_GUIDE) 별도 확인 거리.
@@ -1035,6 +1035,12 @@
 |------|------|------|------|
 | 0603 | `20260603o_reference_review_local_done` | 검토 | **새 클라 골격 근거 — mediasoup/LiveKit/Jitsi 코드레벨 정독**(베끼기 금지, 사실만). 병렬 정독→Q1~Q5(연결추상화/코어↔확장경계/방·참가자·트랙 계층/재협상·재연결/**트랙평등 가정**) 15셀 표. **Q1**: PC 분리 기준 셋 다름(mediasoup 방향별·LiveKit 역할별 pub/sub·Jitsi 토폴로지)—**LiveKit RTCEngine→PCTransportManager 가 우리 가설 동형**(단 sfu N축 한 겹 더). **Q3**: 셋 다 Track 이 PC 직접 미보유(한 겹 위 sender/receiver)·LiveKit 4계층 TrackPublication 이 구독상태↔물리 분리 최정교. **Q4**: LiveKit resume(보존)/full-restart 2경로=재연결 청사진. **★Q5 정체성**: 3종 모두 "송신 전원평등+수신 자유선택", **exclusive-send(PTT floor/half-duplex) 부재**—평등 3거점(구독 자동/균일·mute=enabled아닌 권한아님·우선순위=대역폭). 우리 갈림 3지점=송신진입 권한게이트+수신진입 floor분기+**floor 시그널 1급화**(레퍼런스엔 자리 자체 없음). 결정=설계회의. 코드 0. 다음=온라인 검토(김대리) 합쳐 골격 설계 문서 |
 
+## Phase 135: 새 SDK 재작성 Phase 1 — 골격(scaffold) (0603p)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603p_client_rewrite_scaffold_done` | 클라 | **oxlens-home 웹클라 전면 재작성 골격**(설계 `20260603_client_rewrite_core_design`+`_knowledge`). `sdk/` 신설(29 .js), `core/` 참조 보존(무수정). 평면=폴더 11(runtime/observability/signaling/transport/domain/media/ptt/scope/plugins/shared)+engine.js(얇은 facade). **본체 2개**(후속 토대): event-bus.js(구 event-emitter 이식=EventBus)·env-adapter.js(신설, env:* 정규화 단일창구, navigator/document는 start() typeof 가드=최상위 0, 구독+emit만). shared/constants.js=core verbatim. 나머지 평면 stub(껍데기+시그니처, SCAFFOLD 주석, 본체 0). 의존 단방향(부가→코어), 순환 0. **완료정의 충족**: `node import('./sdk/index.js')` → load OK(exports 32)+Engine{} 인스턴스화(EventBus/EnvAdapter 실생성). 시그니처 선조치: 기본 `(engine)`, 단 Transport`(engine,sfuId)`/Negotiator·DcChannel`(transport)`/Floor·Power·Freeze`(ptt)`/EnvAdapter`(bus)`. 발견: constants 죽은상수 없음(PUB_SET_ID/Pan-Floor는 datachannel.js→mbcp 발췌 Phase 몫). core/demo/빌드/서버 무영향·wire 0. 정지점 0. 다음=Phase 2 transport/ 본체(코어의 코어, cross-sfu 직결). `39e22a1` |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1046,9 +1052,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 328개
+- **총 세션 파일**: 330개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 — Phase 134 클라 재작성 전 Reference 검토(mediasoup/LiveKit/Jitsi 로컬 3종 Q1~Q5 정독, 코드 0). 직전: cross-sfu 서버 완성 133 2b / 132 2a / 131 l / 130 registry / 129 arg override. Q5: 레퍼런스 PTT floor 부재→우리 갈림 3지점(송신 권한게이트·수신 floor분기·floor 시그널 1급화). 다음=온라인 검토 합쳐 새 클라 골격 설계. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-03 — Phase 135 새 SDK 재작성 Phase 1 골격(oxlens-home sdk/ 신설 29파일 `39e22a1`, core/ 보존). 평면=폴더 11 + 본체 2(EventBus/EnvAdapter) + stub, node 로드 OK(exports 32). 직전: 134 레퍼런스 검토 / 129~133 cross-sfu 서버. 다음=Phase 2 transport/ 본체. 세부는 본문 Phase 표.
 
 ---
 

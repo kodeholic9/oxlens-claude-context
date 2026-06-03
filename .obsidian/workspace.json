@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "SESSION_INDEX.md",
+                "file": "guide/RUN_GUIDE_FOR_AI.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "SESSION_INDEX"
+              "title": "RUN_GUIDE_FOR_AI"
             }
           }
         ]
@@ -185,8 +185,13 @@
   },
   "active": "4816d2ca7fe07f39",
   "lastOpenFiles": [
-    "202606/20260603o_reference_review_local_done.md",
+    "202606/20260603p_client_rewrite_scaffold_done.md",
+    "design/20260603_client_rewrite_core_design.md",
+    "guide/RUN_GUIDE_FOR_AI.md",
+    "claudecode/202606/20260603p_client_rewrite_scaffold.md",
     "design/20260603_client_rewrite_knowledge.md",
+    "SESSION_INDEX.md",
+    "202606/20260603o_reference_review_local_done.md",
     "claudecode/202606/20260603o_reference_review_local.md",
     "202606/20260603n_cross_sfu_phase2b_done.md",
     "claudecode/202606/20260603n_cross_sfu_phase2b.md",
@@ -206,11 +211,6 @@
     "202606/20260603h_supervisor_rename_unit_done.md",
     "claudecode/202606/20260603h_supervisor_rename_unit.md",
     "202606/20260603g_supervisor_intensity_fix_done.md",
-    "claudecode/202606/20260603g_supervisor_intensity_fix.md",
-    "202606/20260603f_supervisor_core_done.md",
-    "claudecode/202606/20260603f_supervisor_core.md",
-    "202606/20260603e_sfud_sigterm_graceful_done.md",
-    "claudecode/202606/20260603e_sfud_sigterm_graceful.md",
     "202606",
     "claudecode/202606",
     "design/architecture"
