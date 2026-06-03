@@ -185,6 +185,9 @@
   },
   "active": "4816d2ca7fe07f39",
   "lastOpenFiles": [
+    "202606/20260603l_cross_sfu_room_create_idempotent_done.md",
+    "claudecode/202606/20260603m_cross_sfu_phase2a.md",
+    "claudecode/202606/20260603l_cross_sfu_room_create_idempotent.md",
     "202606/20260603k_cross_sfu_phase1_done.md",
     "claudecode/202606/20260603k_cross_sfu_phase1.md",
     "202606/20260603j_cross_sfu_phase0_done.md",
@@ -208,9 +211,6 @@
     "202606/20260603c_subscriber_vssrc_align_done.md",
     "claudecode/202606/20260603c_subscriber_vssrc_align.md",
     "202606/20260603b_naming_cleanup_done.md",
-    "202604/20260412_★_ai_활용_조언.md",
-    "claudecode/202606/20260603b_naming_cleanup.md",
-    "PROJECT_WEB.md",
     "202606",
     "claudecode/202606",
     "design/architecture"
