@@ -185,6 +185,9 @@
   },
   "active": "4816d2ca7fe07f39",
   "lastOpenFiles": [
+    "202606/20260603o_reference_review_local_done.md",
+    "design/20260603_client_rewrite_knowledge.md",
+    "claudecode/202606/20260603o_reference_review_local.md",
     "202606/20260603n_cross_sfu_phase2b_done.md",
     "claudecode/202606/20260603n_cross_sfu_phase2b.md",
     "design/20260603_cross_sfu_design.md",
@@ -208,9 +211,6 @@
     "claudecode/202606/20260603f_supervisor_core.md",
     "202606/20260603e_sfud_sigterm_graceful_done.md",
     "claudecode/202606/20260603e_sfud_sigterm_graceful.md",
-    "SESSION_INDEX.md",
-    "202606/20260603d_cleanup_tail_done.md",
-    "claudecode/202606/20260603d_cleanup_tail.md",
     "202606",
     "claudecode/202606",
     "design/architecture"

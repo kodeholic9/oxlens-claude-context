@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-03 — **Phase 133 Cross-SFU Phase 2b**(event consumer 복수화 + sfu() 폐기 → **양방향 시그널링 완성**). cross-sfu 진행: Phase 0 arg override(129) → 1 hub registry(130) → 2선행 l ROOM_CREATE 멱등(131) → 2a 요청 라우팅(132) → 2b 이벤트 복수화(133). 다음 = Phase 3(클라/SDK: sfu별 PC pair + server_config per-sfu + demo CREATE 전환). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-03 — **Phase 134 클라 재작성 전 Reference 검토**(로컬 3종 mediasoup/LiveKit/Jitsi 코드레벨 정독, Q1~Q5, 코드 0). cross-sfu 서버 control plane 완성(Phase 0~2b, 129~133) → **웹 클라 전면 재작성** 진입 단계. Q5 정체성: 레퍼런스엔 PTT floor 부재 → 우리 갈림 3지점(송신 권한게이트·수신 floor분기·floor 시그널 1급화). 다음 = 온라인 검토 합쳐 새 클라 골격 설계. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1029,6 +1029,12 @@
 |------|------|------|------|
 | 0603 | `20260603n_cross_sfu_phase2b_done` | 서버 | **event consumer 복수화 + sfu() 폐기 = cross-sfu 양방향 완성**(설계 §5/§7). run_event/admin_consumer(sfu_id) per-sfu spawn, hub_metrics flush default-only. REST helpers::sfu_route 공용 헬퍼(fan-out/배치/sfu_for_room). sfu() 폐기(grep 0), sfu_is_connected/default_sfu_id 유지. 합격 ① 양방향(fan-out total=2) ② sfu() 폐기 ③ 회귀. test oxhubd 24·common 24. `92aaf02` |
 
+## Phase 134: 클라 재작성 전 Reference 검토 (로컬 3종, 코드 변경 0) (0603o)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603o_reference_review_local_done` | 검토 | **새 클라 골격 근거 — mediasoup/LiveKit/Jitsi 코드레벨 정독**(베끼기 금지, 사실만). 병렬 정독→Q1~Q5(연결추상화/코어↔확장경계/방·참가자·트랙 계층/재협상·재연결/**트랙평등 가정**) 15셀 표. **Q1**: PC 분리 기준 셋 다름(mediasoup 방향별·LiveKit 역할별 pub/sub·Jitsi 토폴로지)—**LiveKit RTCEngine→PCTransportManager 가 우리 가설 동형**(단 sfu N축 한 겹 더). **Q3**: 셋 다 Track 이 PC 직접 미보유(한 겹 위 sender/receiver)·LiveKit 4계층 TrackPublication 이 구독상태↔물리 분리 최정교. **Q4**: LiveKit resume(보존)/full-restart 2경로=재연결 청사진. **★Q5 정체성**: 3종 모두 "송신 전원평등+수신 자유선택", **exclusive-send(PTT floor/half-duplex) 부재**—평등 3거점(구독 자동/균일·mute=enabled아닌 권한아님·우선순위=대역폭). 우리 갈림 3지점=송신진입 권한게이트+수신진입 floor분기+**floor 시그널 1급화**(레퍼런스엔 자리 자체 없음). 결정=설계회의. 코드 0. 다음=온라인 검토(김대리) 합쳐 골격 설계 문서 |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1040,9 +1046,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 326개
+- **총 세션 파일**: 328개
 - **기간**: 2026-03-09 ~ 2026-06-03 (87일)
-- **최종 업데이트**: 2026-06-03 — Phase 133 Cross-SFU Phase 2b(event consumer 복수화 + sfu() 폐기, 양방향 완성 `92aaf02`). 직전: 132 2a 요청 라우팅 / 131 ROOM_CREATE 멱등(l) / 130 hub registry / 129 arg override. 다음 Phase 3(클라/SDK). 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-03 — Phase 134 클라 재작성 전 Reference 검토(mediasoup/LiveKit/Jitsi 로컬 3종 Q1~Q5 정독, 코드 0). 직전: cross-sfu 서버 완성 133 2b / 132 2a / 131 l / 130 registry / 129 arg override. Q5: 레퍼런스 PTT floor 부재→우리 갈림 3지점(송신 권한게이트·수신 floor분기·floor 시그널 1급화). 다음=온라인 검토 합쳐 새 클라 골격 설계. 세부는 본문 Phase 표.
 
 ---
 
