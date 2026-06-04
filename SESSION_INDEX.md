@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-04 — **Phase 141 새 SDK Phase 3e — 수신 경로 완결 (라이브 4/4 PASS)**. 수신 양방향+동적+다자 완결. 핵심=구독 배선(applyTracksUpdate 완성돼 있었으나 `tracks:update` 구독자 없던 게 구멍). room.js 에 tracks:update+room:event 구독(본문 무수정). ontrack 중복 0(add=pipe 생성/ontrack=track 주입). 판단: participant_joined 보류/leave 2단계/batch YAGNI. **라이브 4/4**: alicefirst(hydrate)/bobfirst(TRACKS_UPDATE add 수신)/leave(유령 타일 0)/trio(3인). 스키마 사전 확인으로 라이브 차단 0. harness `?scenario=` 4종. core/·서버 무수정. 흐름: 라이브 E2E(140)→수신 완결(141). 다음=3c(mute)/observability/TransportSet. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-04 — **Phase 142 새 SDK Phase 3c — mute/unmute + setTrackState 단일 게이트(+duplex 흡수)**. mute=`track.enabled` 토글(SSRC 보존, replaceTrack 금지) + MUTE_UPDATE(track_id 우선). 수신=Room track:state 구독→RemotePipe avatar. 교정(설계 20260531 §3·§5): **setMuted→setTrackState({muted?,duplex?}) 단일 게이트**(위반① 쪼갬) + `_onTrackState` 가 **{muted?,active?} 둘 다**+setActive 신설(위반② #14 차단). duplex 전환(0x1106) 흡수, simulcast/half 가드. engine setMuted/setDuplex+facade. mock `_t3c_check` ALL PASS, 회귀 전부 PASS. 라이브 mute=snapshot 으로 SSRC 보존+복원 입증(duplex 라이브=다음). core/·signaling/transport/서버 무수정. 흐름: 수신 완결(141)→mute/게이트(142). 다음=observability/TransportSet/PTT. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1079,6 +1079,13 @@
 |------|------|------|------|
 | 0604 | `20260604d_recv_complete_done` | 클라 | **수신 경로 양방향+동적+다자 완결**(Phase G 의 alice-first 단일 → 3경로). **핵심=구독 배선**(`applyTracksUpdate` 코드는 완성, `tracks:update` emit 구독자 없던 게 구멍). room.js: `bus.on('tracks:update')`→`_onTracksUpdate`(room_id 필터→applyTracksUpdate **본문 무수정**) + `bus.on('room:event')`→`_onRoomEvent`(participant_left→removeParticipant+re-nego) + teardown off 3종. **ontrack 중복 0**: add=recv pipe 생성/ontrack=track 주입(서버 mid 단일 키, 멱등 가드). 판단: participant_joined 보류(트랙 없는 타일=UX 범위 밖)/leave **2단계**(remove=pipe inactive·left=endpoint 제거)/re-nego batch YAGNI(2b 큐 흡수). **스키마 사전 확인**(Phase G 키 교훈): TRACKS_UPDATE `{action,tracks}`(room_id 없음=필터 자동통과) + add track=`_recvPipeOpts` 완전 정합 → 추가 패치 불요. mock `_t3e_check.mjs` ALL PASS(bob-first add/중복0/remove inactive/left endpoint 제거/room_id skip/N-party 합집합 4/teardown). **★라이브 4/4 PASS**(admin snapshot 교차): alicefirst(hydrate)/bobfirst(TRACKS_UPDATE add 수신=구멍 메움 실증)/leave(bob 1명만 남고 alice 트랙 0=유령 타일 0)/trio(alice 가 charlie 수신, 3인). **라이브 차단 0**(사전 스키마 확인 효과). harness `_e2e/` 시나리오 4종(`?scenario=`) + ROOM_CREATE 전역화(bob-first) + leave/disconnect 표면. 회귀 _t3d/_t3b2/_t3b1/_t3a/_t2b ALL PASS. signaling/transport/local-endpoint/core/서버 무수정. 다음=3c(mute) / observability / TransportSet |
 
+## Phase 142: 새 SDK Phase 3c — mute/unmute + setTrackState 단일 게이트(+duplex 흡수) (0604e + 0604f)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0604 | `20260604e_mute_done` | 클라 | **mute/unmute(full-duplex) — 첫 미디어 제어.** 송신=`track.enabled` 토글(replaceTrack 금지=SSRC/BWE/transceiver 보존, 마스터 원칙) + MUTE_UPDATE(0x1103) `{track_id 우선, ssrc, muted}` send. 수신=Room `track:state` 구독(3e 미배선 구멍)→RemotePipe avatar(visibility, mute=일시 vs unmount=제거). half-duplex(PTT floor gating) mute skip. avatar 권위=TRACK_STATE(VIDEO_SUSPENDED 보조). engine `setMuted`+facade. 서버 계약(handle_mute_update): 응답 단순 ack→send, broadcast TRACK_STATE 본인 제외, unmute PLI=서버. ★라이브: snapshot 으로 unmute 복원+SSRC 보존(enabled 토글) 입증. (구조 위반 2건은 아래 0604f 에서 교정 — 합쳐 1커밋) |
+| 0604 | `20260604f_track_state_gate_done` | 클라 | **3c-fix: setTrackState 단일 게이트 통합 + duplex 흡수**(설계 20260531 §3·§5). **위반① 게이트 쪼갬 교정**: `setMuted` 단독→**`setTrackState({muted?,duplex?})` 단일 진입점**(muted→MUTE_UPDATE / duplex→TRACK_STATE_REQ 0x1106 분기). LocalEndpoint 가드(half→mute skip / simulcast→duplex skip §11)를 apply 전. **위반② 수신 active 누락 교정(#14 차단)**: `_onTrackState` 가 `{muted?,active?}` 둘 다 + `RemotePipe.setActive` 신설(`_remoteActive` 별 플래그=base active 생명주기 분리). duplex=enabled 안 건드림(floor 정책). engine `setDuplex` 신설+facade 보존. constants TRACK_STATE_REQ(0x1106) 추가. mock `_t3c_check.mjs` ALL PASS(단일 게이트 muted/duplex 분기 / MUTE_UPDATE·TRACK_STATE_REQ send / half·simulcast 가드 / active=false→setActive #14 차단). 회귀 _t3e/_t3d/_t3b2 전부 PASS. signaling/transport/core/서버 무수정. 라이브(duplex 전환)=harness 시나리오 다음. 다음=observability / TransportSet / PTT |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1090,9 +1097,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 338개
-- **기간**: 2026-03-09 ~ 2026-06-04 (88일)
-- **최종 업데이트**: 2026-06-04 — Phase 141 새 SDK Phase 3e 수신 경로 완결(라이브 4/4 PASS). 핵심=구독 배선(applyTracksUpdate 완성, tracks:update 구독자 없던 구멍). room.js tracks:update+room:event 구독(본문 무수정), ontrack 중복 0. 라이브 4경로: alicefirst/bobfirst(TRACKS_UPDATE add)/leave(유령타일 0)/trio(3인). 스키마 사전 확인으로 라이브 차단 0. harness `?scenario=` 4종. 직전: 140 Phase G / 139 join 글루. 다음=3c(mute)/observability/TransportSet. 세부는 본문 Phase 표.
+- **총 세션 파일**: 340개
+- **기간**: 2026-03-09 ~ 2026-06-05 (89일)
+- **최종 업데이트**: 2026-06-05 — Phase 142 새 SDK Phase 3c mute/unmute + setTrackState 단일 게이트(+duplex 흡수). mute=track.enabled 토글(SSRC 보존)+MUTE_UPDATE(track_id 우선), 수신=Room track:state→RemotePipe avatar. 교정(설계 20260531 §3·§5): setMuted→setTrackState({muted?,duplex?}) 단일 게이트(위반①) + _onTrackState {muted?,active?} 둘 다+setActive(위반② #14 차단). duplex(0x1106) 흡수, simulcast/half 가드. mock _t3c ALL PASS, 회귀 전부. 라이브 mute=SSRC 보존+복원 snapshot 입증. core/·서버 무수정. 직전: 141 수신 완결 / 140 Phase G. 다음=observability/TransportSet/PTT. 세부는 본문 Phase 표.
 
 ---
 
