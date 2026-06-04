@@ -385,4 +385,84 @@ sdk/
 
 ---
 
+## 13. domain 위상 — 송신/수신 비대칭 + 식별(track_id) 1급 + 송출 직렬화 (3b 진입 전 확정)
+
+> 부장님 지시(2026-06-04): "새로 짜는 거니 한방에 끝내자." 3b(publish) 들어가기 전 domain 위상을 코드 근거로 확정. 서버 track_ops.rs / 클라 transport.js·endpoint.js 정독 실증 — 추측 0.
+
+### 13.1 서버 ↔ 클라 대칭 (서버가 이미 확정한 계약)
+
+서버는 송신측·수신측을 **타입으로 분리**했고(PublisherStream/PublisherTrack ↔ SubscriberStream), 발언/청취를 **비대칭**으로 못박았다(`pub_room: ArcSwap<Option<RoomId>>` 단수 / `sub_rooms: HashSet` N개). 클라 domain 도 같은 비대칭·타입 분리로 가야 정합한다. 현 클라는 `Endpoint{type:'local'|'remote'}` + `Pipe{direction:'send'|'recv'}` 런타임 플래그로 두 성격을 한 클래스에 욱여넣어 비대칭이 안 선다(서버 원칙 "구조가 의미를 표현하게, 플래그 의존 말 것" 위반).
+
+| 축 | 서버 | 클라 (신) | 소유자 | 개수 |
+|---|---|---|---|---|
+| 송신(발언) | PublisherStream(논리)+PublisherTrack(물리), pub_room 단수 | **LocalEndpoint + LocalPipe** | **Engine(단일)** | pub_room 1방에만 1 |
+| 수신(청취) | SubscriberStream, sub_rooms N개 | **RemoteEndpoint + RemotePipe** | **Room(방별 분산)** | N방 × 참가자 |
+
+### 13.2 타입 분리 — Local/Remote Endpoint·Pipe
+
+현 `direction` 플래그 분기를 타입으로 승격. 공유 base + 파생.
+
+- **LocalPipe** (송신) — Track Gateway(bindSender/setTrack/suspend/resume/swapTrack/release/deactivate) + trackState 4단계(INACTIVE/ACTIVE/SUSPENDED/RELEASED) + `_stream` 트랙 생명주기. trackState 는 **여기만** 의미. recv 의 `return 'not_applicable'` 가드 전부 소멸(타입으로 갈림).
+- **RemotePipe** (수신) — 표시 제어(mount/unmount/showVideo/hideVideo/freeze) + G2 출력(muted/volume) + mid/ssrc/vssrc 매칭 키. trackState 무의미(항상 수신). send 게이트 메서드 전부 소멸.
+- **base Pipe** — kind/source/duplex/simulcast/track_id/mid 공통 속성 + `_attachTrack`/element 헬퍼(LiveKit attach 패턴 공유).
+- **LocalEndpoint** — LocalPipe 컬렉션 + publish/mute. **Engine 단위 하나**(pub_room 1방 바인딩). 현 `Room.localEndpoint` 폐기 → Engine 소유로 이전.
+- **RemoteEndpoint** — RemotePipe 컬렉션. Room 별 분산(현 구조 유지).
+
+**소유자 확정**: LocalEndpoint = Engine(또는 송출 Transport). 다방 청취해도 송출은 1방이라 Room 마다 local 만들면 N중복 → 서버 pub_room 단수와 깨짐. → Engine 단일 LocalEndpoint, pub_room 인 Room/Transport 에만 바인딩.
+
+### 13.3 `_stream`(MediaStream) 소유 — LocalEndpoint
+
+원본은 Engine 이 `_stream` 소유(God Object). 신: **LocalEndpoint 소유**. publish/mute 가 전부 LocalEndpoint 일이고 track 생명주기와 한 곳에 묶임. acquire 는 track 만 주고(MediaAcquire 게이트), stream 조립(add/removeTrack)은 LocalEndpoint. 장치 평면(MediaAcquire)은 stream 안 가짐 — 그래야 mute 의 track add/remove 가 평면을 안 넘나든다.
+
+### 13.4 식별(track_id) 1급화 — 클라 생성/유추 전멸 (서버 계약 실증)
+
+**서버 계약(track_ops.rs `do_publish_tracks` 정독)**:
+- track_id 발급 = 서버. non-sim/PTT = `{user}_{원본ssrc:x}`. simulcast = `PublisherStream.track_id()`(**vssrc 기반, eager** — `attach_track_to_stream` 의 `PublisherStream::new` 1회).
+- 응답 = `PUBLISH_TRACKS ok` 의 `d.tracks=[{mid, track_id}]`. **클라는 이 track_id 를 받아 키로만** 쓴다(불투명, 파싱 금지).
+- mute/TRACK_STATE_REQ 는 서버가 이미 `req.track_id` 우선(ssrc 하위호환). **서버는 track_id 1급 완료, 클라만 미정합.**
+
+**클라 현 위반(전멸 대상)**:
+- `room.js` hydrate / `endpoint.js` publishAudio·_publishCamera·_publishScreen 의 `mic-${uid}-${Date.now()}` / `cam-` / `scr-` **자체 생성**.
+- `room.js` `_assignMids` 의 클라 mid fallback(`this._nextMid++`).
+- `room.js` `_onTrackReceived` 의 `stream.id.startsWith('light-')` userId **유추**.
+- → 전부 폐기. **track_id 출처 = 서버 응답(PUBLISH_TRACKS ok d.tracks / TRACKS_UPDATE / TRACK_STATE 통지) 단일.** send pipe 는 PUBLISH_TRACKS ok 로 track_id 학습, recv pipe 는 TRACKS_UPDATE add 의 track_id 그대로.
+
+### 13.5 simulcast vssrc — 서버 RTP-first lazy, 단 track_id/vssrc 는 eager 응답 (실증)
+
+- 서버: simulcast 는 placeholder(sentinel ssrc `0xF000_0000|n`) 등록 + 실 ssrc 는 RTP 도착 시 rid 분화(lazy). **그러나 논리 Stream 의 track_id/vssrc 는 PUBLISH_TRACKS 시점 eager 확정** → 응답에 실림.
+- 클라: non-sim 은 `enrichPublishIntent` 이 `_parseSsrcPair` 로 SDP 실 ssrc 를 mutate 해 PUBLISH_TRACKS 에 실어 보냄(서버 `if ssrc==0 {continue}` 등록 조건 충족). simulcast 는 ssrc=0 으로 보내고 서버가 vssrc 기반 track_id eager 응답 → 클라는 그 track_id/vssrc 를 RemotePipe egress 매칭에 사용. **클라가 RTP 흐른 뒤 getStats 로 vssrc 역추출 = race(금지). 응답이 유일 출처.**
+
+### 13.6 RTP 송출 직렬화 — PUBLISH_TRACKS ok 받고 RTP 시작 (race 제거)
+
+**현 race(endpoint.js 실증)**: `addPublishTransceiver`(addTransceiver(track) → track 이 sender 에 붙음 → reNego → ICE 연결 시 **RTP 흐르기 시작**) **직후** `publishTracks`(전송, **ok 안 기다림**). 서버가 track_id/ssrc 확정·응답 전에 RTP 가 흐르면 식별 매칭 어긋남.
+
+**신 직렬화 순서(LocalEndpoint.publishX)**:
+1. `transport.addPublishTrack(track, pipe)` — transceiver 생성 + reNego (**단 track 즉시 부착 금지** — 아래 주의)
+2. `transport.enrichPublishIntent(tracks)` — SDP 에서 extmap/mid/PT/ssrc 첨부 객체 반환
+3. `sig.send(PUBLISH_TRACKS, body)` → **await ok 응답**
+4. ok 의 `d.tracks[].track_id` 를 pipe 에 학습(키 확정)
+5. **그 다음** track 활성(`pipe.setTrack` → RTP 시작)
+
+**주의(race-free 핵심)**: 현 `addPublishTrack` 은 `addTransceiver(track,...)` 로 **track 을 즉시 부착**한다. 그러면 3 단계 ok 전에 RTP 가 샐 수 있다. → **transceiver 는 만들되 track 은 ok 후 부착**하는 2단계 분리 필요. 후보: `addTransceiver(null|track, sendonly)` 로 m-line 만 잡고(또는 track 부착 후 `replaceTrack(null)` 로 즉시 비움), ok 후 `pipe.setTrack(track)`. 3b 지침에서 webrtc 거동 확인 후 확정(sendonly + track=null 시 ssrc 가 SDP 에 나오는지 = enrich 의 `_parseSsrcPair` 가능 여부에 영향 — 검증 필요).
+
+### 13.7 송출방 없음 / DC-only (위상 엣지)
+
+- **pub_room null**(viewer/monitor/floor 미취득 PTT) — LocalEndpoint 는 존재하되 LocalPipe 0개. "송출 자격 없음"을 빈 LocalEndpoint 로 표현. Transport 는 pubPc+DC 만(transceiver 0).
+- **DC-only** — track-less pubPc. `ensurePublishPc` 가 DC 셋업 + DC-only SDP 협상까지(현 transport.js 이미 그렇게 동작 — bearer 무관 DC 먼저). 미디어 transceiver 는 첫 publishX 에서.
+- → LocalEndpoint 생성과 LocalPipe 발행은 분리. join 시 LocalEndpoint 만, publish 시 LocalPipe.
+
+### 13.8 PTT virtual track 의 자리 (위상 분류)
+
+- track_id = `ptt-{room}-{audio|video}` (서버 track_ops.rs `TrackType::HalfNonSim` arm 에서 발급, slot.virtual_ssrc). **방 단위 1쌍**(참가자별 아님).
+- 수신측이지만 RemoteEndpoint 에 안 들어감 — 현 구조도 `Engine._pttPipes`(Room 우회)였음(틈⑤). 신: **Transport(또는 PTT 서브시스템) 소유, sfu별 1쌍.** RemotePipe 와 별도 분류(특정 발화자 귀속 아님 — slot).
+- 3b 범위 밖(PTT Phase). 단 위상 표에서 "수신이되 Room 분산 아닌 sfu/slot 단위" 자리 명시.
+
+### 13.9 3b 진입 전제 (이 위상이 GO 면)
+
+- Phase 3b = **full-duplex publish 만** (LocalEndpoint.publishAudio/Video/Screen) + 송출 직렬화(13.6) + track_id 학습(13.4) + `_stream` LocalEndpoint 소유(13.3) + acquire verbatim 이식 + sig 최소(PUBLISH_TRACKS 송수신).
+- 분리: mute/toggleMute(full)·dummy track = 3c. half-duplex 분기(틈④)·Power = PTT Phase. filter = 폐기. BWE = Telemetry Phase.
+- 타입 분리(Local/RemotePipe, 13.2) 선행 여부 = 부장님 결정. **권고: 3b 와 함께** — publish 이식하며 LocalPipe 를 새로 만드는 게, 플래그 Pipe 이식 후 다시 가르는 것보다 쌈(한방). 단 RemotePipe 는 3a 가 이미 verbatim 이식했으므로 3b 에서 base 추출 + Local/Remote 분리 리팩터 동반.
+
+---
+
 *author: kodeholic (powered by Claude)*
