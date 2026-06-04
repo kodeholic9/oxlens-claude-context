@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-04 — **Phase 139 새 SDK Phase 3d — join orchestration**. engine.js 에 connect→handshake→`joinRoom(await request(ROOM_JOIN))`→`room.hydrate(d)`→`enableMic/Camera`(publish 위임) 글루 배선. ★v2→v3: `_joinResolve` 멤버+`_onJoinOk` 콜백 폐기→request pid Promise 직접 수신. hydrate=Room.hydrate(existing_tracks→recv pipe+re-nego, ontrack 과 서버 mid 키로 역할 분리=중복 0). leaveRoom/disconnect teardown. 단일방 full-duplex 만(멀티룸/reconnect/PTT/lifecycle=후속). node mock E2E ALL PASS. Phase G(라이브 2-peer) 진입 준비 완료(서버+JWT+harness 필요). 흐름: domain publish(138)→join 글루(139). 다음=Phase G / 3c(mute) / observability. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-04 — **Phase 140 새 SDK Phase G — 라이브 2-peer E2E (5/5 PASS)**. 신규 sdk 의 connect→IDENTIFY→ROOM_CREATE→ROOM_JOIN→publish→subscribe 가 **실 2-sfu 서버에서 실동작 확정**(첫 실 RTP). 방안 A(최소 harness `sdk/_e2e/`, 본체 격리)+수동 RUN. §13.6 직렬화/enrich ssrc/track_id 1급/hydrate 라이브 실증. **Phase G 발견 2 차단 진단·해소**: ① qa_* 사전생성 폐기→ROOM_CREATE 선행(QA README stale) ② ROOM_JOIN 응답=`{participants,tracks}`(wire 카탈로그 stale)→**hydrate 키 본체 패치**. ③ admin WS=v3 wire, 2-sfu metrics per-sfu 모호→snapshot 판정. core/·서버 무수정. 흐름: join 글루(139)→라이브 E2E(140). 다음=3c(mute)/TRACKS_UPDATE consumer/observability/TransportSet. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1065,7 +1065,13 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0604 | `20260604b_join_orchestration_done` | 클라 | **engine.js join 전체 흐름 배선**(3b publish 를 부를 진입점). **★v2→v3**: `sig.send(ROOM_JOIN)`+`_joinResolve` 멤버+`_onJoinOk` 콜백 **전부 폐기** → `await signaling.request(OP.ROOM_JOIN)` 단일(pid Promise). 흐름: `connect()`→signaling handshake(HELLO→IDENTIFY→IDENTIFY_RESULT→`identified`)→engine `_waitIdentified` 대기 / `joinRoom()`→await request→`assembleRoom(pubRoom)`→`room.hydrate(d)`→`join:ok`. **hydrate=방안 A(Room.hydrate)**: `d.existing_tracks`→recv pipe(서버 track_id/mid/ssrc 단일, §13.4)+`_renegotiateSubscribe`(생성분 있을 때만). **recv pipe 중복 0**: ontrack(track:received)은 pipe 안 만들고 matchPipeByMid 로 hydrate 가 만든 pipe 에 track 만 주입(서버 mid 단일 키 역할 분리)+멱등 가드. `enableMic/Camera/Screen`→`localEndpoint.publish*` 위임(join 과 분리, `_publishGuard`→media:fail+throw). `leaveRoom`=ROOM_LEAVE+Room/Transport teardown. `disconnect`=전체 teardown(+`_rejectAllPending`). 범위=**단일방 full-duplex**(멀티룸/reconnect/PTT/scope/lifecycle=후속). 검증 `_t3d_check.mjs` ALL PASS(12: connect→join→hydrate+re-nego→v2 콜백 폐기 assert→멱등→enableMic ACTIVE+track_id→track:received(bob)→media:track→leave→disconnect)+회귀+index 40. core/·signaling/transport/local-endpoint 무수정. **Phase G(라이브 2-peer)=서버+JWT+harness 필요, 진입 준비 완료**. 다음=Phase G / 3c(mute) / observability / TransportSet |
+| 0604 | `20260604b_join_orchestration_done` | 클라 | **engine.js join 전체 흐름 배선**(3b publish 를 부를 진입점). **★v2→v3**: `sig.send(ROOM_JOIN)`+`_joinResolve` 멤버+`_onJoinOk` 콜백 **전부 폐기** → `await signaling.request(OP.ROOM_JOIN)` 단일(pid Promise). 흐름: `connect()`→signaling handshake(HELLO→IDENTIFY→IDENTIFY_RESULT→`identified`)→engine `_waitIdentified` 대기 / `joinRoom()`→await request→`assembleRoom(pubRoom)`→`room.hydrate(d)`→`join:ok`. **hydrate=방안 A(Room.hydrate)**: `d.existing_tracks`→recv pipe(서버 track_id/mid/ssrc 단일, §13.4)+`_renegotiateSubscribe`(생성분 있을 때만). **recv pipe 중복 0**: ontrack(track:received)은 pipe 안 만들고 matchPipeByMid 로 hydrate 가 만든 pipe 에 track 만 주입(서버 mid 단일 키 역할 분리)+멱등 가드. `enableMic/Camera/Screen`→`localEndpoint.publish*` 위임(join 과 분리, `_publishGuard`→media:fail+throw). `leaveRoom`=ROOM_LEAVE+Room/Transport teardown. `disconnect`=전체 teardown(+`_rejectAllPending`). 범위=**단일방 full-duplex**(멀티룸/reconnect/PTT/scope/lifecycle=후속). 검증 `_t3d_check.mjs` ALL PASS(12)+회귀+index 40. core/·signaling/transport/local-endpoint 무수정. 다음=Phase G |
+
+## Phase 140: 새 SDK Phase G — 라이브 2-peer E2E (★ 신규 sdk 첫 실 RTP 검증, 5/5 PASS) (0604c)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0604 | `20260604c_phase_g_live_e2e_done` | 클라 | **신규 sdk 첫 라이브 검증 — connect→IDENTIFY→ROOM_CREATE→ROOM_JOIN→publish→subscribe 가 실 2-sfu 서버에서 실동작 확정(5/5 PASS).** 방안 A(최소 harness `sdk/_e2e/{peer,index,README}`, 본체 격리) + 실행 (ii) 수동(브라우저 자동화 MCP 부재). 3d 표면만 호출(connect/joinRoom/enableCamera/enableMic), admin WS(v3 wire frame, op 0x3002 snapshot) 교차검증. **Pass**: #1 alice publish→track_id 학습(§13.6 직렬화+enrich ssrc 라이브) / #2 bob hydrate→실 디코드 / #3 track_id=`alice_{ssrc:x}`(§13.4) / #4 stream_map RTP 서버 도착 / #5 학습값==admin 등록값. **★Phase G 발견(2 차단 진단+해소)**: ① qa_* 사전생성 폐기(Phase 131)→ROOM_CREATE 선행 필수(QA README stale) → harness 가 선행 ② **ROOM_JOIN 응답=`{participants, tracks}`**(wire 카탈로그 §4 `{members,existing_tracks}` stale) → **hydrate 키 본체 패치**(`d.tracks||...`, engine join:ok 카운트). d.tracks 스키마(helpers.rs collect_subscribe_tracks)가 `_recvPipeOpts` 완전 정합. ③ admin WS=v3 wire frame, 2-sfu sfu_metrics per-sfu 모호→snapshot 방-귀속 판정. ④ server_config.ice.ip=LAN(무해) ⑤ 별건 TRACKS_UPDATE consumer 미배선(bob-first 경로, join orchestration 후속). `_t3d_check.mjs` 실 키(participants/tracks)로 회귀 ALL PASS. core/·서버 무수정. 다음=3c(mute) / TRACKS_UPDATE consumer / observability / TransportSet |
 
 ---
 
@@ -1078,9 +1084,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 336개
+- **총 세션 파일**: 337개
 - **기간**: 2026-03-09 ~ 2026-06-04 (88일)
-- **최종 업데이트**: 2026-06-04 — Phase 139 새 SDK Phase 3d join orchestration. engine.js connect→handshake→joinRoom(await request(ROOM_JOIN))→room.hydrate→enable* publish 글루. v2 콜백(_joinResolve/_onJoinOk) 폐기→pid Promise. hydrate=Room.hydrate(existing_tracks→recv pipe+re-nego, ontrack 과 중복 0). 단일방 full-duplex(멀티룸/reconnect/PTT=후속). node mock E2E ALL PASS, Phase G(라이브) 진입 준비. 직전: 138 domain publish / 137 수신. 다음=Phase G / 3c(mute) / observability. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-04 — Phase 140 새 SDK Phase G 라이브 2-peer E2E (5/5 PASS). connect→IDENTIFY→ROOM_CREATE→ROOM_JOIN→publish→subscribe 실 2-sfu 서버 실동작 확정(첫 실 RTP). harness sdk/_e2e/(본체 격리)+수동 RUN. 발견 2차단 해소: qa_* 사전생성 폐기→ROOM_CREATE 선행 / ROOM_JOIN 응답={participants,tracks}→hydrate 키 본체 패치. admin WS=v3 wire, 2-sfu metrics→snapshot 판정. core/·서버 무수정. 직전: 139 join 글루 / 138 publish. 다음=3c(mute)/TRACKS_UPDATE consumer/observability/TransportSet. 세부는 본문 Phase 표.
 
 ---
 
