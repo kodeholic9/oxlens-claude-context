@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-04 — **Phase 140 새 SDK Phase G — 라이브 2-peer E2E (5/5 PASS)**. 신규 sdk 의 connect→IDENTIFY→ROOM_CREATE→ROOM_JOIN→publish→subscribe 가 **실 2-sfu 서버에서 실동작 확정**(첫 실 RTP). 방안 A(최소 harness `sdk/_e2e/`, 본체 격리)+수동 RUN. §13.6 직렬화/enrich ssrc/track_id 1급/hydrate 라이브 실증. **Phase G 발견 2 차단 진단·해소**: ① qa_* 사전생성 폐기→ROOM_CREATE 선행(QA README stale) ② ROOM_JOIN 응답=`{participants,tracks}`(wire 카탈로그 stale)→**hydrate 키 본체 패치**. ③ admin WS=v3 wire, 2-sfu metrics per-sfu 모호→snapshot 판정. core/·서버 무수정. 흐름: join 글루(139)→라이브 E2E(140). 다음=3c(mute)/TRACKS_UPDATE consumer/observability/TransportSet. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-04 — **Phase 141 새 SDK Phase 3e — 수신 경로 완결 (라이브 4/4 PASS)**. 수신 양방향+동적+다자 완결. 핵심=구독 배선(applyTracksUpdate 완성돼 있었으나 `tracks:update` 구독자 없던 게 구멍). room.js 에 tracks:update+room:event 구독(본문 무수정). ontrack 중복 0(add=pipe 생성/ontrack=track 주입). 판단: participant_joined 보류/leave 2단계/batch YAGNI. **라이브 4/4**: alicefirst(hydrate)/bobfirst(TRACKS_UPDATE add 수신)/leave(유령 타일 0)/trio(3인). 스키마 사전 확인으로 라이브 차단 0. harness `?scenario=` 4종. core/·서버 무수정. 흐름: 라이브 E2E(140)→수신 완결(141). 다음=3c(mute)/observability/TransportSet. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1073,6 +1073,12 @@
 |------|------|------|------|
 | 0604 | `20260604c_phase_g_live_e2e_done` | 클라 | **신규 sdk 첫 라이브 검증 — connect→IDENTIFY→ROOM_CREATE→ROOM_JOIN→publish→subscribe 가 실 2-sfu 서버에서 실동작 확정(5/5 PASS).** 방안 A(최소 harness `sdk/_e2e/{peer,index,README}`, 본체 격리) + 실행 (ii) 수동(브라우저 자동화 MCP 부재). 3d 표면만 호출(connect/joinRoom/enableCamera/enableMic), admin WS(v3 wire frame, op 0x3002 snapshot) 교차검증. **Pass**: #1 alice publish→track_id 학습(§13.6 직렬화+enrich ssrc 라이브) / #2 bob hydrate→실 디코드 / #3 track_id=`alice_{ssrc:x}`(§13.4) / #4 stream_map RTP 서버 도착 / #5 학습값==admin 등록값. **★Phase G 발견(2 차단 진단+해소)**: ① qa_* 사전생성 폐기(Phase 131)→ROOM_CREATE 선행 필수(QA README stale) → harness 가 선행 ② **ROOM_JOIN 응답=`{participants, tracks}`**(wire 카탈로그 §4 `{members,existing_tracks}` stale) → **hydrate 키 본체 패치**(`d.tracks||...`, engine join:ok 카운트). d.tracks 스키마(helpers.rs collect_subscribe_tracks)가 `_recvPipeOpts` 완전 정합. ③ admin WS=v3 wire frame, 2-sfu sfu_metrics per-sfu 모호→snapshot 방-귀속 판정. ④ server_config.ice.ip=LAN(무해) ⑤ 별건 TRACKS_UPDATE consumer 미배선(bob-first 경로, join orchestration 후속). `_t3d_check.mjs` 실 키(participants/tracks)로 회귀 ALL PASS. core/·서버 무수정. 다음=3c(mute) / TRACKS_UPDATE consumer / observability / TransportSet |
 
+## Phase 141: 새 SDK Phase 3e — 수신 경로 완결 (bob-first/leave/N-party, 라이브 4/4 PASS) (0604d)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0604 | `20260604d_recv_complete_done` | 클라 | **수신 경로 양방향+동적+다자 완결**(Phase G 의 alice-first 단일 → 3경로). **핵심=구독 배선**(`applyTracksUpdate` 코드는 완성, `tracks:update` emit 구독자 없던 게 구멍). room.js: `bus.on('tracks:update')`→`_onTracksUpdate`(room_id 필터→applyTracksUpdate **본문 무수정**) + `bus.on('room:event')`→`_onRoomEvent`(participant_left→removeParticipant+re-nego) + teardown off 3종. **ontrack 중복 0**: add=recv pipe 생성/ontrack=track 주입(서버 mid 단일 키, 멱등 가드). 판단: participant_joined 보류(트랙 없는 타일=UX 범위 밖)/leave **2단계**(remove=pipe inactive·left=endpoint 제거)/re-nego batch YAGNI(2b 큐 흡수). **스키마 사전 확인**(Phase G 키 교훈): TRACKS_UPDATE `{action,tracks}`(room_id 없음=필터 자동통과) + add track=`_recvPipeOpts` 완전 정합 → 추가 패치 불요. mock `_t3e_check.mjs` ALL PASS(bob-first add/중복0/remove inactive/left endpoint 제거/room_id skip/N-party 합집합 4/teardown). **★라이브 4/4 PASS**(admin snapshot 교차): alicefirst(hydrate)/bobfirst(TRACKS_UPDATE add 수신=구멍 메움 실증)/leave(bob 1명만 남고 alice 트랙 0=유령 타일 0)/trio(alice 가 charlie 수신, 3인). **라이브 차단 0**(사전 스키마 확인 효과). harness `_e2e/` 시나리오 4종(`?scenario=`) + ROOM_CREATE 전역화(bob-first) + leave/disconnect 표면. 회귀 _t3d/_t3b2/_t3b1/_t3a/_t2b ALL PASS. signaling/transport/local-endpoint/core/서버 무수정. 다음=3c(mute) / observability / TransportSet |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1084,9 +1090,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 337개
+- **총 세션 파일**: 338개
 - **기간**: 2026-03-09 ~ 2026-06-04 (88일)
-- **최종 업데이트**: 2026-06-04 — Phase 140 새 SDK Phase G 라이브 2-peer E2E (5/5 PASS). connect→IDENTIFY→ROOM_CREATE→ROOM_JOIN→publish→subscribe 실 2-sfu 서버 실동작 확정(첫 실 RTP). harness sdk/_e2e/(본체 격리)+수동 RUN. 발견 2차단 해소: qa_* 사전생성 폐기→ROOM_CREATE 선행 / ROOM_JOIN 응답={participants,tracks}→hydrate 키 본체 패치. admin WS=v3 wire, 2-sfu metrics→snapshot 판정. core/·서버 무수정. 직전: 139 join 글루 / 138 publish. 다음=3c(mute)/TRACKS_UPDATE consumer/observability/TransportSet. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-04 — Phase 141 새 SDK Phase 3e 수신 경로 완결(라이브 4/4 PASS). 핵심=구독 배선(applyTracksUpdate 완성, tracks:update 구독자 없던 구멍). room.js tracks:update+room:event 구독(본문 무수정), ontrack 중복 0. 라이브 4경로: alicefirst/bobfirst(TRACKS_UPDATE add)/leave(유령타일 0)/trio(3인). 스키마 사전 확인으로 라이브 차단 0. harness `?scenario=` 4종. 직전: 140 Phase G / 139 join 글루. 다음=3c(mute)/observability/TransportSet. 세부는 본문 Phase 표.
 
 ---
 
