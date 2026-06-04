@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-04 — **Phase 137 새 SDK Phase 3a — domain 이식 + 수신 배선**. domain 3계층(Pipe/Endpoint/Room) stub→본체, engine 의존→bus+transport 주입. 수신 3점: ①Room 이 `track:received` 직접 구독(engine 안 거침)→matchPipeByMid→media:track ②applyTracksUpdate 후 `queueSubscribeRenego` 호출(2b 실증) ③assignMids domain 이식. Pipe=core verbatim(filter import만 제거). 보류=Floor/PTT/publish/sendTracksAck(TODO). 발견=멀티룸 합집합 미구현(TransportSet 사유). core/ 무수정, node ALL PASS. 흐름: 골격(135)→Transport(136)→domain 수신(137). 다음=3b(publish) or TransportSet. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-04 — **Phase 138 새 SDK Phase 3b — domain publish + 타입 분리 + v2 잔재 청산**(+결함패치 0604a). 5계약 한방(설계 §13): ①타입 분리(base Pipe + Local/Remote Pipe·Endpoint, LocalEndpoint=Engine 소유) ②signaling v2 청산(_handleResponse switch 전멸→request pid Promise) ③track_id 1급(서버 응답 단일, 클라 생성/유추 전멸) ④송출 직렬화(addPublishTrack 2단계 replaceTrack(null)→ok→setTrack RTP) ⑤MediaAcquire 이식. ★§3 webrtc 실증(헤드리스 Chrome+Node CDP): replaceTrack(null) 후 ssrc 잔존→2단계 안전. 결함2건(mid 가드/에러 정리) 패치. node ALL PASS. **Phase G(실 RTP)=라이브 미실행**. 흐름: domain 수신(137)→domain publish(138). 다음=3d join orchestration. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1054,6 +1054,13 @@
 |------|------|------|------|
 | 0603 | `20260603r_domain_subscribe_wiring_done` | 클라 | **domain 3계층(Pipe/Endpoint/Room) stub→본체 이식 + Transport 수신 3점 배선**(2b 인터페이스 첫 실증). engine 의존→**bus+transport 주입**. **수신 3점**: ① `track:received` = Room 이 직접 `bus.on` 구독(engine 안 거침=단방향)→sfuId 라우팅→matchPipeByMid→pipe.track→`media:track` 재emit(구 `_handleOnTrack`+`resolveOnTrack` 흡수) ② `queueSubscribeRenego` = applyTracksUpdate(add/remove) 후 `transport.queueSubscribeRenego(recv 합집합)` 호출 ③ `assignMids` = negotiator→domain(`Room._assignMids`) 이식. **Pipe**=core verbatim(트랙 게이트 보존 자산), media-filter.js import만 제거+`_ensureFilterPipeline()→null` 무력화(필터 폐기 §7, 들어내기는 기각=graceful no-op). **Endpoint**=Pipe관리·조회·outputHooks·teardown만(publish/mute=3b, `_engine` 제거). **engine.js**=조립 배선 최소(`assembleRoom`/`_ensureTransport`, join 흐름 재작성 안 함). 보류(TODO): Floor 생성(PTT 미구현→floor=null)·PTT virtual track 분기·sendTracksAck(signaling stub)·overrideHalfDuplexVideoPt·publish. 검증 `_t3a_check.mjs` ALL PASS(14: recv pipe 생성/renego 1회+인자합집합/track:received→media:track/mid·sfuId 실패 skip/PTT TODO skip/teardown bus.off)+index 36+2b 회귀. **발견**: 멀티룸 합집합 미구현(같은 transport 공유 시 각 Room renego 덮어씀)→engine 승격 필요(`triggerSubscribeRenego()` public 지점 마련)=다음 TransportSet 사유. core/ 무수정. 정지점 1. 다음=3b(publish) or TransportSet |
 
+## Phase 138: 새 SDK Phase 3b — domain publish + 타입 분리 + v2 잔재 청산 (0603s + 0604a 결함패치)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0603 | `20260603s_domain_publish_done` | 클라 | **전면 재작성 5계약 한방**(설계 §13 + wire_v3_catalog §0·§1). **①타입 분리**(§13.2): 단일 Pipe/Endpoint(플래그) → **base Pipe + LocalPipe(송신 Track Gateway+trackState 4단계+G1+unbindSender 신설)/RemotePipe(수신 표시제어+G2)** + **LocalEndpoint(Engine 소유 1, `_stream` 소유)/RemoteEndpoint(Room 소유 N)**. direction 가드 소멸, filter 4종 폐기, endpoint.js 제거. **②signaling v2 청산**: `_handleResponse` op switch **전멸**(14 case) → **request pid Promise 단일**(wire §1: Request=ACK=응답). ACK 두 역할 분리(윈도우 슬라이딩+pid resolve), `_handleEvent` 단방향 push만 bus.emit. `constructor(sdk)`→`({bus,url,token,userId})`. wire.js 발췌 이식. **③track_id 1급**(§13.4): 클라 mic-/cam-/`_assignMids`/light- 유추 전멸 → 서버 응답 d.tracks 단일 출처. **④송출 직렬화**(§13.6): acquire→addPublishTrack(**track 2단계 부착=replaceTrack(null) RTP 차단**)→enrich→`sig.request(PUBLISH_TRACKS)` await ok→track_id 학습→`setTrack`(RTP). **⑤MediaAcquire** verbatim 이식. ★§3 webrtc 실증(헤드리스 Chrome 148 + Node CDP 자작): `replaceTrack(null)` 후에도 a=ssrc/FID 잔존→2단계 안전, sim=rid(ssrc 0). 검증 `_t3b1`(타입/signaling)+`_t3b2`(직렬화 race-free/track_id 학습) ALL PASS+회귀. transport.addPublishTrack 에 replaceTrack(null) 추가(§9 허용). **Phase G(실 2-peer RTP+admin)=라이브 미실행**(서버/JWT/join orchestration 부재). core/ 무수정 |
+| 0604 | `20260604a_publish_defects_done` | 클라 | **3b 결함 2건 소형 패치**(`_publishOne` 단일). **결함1(다중 video mid)**: webrtc 실측(tx.mid=setLocalDescription 후 채워짐, addPublishTrack 이 reNego await 후 반환→항상 non-null, 다중 video distinct) → **(a) 방어 가드만**(`if(mid==null) throw`), `_parseSsrcPair`·addPublishTrack 무수정. **결함2(에러 누수)**: `_publishOne` try/catch — request reject 시 임시 키 `m:mid` 제거 + `deactivatePublishTrack`(transceiver inactive) + `publish:fail` emit + **rethrow(삼키기 금지)**. 검증 `_t3b2_check` 확장 ALL PASS(가드 throw+키 정리 / reject→rethrow+키제거+deactivate+fail emit)+회귀. 다중 video 실측=Phase G 이월. 단일 파일. 다음=3d join orchestration or Phase G |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1065,9 +1072,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 333개
+- **총 세션 파일**: 335개
 - **기간**: 2026-03-09 ~ 2026-06-04 (88일)
-- **최종 업데이트**: 2026-06-04 — Phase 137 새 SDK Phase 3a domain 이식+수신 배선. Pipe/Endpoint/Room stub→본체, engine→bus+transport 주입. 수신 3점(track:received 직접 구독→media:track / queueSubscribeRenego 호출=2b 실증 / assignMids domain 이식). Pipe=core verbatim(filter import만 제거), 보류=Floor/PTT/publish/sendTracksAck. 발견=멀티룸 합집합 미구현(TransportSet 사유). engine.js 조립 배선 최소. core/ 무수정, node ALL PASS. 직전: 136 Transport 본체 / 135 골격. 다음=3b(publish) or TransportSet. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-04 — Phase 138 새 SDK Phase 3b domain publish + 타입 분리 + v2 잔재 청산(+0604a 결함패치). 5계약(타입 분리 base+Local/Remote / signaling _handleResponse→request pid Promise / track_id 서버 단일 / 송출 직렬화 2단계 replaceTrack(null) / MediaAcquire). §3 webrtc 실증=헤드리스 Chrome+Node CDP(ssrc 잔존 확인). 결함 2건(mid 가드/에러 정리) 패치. node ALL PASS, Phase G 실 RTP 라이브 미실행. 직전: 137 domain 수신 / 136 Transport. 다음=3d join orchestration. 세부는 본문 Phase 표.
 
 ---
 
