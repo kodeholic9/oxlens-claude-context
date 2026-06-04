@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-04 — **Phase 138 새 SDK Phase 3b — domain publish + 타입 분리 + v2 잔재 청산**(+결함패치 0604a). 5계약 한방(설계 §13): ①타입 분리(base Pipe + Local/Remote Pipe·Endpoint, LocalEndpoint=Engine 소유) ②signaling v2 청산(_handleResponse switch 전멸→request pid Promise) ③track_id 1급(서버 응답 단일, 클라 생성/유추 전멸) ④송출 직렬화(addPublishTrack 2단계 replaceTrack(null)→ok→setTrack RTP) ⑤MediaAcquire 이식. ★§3 webrtc 실증(헤드리스 Chrome+Node CDP): replaceTrack(null) 후 ssrc 잔존→2단계 안전. 결함2건(mid 가드/에러 정리) 패치. node ALL PASS. **Phase G(실 RTP)=라이브 미실행**. 흐름: domain 수신(137)→domain publish(138). 다음=3d join orchestration. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-04 — **Phase 139 새 SDK Phase 3d — join orchestration**. engine.js 에 connect→handshake→`joinRoom(await request(ROOM_JOIN))`→`room.hydrate(d)`→`enableMic/Camera`(publish 위임) 글루 배선. ★v2→v3: `_joinResolve` 멤버+`_onJoinOk` 콜백 폐기→request pid Promise 직접 수신. hydrate=Room.hydrate(existing_tracks→recv pipe+re-nego, ontrack 과 서버 mid 키로 역할 분리=중복 0). leaveRoom/disconnect teardown. 단일방 full-duplex 만(멀티룸/reconnect/PTT/lifecycle=후속). node mock E2E ALL PASS. Phase G(라이브 2-peer) 진입 준비 완료(서버+JWT+harness 필요). 흐름: domain publish(138)→join 글루(139). 다음=Phase G / 3c(mute) / observability. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1061,6 +1061,12 @@
 | 0603 | `20260603s_domain_publish_done` | 클라 | **전면 재작성 5계약 한방**(설계 §13 + wire_v3_catalog §0·§1). **①타입 분리**(§13.2): 단일 Pipe/Endpoint(플래그) → **base Pipe + LocalPipe(송신 Track Gateway+trackState 4단계+G1+unbindSender 신설)/RemotePipe(수신 표시제어+G2)** + **LocalEndpoint(Engine 소유 1, `_stream` 소유)/RemoteEndpoint(Room 소유 N)**. direction 가드 소멸, filter 4종 폐기, endpoint.js 제거. **②signaling v2 청산**: `_handleResponse` op switch **전멸**(14 case) → **request pid Promise 단일**(wire §1: Request=ACK=응답). ACK 두 역할 분리(윈도우 슬라이딩+pid resolve), `_handleEvent` 단방향 push만 bus.emit. `constructor(sdk)`→`({bus,url,token,userId})`. wire.js 발췌 이식. **③track_id 1급**(§13.4): 클라 mic-/cam-/`_assignMids`/light- 유추 전멸 → 서버 응답 d.tracks 단일 출처. **④송출 직렬화**(§13.6): acquire→addPublishTrack(**track 2단계 부착=replaceTrack(null) RTP 차단**)→enrich→`sig.request(PUBLISH_TRACKS)` await ok→track_id 학습→`setTrack`(RTP). **⑤MediaAcquire** verbatim 이식. ★§3 webrtc 실증(헤드리스 Chrome 148 + Node CDP 자작): `replaceTrack(null)` 후에도 a=ssrc/FID 잔존→2단계 안전, sim=rid(ssrc 0). 검증 `_t3b1`(타입/signaling)+`_t3b2`(직렬화 race-free/track_id 학습) ALL PASS+회귀. transport.addPublishTrack 에 replaceTrack(null) 추가(§9 허용). **Phase G(실 2-peer RTP+admin)=라이브 미실행**(서버/JWT/join orchestration 부재). core/ 무수정 |
 | 0604 | `20260604a_publish_defects_done` | 클라 | **3b 결함 2건 소형 패치**(`_publishOne` 단일). **결함1(다중 video mid)**: webrtc 실측(tx.mid=setLocalDescription 후 채워짐, addPublishTrack 이 reNego await 후 반환→항상 non-null, 다중 video distinct) → **(a) 방어 가드만**(`if(mid==null) throw`), `_parseSsrcPair`·addPublishTrack 무수정. **결함2(에러 누수)**: `_publishOne` try/catch — request reject 시 임시 키 `m:mid` 제거 + `deactivatePublishTrack`(transceiver inactive) + `publish:fail` emit + **rethrow(삼키기 금지)**. 검증 `_t3b2_check` 확장 ALL PASS(가드 throw+키 정리 / reject→rethrow+키제거+deactivate+fail emit)+회귀. 다중 video 실측=Phase G 이월. 단일 파일. 다음=3d join orchestration or Phase G |
 
+## Phase 139: 새 SDK Phase 3d — join orchestration (connect→join→hydrate→publish 글루) (0604b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0604 | `20260604b_join_orchestration_done` | 클라 | **engine.js join 전체 흐름 배선**(3b publish 를 부를 진입점). **★v2→v3**: `sig.send(ROOM_JOIN)`+`_joinResolve` 멤버+`_onJoinOk` 콜백 **전부 폐기** → `await signaling.request(OP.ROOM_JOIN)` 단일(pid Promise). 흐름: `connect()`→signaling handshake(HELLO→IDENTIFY→IDENTIFY_RESULT→`identified`)→engine `_waitIdentified` 대기 / `joinRoom()`→await request→`assembleRoom(pubRoom)`→`room.hydrate(d)`→`join:ok`. **hydrate=방안 A(Room.hydrate)**: `d.existing_tracks`→recv pipe(서버 track_id/mid/ssrc 단일, §13.4)+`_renegotiateSubscribe`(생성분 있을 때만). **recv pipe 중복 0**: ontrack(track:received)은 pipe 안 만들고 matchPipeByMid 로 hydrate 가 만든 pipe 에 track 만 주입(서버 mid 단일 키 역할 분리)+멱등 가드. `enableMic/Camera/Screen`→`localEndpoint.publish*` 위임(join 과 분리, `_publishGuard`→media:fail+throw). `leaveRoom`=ROOM_LEAVE+Room/Transport teardown. `disconnect`=전체 teardown(+`_rejectAllPending`). 범위=**단일방 full-duplex**(멀티룸/reconnect/PTT/scope/lifecycle=후속). 검증 `_t3d_check.mjs` ALL PASS(12: connect→join→hydrate+re-nego→v2 콜백 폐기 assert→멱등→enableMic ACTIVE+track_id→track:received(bob)→media:track→leave→disconnect)+회귀+index 40. core/·signaling/transport/local-endpoint 무수정. **Phase G(라이브 2-peer)=서버+JWT+harness 필요, 진입 준비 완료**. 다음=Phase G / 3c(mute) / observability / TransportSet |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1072,9 +1078,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 335개
+- **총 세션 파일**: 336개
 - **기간**: 2026-03-09 ~ 2026-06-04 (88일)
-- **최종 업데이트**: 2026-06-04 — Phase 138 새 SDK Phase 3b domain publish + 타입 분리 + v2 잔재 청산(+0604a 결함패치). 5계약(타입 분리 base+Local/Remote / signaling _handleResponse→request pid Promise / track_id 서버 단일 / 송출 직렬화 2단계 replaceTrack(null) / MediaAcquire). §3 webrtc 실증=헤드리스 Chrome+Node CDP(ssrc 잔존 확인). 결함 2건(mid 가드/에러 정리) 패치. node ALL PASS, Phase G 실 RTP 라이브 미실행. 직전: 137 domain 수신 / 136 Transport. 다음=3d join orchestration. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-04 — Phase 139 새 SDK Phase 3d join orchestration. engine.js connect→handshake→joinRoom(await request(ROOM_JOIN))→room.hydrate→enable* publish 글루. v2 콜백(_joinResolve/_onJoinOk) 폐기→pid Promise. hydrate=Room.hydrate(existing_tracks→recv pipe+re-nego, ontrack 과 중복 0). 단일방 full-duplex(멀티룸/reconnect/PTT=후속). node mock E2E ALL PASS, Phase G(라이브) 진입 준비. 직전: 138 domain publish / 137 수신. 다음=Phase G / 3c(mute) / observability. 세부는 본문 Phase 표.
 
 ---
 
