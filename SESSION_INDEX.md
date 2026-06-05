@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-06 — **Phase 145 새 SDK observability + TransportSet**. Telemetry getStats→transport.collectStats() 경유(틈⑫, 이벤트감지 16종 보존). Lifecycle status 횡단조회 폐기→각 평면 status getter 취합(틈⑩, transport.status+signaling.connState+ptt). TransportSet(Map<sfuId,Transport>) 본체 + engine _renegotiateSfu(같은 sfu 전 Room recv pipe 합집합 1회 renego, Room 자기 renego 폐기 §2.4). Lifecycle/Telemetry engine 인스턴스화 + Phase 구동. 관측 단방향 철칙 + 단일 sfu 동형(YAGNI §2.5). mock 전부 PASS(status 취합·합집합 양쪽 트랙 잔존·타 sfu 제외), 회귀 PTT/T3d/T3c/T2b PASS, index 48. Phase 0 offChannelMessage 단독 commit(55dfd3a) 선행. 다음=C 덩어리(plugins/데모 실배선/cross-sfu 관측 취합). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-06 — **Phase 146 CLIENT_EVENT 사건 보고 채널(wire 3곳)**. 클라 사건 단일 통로 0x1304 신설(track-dump 폐기 흡수). 신규 event-reporter.js(배치 200ms/20, 미식별 버퍼 보존 100, 단방향 bus 구독+sig.send). 신규 emit pipe:identity(식별축)/mount·unmount(DOM)/room:sync_diff. 서버 oxsig opcode+신규 client_event.rs(agg_inc_with 녹임)+dispatch, oxhubd 무변경(passthrough). ★발견이슈=dispatch None→빈 wire→클라 decode throw→ACK_OK 회신으로 조치(TELEMETRY 동형). mock 전부 PASS, 클라 회귀 PASS index 49, 서버 빌드/15테스트 PASS. home f84516b/server dfccd85. 다음=Phase D 라이브(부장 RUN). **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1104,6 +1104,12 @@
 |------|------|------|------|
 | 0605 | `20260605b_observability_transportset_done` | 클라 | **관측 평면 2개 본체화 + cross-sfu 물리축(TransportSet)**. **Phase 0**(단독 `55dfd3a`): `transport.offChannelMessage(svc,handler)` 신설 — floor.detach 무음실패(MBCP 핸들러 누수, teardown 후 죽은 floor 가 DC 계속 수신) 차단. **A**(틈⑫): `telemetry.js` 구 core 이식 + pubPc/subPc 직접 getStats→`transport.collectStats()` 경유. delta·이벤트감지 16종·링버퍼(50)·서버보고 보존, sdk.emit→bus.emit. **단방향 철칙**: telemetry 가 transport/sig/ptt 읽되 평면은 telemetry 무참조(의존 역전). **B**(틈⑩): `lifecycle.js` 구 core 이식 + `get status()` 전 평면 횡단조회 폐기→**각 평면 status getter 취합**(transport.status pub.conn/ice·sub.conn·dc + signaling.connState + ptt state/speaker/power + 자기 media/recovery). Phase FSM(IDLE→CONNECTED→JOINED→PUBLISHING→READY)+Recovery 묶음 보존. **C(★정지점)**: `transport-set.js` 본체(`Map<sfuId,Transport>` has/get/ensure 멱등/remove teardown+삭제/collectStats·statusAll 취합/teardown). engine `_transports`Map→`transportSet` 승격 + ★`_renegotiateSfu(sfuId)`=같은 sfu **전 Room recv pipe 합집합 1회 renego**(타 sfu 제외). `room.setRenegoHook` — `_renegotiateSubscribe` 자기 pipe renego 폐기→engine 합집합 승격(§2.4, 같은 sub PC 공유 시 서로 덮어써 한쪽 트랙 누락 방지). engine Lifecycle/Telemetry 인스턴스화(assembleRoom pubRoom 에서 transport+ptt 바인딩)+Phase 구동(connect→CONNECTED/join→JOINED+telemetry.start/publish→PUBLISHING/leave·disconnect→stop+reset). **단일 sfu 동형 보존**(YAGNI §2.5, 측정 전 분기 금지). mock 전부 PASS(status 평면 합산·합집합 A 2트랙+B 1트랙→3개 양쪽 잔존+타 sfu C 제외). 회귀 PTT/T3d/T3c/T2b PASS, index 48. 발견=cross-sfu Telemetry/Lifecycle 취합 미배선(TransportSet.collectStats/statusAll 준비됨, supervisor 2-sfu 라이브 시 승격)·cross-sfu 실측 미수행(멀티룸 mock 까지). §5 밖 무변경. 다음=C 덩어리(plugins/데모 실배선/cross-sfu 관측 취합). `fdedb76` |
 
+## Phase 146: CLIENT_EVENT 사건 보고 채널 — event-reporter + 서버 핸들러 (0605d, wire 3곳)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0605 | `20260605d_client_event_done` | 클라+서버 | **클라 사건 보고 단일 통로(`CLIENT_EVENT 0x1304`)** — track-dump 폐기 흡수. 설계 `design/20260605_client_event_design.md`. **A(클라 통로)**: op 0x1304 + wire(priorityOf P2/INFO·requiresAck false) + **신규 `observability/event-reporter.js`**(deps{bus,sig}, 배치=200ms 디바운스+크기20 상한 먼저닿는쪽 flush, 미식별 connState≠IDENTIFIED 시 무전송+버퍼 보존 상한100 오래된것부터 폐기, `identified` 재구독→보존분 재전송. 구독=transport pc:failed/error/conn + signaling ws:disconnected/reconnect:attempt·exhausted/conn:state). **단방향**(bus 구독+sig.send 만, 평면 핸들 0). engine 조립(join start/leave·disconnect stop). **B(신규 emit+식별축 흡수)**: `pipe:identity`(publish=local-endpoint track_id 학습 후 learned / subscribe=room hydrate·applyTracksUpdate add·recycle mid 배정 후, 확정 1회 role publish·subscribe) + `pipe:mount/unmount`(remote-pipe DOM 게이트, base pipe.js 에 bus 주입·_recvPipeOpts bus:this.bus, LocalPipe 송신=emit 없음) + `room:sync_diff`(calcSyncDiff missing/extra 있을 때만, 정상 무음). track-dump [1][4] 식별 축 흡수. **C(★정지점 서버)**: oxsig opcode 0x1304(Request)+ALL_OPS+테스트(catalog_size 42→43·request_category) / **신규 `oxsfud/.../handler/client_event.rs`**(events 순회 agg_inc_with(client_event:source:event:severity 카운터, room 단위), SESSION_DISCONNECT agg 패턴 동형) / mod.rs dispatch arm / `wire_v3_catalog.md` §7. **oxhubd 변경 0**(v3 wire passthrough 가 미등록 op 자동 forward). **★발견이슈(조치완료)**: dispatch `None`→sfud 빈 wire(sfu_service:139)→hub 가 빈 프레임 클라 passthrough(ws/mod:704)→`decodeFrame` throw. None 안전은 Hub→SFU 내부통보(SESSION_DISCONNECT)뿐. 조치=fire-and-forget 은 클라측(send()/requiresAck=false)에서 충족, 서버는 wire 정합상 TELEMETRY 동형 **ACK_OK 회신**(클라 매칭 pid 없어 무시·무해). mock 전부 PASS(배치/보존/정규화/identity/sync_diff), 클라 회귀 PTT/T3d/T3c/T2b PASS index 49, 서버 oxsig 15테스트+oxsfud/oxhubd 빌드 PASS. 발견=추천1대로 decoder_stall 이중수집 회피(telemetry events 유지, er 는 타 평면만)·track-dump.js stub 폐기 가능·agg-log 는 카운터라 detail 미보존. mount/unmount=DOM 경로 Phase D 라이브 검증. 다음=Phase D 라이브(부장 RUN). home `f84516b` / server `dfccd85` |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1115,9 +1121,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 342개
+- **총 세션 파일**: 343개
 - **기간**: 2026-03-09 ~ 2026-06-06 (90일)
-- **최종 업데이트**: 2026-06-06 — Phase 145 새 SDK observability + TransportSet. Telemetry getStats→transport.collectStats()(틈⑫)+Lifecycle status 평면 취합(틈⑩)+TransportSet(Map<sfuId,Transport>)+engine _renegotiateSfu(같은 sfu 전 Room recv pipe 합집합, Room 자기 renego 폐기 §2.4)+Lifecycle/Telemetry 인스턴스화+Phase 구동. Phase 0 offChannelMessage 단독 commit(55dfd3a) 선행. 관측 단방향+단일 sfu 동형(YAGNI). mock 전부 PASS, 회귀 PTT/T3d/T3c/T2b PASS, index 48. 직전: 144 PTT D~E / 143 PTT A~C. 다음=C 덩어리(plugins/데모 실배선/cross-sfu 관측 취합). 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-06 — Phase 146 CLIENT_EVENT 사건 보고 채널(wire 3곳). 클라 통로 0x1304 + 신규 event-reporter.js(배치 200ms/20, 미식별 보존 100, 단방향) + 신규 emit(pipe:identity 식별축/mount·unmount/sync_diff) + 서버 oxsig opcode·신규 client_event.rs(agg 녹임)·dispatch, oxhubd 무변경. ★발견이슈 dispatch None→빈 wire→클라 throw→ACK_OK 회신 조치. mock 전부 PASS, 클라 회귀 PASS index 49, 서버 빌드/15테스트 PASS. home f84516b/server dfccd85. 직전: 145 observability+TransportSet / 144 PTT D~E. 다음=Phase D 라이브(부장 RUN). 세부는 본문 Phase 표.
 
 ---
 

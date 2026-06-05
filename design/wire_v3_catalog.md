@@ -122,6 +122,7 @@ body 는 카테고리 별 JSON 또는 binary (Floor MBCP).
 | `0x1301` | MESSAGE | text/data |
 | `0x1302` | TELEMETRY | C → S telemetry push |
 | `0x1303` | ANNOTATE | annotation |
+| `0x1304` | CLIENT_EVENT | C → S 사건 보고(배치, fire-and-forget). event-reporter → agg-log 녹임 + admin. priority P2(INFO). 서버 ACK_OK 회신(wire 정합, 클라 무시) |
 | `0x1701` | MODERATE | hub 로컬 |
 
 ---
