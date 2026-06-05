@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-05 — **Phase 143 새 SDK PTT 서브시스템 A~C(★정지점)**. OxLens 정체성(무전). A: shared/dc-frame.js(frame codec 분리, Transport③+PTT 공유)+ptt/mbcp.js 발췌(죽은코드 청산)+transport core/ 의존 0 복원+env:netchange. B floor.js(결합 청산 §4.1: sendUnreliable(MBCP) 단일/onChannelMessage 자기등록/bus.emit/MUTEX 폐기). C power.js(결합 청산 §4.2: bus.on floor:*·env:*/localEndpoint 위임/floor.state 주입/pipe 게이트). 코어 if(ptt)=0, ③ 훅으로만. mock 전부 PASS, core/ 의존 0, index 48. 직전: 142 mute/게이트 / 141 수신완결. 다음 GO 후=Phase D(virtual+freeze+조립)+E(라이브 발화/freeze/wake). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-05 — **Phase 144 새 SDK PTT D~E — 조립 + half publish + 라이브**. virtual.js(PTT slot)+freeze.js(floor:taken→show/idle→hide, left:-9999px)+ptt.js 조립(순서 §8: virtual→freeze→floor→power, 공개 API). engine 배선(assembleRoom→Ptt.start, Room isPttVirtualTrack→ensureVirtual). half-duplex publish 개통(opts.duplex). harness ?scenario=ptt(발화권 단일성+freeze). mock 전부 PASS, 코어 if(ptt)=0 통과, index 48. 라이브: admin 2-sfu 측정 보정(roomsById 누적) 후 RUN 성공. PTT A~E 조립 완료. 다음=observability/TransportSet/데모 실배선. **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1092,6 +1092,12 @@
 |------|------|------|------|
 | 0605 | `20260605a_ptt_subsystem_done` | 클라 | **PTT 서브시스템 골격(A~C)** — OxLens 정체성(무전). 코어 if(ptt)=0, ③ 훅으로만. **A**: `shared/dc-frame.js` 신설(SVC+buildFrame/parseFrame, Transport③+PTT 공유, 역참조 방지) + `ptt/mbcp.js` 발췌(buildRequest/Release/Ack/parseMsg, **죽은코드 청산**=PUB_SET_ID/MUTEX/pubSetId 제거 틈⑨) + **transport.js TEMP import 해소→core/ 실 import 0** + env-adapter `env:netchange`. **B floor.js**(구 floor-fsm, 클래스 FloorFsm): 결합 청산 §4.1 — `transport.sendUnreliable(SVC.MBCP)` 단일(③, bearer Transport 흡수)/`onChannelMessage` 자기등록(③)/`bus.emit`(①)/deps 주입/MUTEX 폐기(request(priority), dest=[roomId]). T101/T104 보존. **C power.js**(구 power-manager) ★정지점: 결합 청산 §4.2 — `bus.on('floor:*'/'env:*')`(①·틈⑥)/`localEndpoint.getHalfDuplexPipes·syncStream` 위임(§2.7)/`this.floor.state` 주입/`pipe.suspend·resume·release`(②). HOT/STANDBY/COLD FSM+audio-first resume+video bg 보존. bearer 현행 유지(§7, Floor 모름). mock 전부 ALL PASS(floor request/grant/release/taken, power 하강/wake/granted), index 48, core/ 의존 0, 회귀 3c/3e/2b. 발견: transport offChannelMessage 부재(detach no-op, Phase D 판단). 다음 GO 후=Phase D(virtual+freeze+ptt.js 조립+engine 배선)+E(데모/라이브 발화·freeze·wake) |
 
+## Phase 144: 새 SDK PTT Phase D~E — 조립 + half publish + harness ptt 시나리오 (0605a §7~11)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0605 | `20260605a_ptt_subsystem_done` (§7~11) | 클라 | **PTT 조립 완료(D)+harness 라이브 시나리오(E)**. **D**: `virtual.js`(PttVirtual — PTT slot pipe RemotePipe half/userId=null 방단위 1쌍, track:received 의 ptt mid 흡수→media:track{isPtt}, 구 engine._ensurePttPipe) + `freeze.js`(floor:taken→showVideo(left:0,rVFC)/idle→hideVideo(left:-9999px), display:none 금지, ② 게이트) + `ptt.js` 조립(floor+power+virtual+freeze, 공개 API request/release/queuePosRequest+getter, **순서 등록 §8** virtual→freeze→floor→power, Floor↔Power 내부결선 틈③). engine 배선: assembleRoom(pubRoom)→`new Ptt`+`start`+`room.setPttVirtual`, leave/disconnect→`stop`, Room isPttVirtualTrack 분기→`ensureVirtual`(TODO skip 해소). **E**: half-duplex publish 경로 개통(LocalEndpoint publishAudio/_publishCamera `opts.duplex`, half→simulcast 강제 off) + harness `?scenario=ptt`(peer `?duplex=half`+pttRequest/Release/freezes, index scPtt: alice 발화→bob freeze:show→release→hide). mock `_ptt_check.mjs` ALL PASS(발화/청취/wake/stop). **코어 if(ptt)=0 통과**(Transport svc 중계/LocalPipe 게이트/bus 이벤트, ptt 조립). 회귀 3d/3c/3e/2b PASS, index 48. **★라이브 RUN**: admin 2-sfu 측정 보정(roomsById 누적) 후 #3 PASS(snapshot alice tracks active). 발견: admin snapshot 첫 RUN 타이밍(미수신)→재RUN PASS(snapshot 대기 권고). core/·서버 무수정. 다음=observability/TransportSet/데모 실배선 |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1105,7 +1111,7 @@
 
 - **총 세션 파일**: 341개
 - **기간**: 2026-03-09 ~ 2026-06-05 (89일)
-- **최종 업데이트**: 2026-06-05 — Phase 143 새 SDK PTT 서브시스템 A~C(★정지점). shared/dc-frame.js(frame codec 분리)+ptt/mbcp.js 발췌(transport core/ 의존 0 복원)+floor.js(결합 청산 §4.1)+power.js(§4.2). 코어 if(ptt)=0, ③ 훅으로만. mock 전부 PASS, index 48. 다음 GO 후=Phase D(virtual/freeze/조립)+E(라이브). 직전: 142 mute/게이트 / 141 수신완결. 세부는 본문 Phase 표. mute=track.enabled 토글(SSRC 보존)+MUTE_UPDATE(track_id 우선), 수신=Room track:state→RemotePipe avatar. 교정(설계 20260531 §3·§5): setMuted→setTrackState({muted?,duplex?}) 단일 게이트(위반①) + _onTrackState {muted?,active?} 둘 다+setActive(위반② #14 차단). duplex(0x1106) 흡수, simulcast/half 가드. mock _t3c ALL PASS, 회귀 전부. 라이브 mute=SSRC 보존+복원 snapshot 입증. core/·서버 무수정. 직전: 141 수신 완결 / 140 Phase G. 다음=observability/TransportSet/PTT. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-05 — Phase 144 새 SDK PTT D~E 조립+half publish+라이브. virtual/freeze/ptt.js 조립(순서 §8)+engine 배선. half-duplex publish 개통(opts.duplex). harness ?scenario=ptt. mock 전부 PASS, 코어 if(ptt)=0 통과, index 48. 라이브: admin 2-sfu 측정 보정 후 RUN 성공. PTT A~E 완료. 직전: 143 PTT A~C / 142 mute. 다음=observability/TransportSet/데모 실배선. 세부는 본문 Phase 표.
 
 ---
 
