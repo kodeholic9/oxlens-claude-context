@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-04 — **Phase 142 새 SDK Phase 3c — mute/unmute + setTrackState 단일 게이트(+duplex 흡수)**. mute=`track.enabled` 토글(SSRC 보존, replaceTrack 금지) + MUTE_UPDATE(track_id 우선). 수신=Room track:state 구독→RemotePipe avatar. 교정(설계 20260531 §3·§5): **setMuted→setTrackState({muted?,duplex?}) 단일 게이트**(위반① 쪼갬) + `_onTrackState` 가 **{muted?,active?} 둘 다**+setActive 신설(위반② #14 차단). duplex 전환(0x1106) 흡수, simulcast/half 가드. engine setMuted/setDuplex+facade. mock `_t3c_check` ALL PASS, 회귀 전부 PASS. 라이브 mute=snapshot 으로 SSRC 보존+복원 입증(duplex 라이브=다음). core/·signaling/transport/서버 무수정. 흐름: 수신 완결(141)→mute/게이트(142). 다음=observability/TransportSet/PTT. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-05 — **Phase 143 새 SDK PTT 서브시스템 A~C(★정지점)**. OxLens 정체성(무전). A: shared/dc-frame.js(frame codec 분리, Transport③+PTT 공유)+ptt/mbcp.js 발췌(죽은코드 청산)+transport core/ 의존 0 복원+env:netchange. B floor.js(결합 청산 §4.1: sendUnreliable(MBCP) 단일/onChannelMessage 자기등록/bus.emit/MUTEX 폐기). C power.js(결합 청산 §4.2: bus.on floor:*·env:*/localEndpoint 위임/floor.state 주입/pipe 게이트). 코어 if(ptt)=0, ③ 훅으로만. mock 전부 PASS, core/ 의존 0, index 48. 직전: 142 mute/게이트 / 141 수신완결. 다음 GO 후=Phase D(virtual+freeze+조립)+E(라이브 발화/freeze/wake). **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1086,6 +1086,12 @@
 | 0604 | `20260604e_mute_done` | 클라 | **mute/unmute(full-duplex) — 첫 미디어 제어.** 송신=`track.enabled` 토글(replaceTrack 금지=SSRC/BWE/transceiver 보존, 마스터 원칙) + MUTE_UPDATE(0x1103) `{track_id 우선, ssrc, muted}` send. 수신=Room `track:state` 구독(3e 미배선 구멍)→RemotePipe avatar(visibility, mute=일시 vs unmount=제거). half-duplex(PTT floor gating) mute skip. avatar 권위=TRACK_STATE(VIDEO_SUSPENDED 보조). engine `setMuted`+facade. 서버 계약(handle_mute_update): 응답 단순 ack→send, broadcast TRACK_STATE 본인 제외, unmute PLI=서버. ★라이브: snapshot 으로 unmute 복원+SSRC 보존(enabled 토글) 입증. (구조 위반 2건은 아래 0604f 에서 교정 — 합쳐 1커밋) |
 | 0604 | `20260604f_track_state_gate_done` | 클라 | **3c-fix: setTrackState 단일 게이트 통합 + duplex 흡수**(설계 20260531 §3·§5). **위반① 게이트 쪼갬 교정**: `setMuted` 단독→**`setTrackState({muted?,duplex?})` 단일 진입점**(muted→MUTE_UPDATE / duplex→TRACK_STATE_REQ 0x1106 분기). LocalEndpoint 가드(half→mute skip / simulcast→duplex skip §11)를 apply 전. **위반② 수신 active 누락 교정(#14 차단)**: `_onTrackState` 가 `{muted?,active?}` 둘 다 + `RemotePipe.setActive` 신설(`_remoteActive` 별 플래그=base active 생명주기 분리). duplex=enabled 안 건드림(floor 정책). engine `setDuplex` 신설+facade 보존. constants TRACK_STATE_REQ(0x1106) 추가. mock `_t3c_check.mjs` ALL PASS(단일 게이트 muted/duplex 분기 / MUTE_UPDATE·TRACK_STATE_REQ send / half·simulcast 가드 / active=false→setActive #14 차단). 회귀 _t3e/_t3d/_t3b2 전부 PASS. signaling/transport/core/서버 무수정. 라이브(duplex 전환)=harness 시나리오 다음. 다음=observability / TransportSet / PTT |
 
+## Phase 143: 새 SDK PTT 서브시스템 Phase A~C — frame codec 분리 + floor + power (★정지점) (0605a)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0605 | `20260605a_ptt_subsystem_done` | 클라 | **PTT 서브시스템 골격(A~C)** — OxLens 정체성(무전). 코어 if(ptt)=0, ③ 훅으로만. **A**: `shared/dc-frame.js` 신설(SVC+buildFrame/parseFrame, Transport③+PTT 공유, 역참조 방지) + `ptt/mbcp.js` 발췌(buildRequest/Release/Ack/parseMsg, **죽은코드 청산**=PUB_SET_ID/MUTEX/pubSetId 제거 틈⑨) + **transport.js TEMP import 해소→core/ 실 import 0** + env-adapter `env:netchange`. **B floor.js**(구 floor-fsm, 클래스 FloorFsm): 결합 청산 §4.1 — `transport.sendUnreliable(SVC.MBCP)` 단일(③, bearer Transport 흡수)/`onChannelMessage` 자기등록(③)/`bus.emit`(①)/deps 주입/MUTEX 폐기(request(priority), dest=[roomId]). T101/T104 보존. **C power.js**(구 power-manager) ★정지점: 결합 청산 §4.2 — `bus.on('floor:*'/'env:*')`(①·틈⑥)/`localEndpoint.getHalfDuplexPipes·syncStream` 위임(§2.7)/`this.floor.state` 주입/`pipe.suspend·resume·release`(②). HOT/STANDBY/COLD FSM+audio-first resume+video bg 보존. bearer 현행 유지(§7, Floor 모름). mock 전부 ALL PASS(floor request/grant/release/taken, power 하강/wake/granted), index 48, core/ 의존 0, 회귀 3c/3e/2b. 발견: transport offChannelMessage 부재(detach no-op, Phase D 판단). 다음 GO 후=Phase D(virtual+freeze+ptt.js 조립+engine 배선)+E(데모/라이브 발화·freeze·wake) |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1097,9 +1103,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 340개
+- **총 세션 파일**: 341개
 - **기간**: 2026-03-09 ~ 2026-06-05 (89일)
-- **최종 업데이트**: 2026-06-05 — Phase 142 새 SDK Phase 3c mute/unmute + setTrackState 단일 게이트(+duplex 흡수). mute=track.enabled 토글(SSRC 보존)+MUTE_UPDATE(track_id 우선), 수신=Room track:state→RemotePipe avatar. 교정(설계 20260531 §3·§5): setMuted→setTrackState({muted?,duplex?}) 단일 게이트(위반①) + _onTrackState {muted?,active?} 둘 다+setActive(위반② #14 차단). duplex(0x1106) 흡수, simulcast/half 가드. mock _t3c ALL PASS, 회귀 전부. 라이브 mute=SSRC 보존+복원 snapshot 입증. core/·서버 무수정. 직전: 141 수신 완결 / 140 Phase G. 다음=observability/TransportSet/PTT. 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-05 — Phase 143 새 SDK PTT 서브시스템 A~C(★정지점). shared/dc-frame.js(frame codec 분리)+ptt/mbcp.js 발췌(transport core/ 의존 0 복원)+floor.js(결합 청산 §4.1)+power.js(§4.2). 코어 if(ptt)=0, ③ 훅으로만. mock 전부 PASS, index 48. 다음 GO 후=Phase D(virtual/freeze/조립)+E(라이브). 직전: 142 mute/게이트 / 141 수신완결. 세부는 본문 Phase 표. mute=track.enabled 토글(SSRC 보존)+MUTE_UPDATE(track_id 우선), 수신=Room track:state→RemotePipe avatar. 교정(설계 20260531 §3·§5): setMuted→setTrackState({muted?,duplex?}) 단일 게이트(위반①) + _onTrackState {muted?,active?} 둘 다+setActive(위반② #14 차단). duplex(0x1106) 흡수, simulcast/half 가드. mock _t3c ALL PASS, 회귀 전부. 라이브 mute=SSRC 보존+복원 snapshot 입증. core/·서버 무수정. 직전: 141 수신 완결 / 140 Phase G. 다음=observability/TransportSet/PTT. 세부는 본문 Phase 표.
 
 ---
 
