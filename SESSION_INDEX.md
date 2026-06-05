@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-05 — **Phase 144 새 SDK PTT D~E — 조립 + half publish + 라이브**. virtual.js(PTT slot)+freeze.js(floor:taken→show/idle→hide, left:-9999px)+ptt.js 조립(순서 §8: virtual→freeze→floor→power, 공개 API). engine 배선(assembleRoom→Ptt.start, Room isPttVirtualTrack→ensureVirtual). half-duplex publish 개통(opts.duplex). harness ?scenario=ptt(발화권 단일성+freeze). mock 전부 PASS, 코어 if(ptt)=0 통과, index 48. 라이브: admin 2-sfu 측정 보정(roomsById 누적) 후 RUN 성공. PTT A~E 조립 완료. 다음=observability/TransportSet/데모 실배선. **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-06 — **Phase 145 새 SDK observability + TransportSet**. Telemetry getStats→transport.collectStats() 경유(틈⑫, 이벤트감지 16종 보존). Lifecycle status 횡단조회 폐기→각 평면 status getter 취합(틈⑩, transport.status+signaling.connState+ptt). TransportSet(Map<sfuId,Transport>) 본체 + engine _renegotiateSfu(같은 sfu 전 Room recv pipe 합집합 1회 renego, Room 자기 renego 폐기 §2.4). Lifecycle/Telemetry engine 인스턴스화 + Phase 구동. 관측 단방향 철칙 + 단일 sfu 동형(YAGNI §2.5). mock 전부 PASS(status 취합·합집합 양쪽 트랙 잔존·타 sfu 제외), 회귀 PTT/T3d/T3c/T2b PASS, index 48. Phase 0 offChannelMessage 단독 commit(55dfd3a) 선행. 다음=C 덩어리(plugins/데모 실배선/cross-sfu 관측 취합). **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1098,6 +1098,12 @@
 |------|------|------|------|
 | 0605 | `20260605a_ptt_subsystem_done` (§7~11) | 클라 | **PTT 조립 완료(D)+harness 라이브 시나리오(E)**. **D**: `virtual.js`(PttVirtual — PTT slot pipe RemotePipe half/userId=null 방단위 1쌍, track:received 의 ptt mid 흡수→media:track{isPtt}, 구 engine._ensurePttPipe) + `freeze.js`(floor:taken→showVideo(left:0,rVFC)/idle→hideVideo(left:-9999px), display:none 금지, ② 게이트) + `ptt.js` 조립(floor+power+virtual+freeze, 공개 API request/release/queuePosRequest+getter, **순서 등록 §8** virtual→freeze→floor→power, Floor↔Power 내부결선 틈③). engine 배선: assembleRoom(pubRoom)→`new Ptt`+`start`+`room.setPttVirtual`, leave/disconnect→`stop`, Room isPttVirtualTrack 분기→`ensureVirtual`(TODO skip 해소). **E**: half-duplex publish 경로 개통(LocalEndpoint publishAudio/_publishCamera `opts.duplex`, half→simulcast 강제 off) + harness `?scenario=ptt`(peer `?duplex=half`+pttRequest/Release/freezes, index scPtt: alice 발화→bob freeze:show→release→hide). mock `_ptt_check.mjs` ALL PASS(발화/청취/wake/stop). **코어 if(ptt)=0 통과**(Transport svc 중계/LocalPipe 게이트/bus 이벤트, ptt 조립). 회귀 3d/3c/3e/2b PASS, index 48. **★라이브 RUN**: admin 2-sfu 측정 보정(roomsById 누적) 후 #3 PASS(snapshot alice tracks active). 발견: admin snapshot 첫 RUN 타이밍(미수신)→재RUN PASS(snapshot 대기 권고). core/·서버 무수정. 다음=observability/TransportSet/데모 실배선 |
 
+## Phase 145: 새 SDK observability + TransportSet — collectStats 경유 + status 평면 취합 + 멀티룸 합집합 (0605b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0605 | `20260605b_observability_transportset_done` | 클라 | **관측 평면 2개 본체화 + cross-sfu 물리축(TransportSet)**. **Phase 0**(단독 `55dfd3a`): `transport.offChannelMessage(svc,handler)` 신설 — floor.detach 무음실패(MBCP 핸들러 누수, teardown 후 죽은 floor 가 DC 계속 수신) 차단. **A**(틈⑫): `telemetry.js` 구 core 이식 + pubPc/subPc 직접 getStats→`transport.collectStats()` 경유. delta·이벤트감지 16종·링버퍼(50)·서버보고 보존, sdk.emit→bus.emit. **단방향 철칙**: telemetry 가 transport/sig/ptt 읽되 평면은 telemetry 무참조(의존 역전). **B**(틈⑩): `lifecycle.js` 구 core 이식 + `get status()` 전 평면 횡단조회 폐기→**각 평면 status getter 취합**(transport.status pub.conn/ice·sub.conn·dc + signaling.connState + ptt state/speaker/power + 자기 media/recovery). Phase FSM(IDLE→CONNECTED→JOINED→PUBLISHING→READY)+Recovery 묶음 보존. **C(★정지점)**: `transport-set.js` 본체(`Map<sfuId,Transport>` has/get/ensure 멱등/remove teardown+삭제/collectStats·statusAll 취합/teardown). engine `_transports`Map→`transportSet` 승격 + ★`_renegotiateSfu(sfuId)`=같은 sfu **전 Room recv pipe 합집합 1회 renego**(타 sfu 제외). `room.setRenegoHook` — `_renegotiateSubscribe` 자기 pipe renego 폐기→engine 합집합 승격(§2.4, 같은 sub PC 공유 시 서로 덮어써 한쪽 트랙 누락 방지). engine Lifecycle/Telemetry 인스턴스화(assembleRoom pubRoom 에서 transport+ptt 바인딩)+Phase 구동(connect→CONNECTED/join→JOINED+telemetry.start/publish→PUBLISHING/leave·disconnect→stop+reset). **단일 sfu 동형 보존**(YAGNI §2.5, 측정 전 분기 금지). mock 전부 PASS(status 평면 합산·합집합 A 2트랙+B 1트랙→3개 양쪽 잔존+타 sfu C 제외). 회귀 PTT/T3d/T3c/T2b PASS, index 48. 발견=cross-sfu Telemetry/Lifecycle 취합 미배선(TransportSet.collectStats/statusAll 준비됨, supervisor 2-sfu 라이브 시 승격)·cross-sfu 실측 미수행(멀티룸 mock 까지). §5 밖 무변경. 다음=C 덩어리(plugins/데모 실배선/cross-sfu 관측 취합). `fdedb76` |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1109,9 +1115,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 341개
-- **기간**: 2026-03-09 ~ 2026-06-05 (89일)
-- **최종 업데이트**: 2026-06-05 — Phase 144 새 SDK PTT D~E 조립+half publish+라이브. virtual/freeze/ptt.js 조립(순서 §8)+engine 배선. half-duplex publish 개통(opts.duplex). harness ?scenario=ptt. mock 전부 PASS, 코어 if(ptt)=0 통과, index 48. 라이브: admin 2-sfu 측정 보정 후 RUN 성공. PTT A~E 완료. 직전: 143 PTT A~C / 142 mute. 다음=observability/TransportSet/데모 실배선. 세부는 본문 Phase 표.
+- **총 세션 파일**: 342개
+- **기간**: 2026-03-09 ~ 2026-06-06 (90일)
+- **최종 업데이트**: 2026-06-06 — Phase 145 새 SDK observability + TransportSet. Telemetry getStats→transport.collectStats()(틈⑫)+Lifecycle status 평면 취합(틈⑩)+TransportSet(Map<sfuId,Transport>)+engine _renegotiateSfu(같은 sfu 전 Room recv pipe 합집합, Room 자기 renego 폐기 §2.4)+Lifecycle/Telemetry 인스턴스화+Phase 구동. Phase 0 offChannelMessage 단독 commit(55dfd3a) 선행. 관측 단방향+단일 sfu 동형(YAGNI). mock 전부 PASS, 회귀 PTT/T3d/T3c/T2b PASS, index 48. 직전: 144 PTT D~E / 143 PTT A~C. 다음=C 덩어리(plugins/데모 실배선/cross-sfu 관측 취합). 세부는 본문 Phase 표.
 
 ---
 
