@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-06 — **Phase 146 CLIENT_EVENT 사건 보고 채널(wire 3곳)**. 클라 사건 단일 통로 0x1304 신설(track-dump 폐기 흡수). 신규 event-reporter.js(배치 200ms/20, 미식별 버퍼 보존 100, 단방향 bus 구독+sig.send). 신규 emit pipe:identity(식별축)/mount·unmount(DOM)/room:sync_diff. 서버 oxsig opcode+신규 client_event.rs(agg_inc_with 녹임)+dispatch, oxhubd 무변경(passthrough). ★발견이슈=dispatch None→빈 wire→클라 decode throw→ACK_OK 회신으로 조치(TELEMETRY 동형). mock 전부 PASS, 클라 회귀 PASS index 49, 서버 빌드/15테스트 PASS. home f84516b/server dfccd85. 다음=Phase D 라이브(부장 RUN). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-06 — **Phase 147 uniform-ack 정합(doc-only)**. requiresAck() 의 거짓 no-ack 예외 2줄(0x2500 ACTIVE_SPEAKERS/0x1304 CLIENT_EVENT) 제거 — 실증상 둘 다 이미 windowed+acked(우회 면제는 채널 선택, op 예외는 배선된 적 없는 거짓). wire.js(2줄+docstring)/oxsig opcode.rs(주석)/wire_v3_catalog(카테고리표·§13·§7 CLIENT_EVENT 행) 정정. 동작 0, 클라 회귀 PASS index 49 무변, oxsig 54 PASS. ★가드: 0605d 이미 커밋됨→별 커밋 전환. home dea7310/server 0eed964. 직전: 146 CLIENT_EVENT / 145 observability+TransportSet. 다음=0605d Phase D 라이브(부장 RUN). **세부는 아래 Phase 표 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1110,6 +1110,12 @@
 |------|------|------|------|
 | 0605 | `20260605d_client_event_done` | 클라+서버 | **클라 사건 보고 단일 통로(`CLIENT_EVENT 0x1304`)** — track-dump 폐기 흡수. 설계 `design/20260605_client_event_design.md`. **A(클라 통로)**: op 0x1304 + wire(priorityOf P2/INFO·requiresAck false) + **신규 `observability/event-reporter.js`**(deps{bus,sig}, 배치=200ms 디바운스+크기20 상한 먼저닿는쪽 flush, 미식별 connState≠IDENTIFIED 시 무전송+버퍼 보존 상한100 오래된것부터 폐기, `identified` 재구독→보존분 재전송. 구독=transport pc:failed/error/conn + signaling ws:disconnected/reconnect:attempt·exhausted/conn:state). **단방향**(bus 구독+sig.send 만, 평면 핸들 0). engine 조립(join start/leave·disconnect stop). **B(신규 emit+식별축 흡수)**: `pipe:identity`(publish=local-endpoint track_id 학습 후 learned / subscribe=room hydrate·applyTracksUpdate add·recycle mid 배정 후, 확정 1회 role publish·subscribe) + `pipe:mount/unmount`(remote-pipe DOM 게이트, base pipe.js 에 bus 주입·_recvPipeOpts bus:this.bus, LocalPipe 송신=emit 없음) + `room:sync_diff`(calcSyncDiff missing/extra 있을 때만, 정상 무음). track-dump [1][4] 식별 축 흡수. **C(★정지점 서버)**: oxsig opcode 0x1304(Request)+ALL_OPS+테스트(catalog_size 42→43·request_category) / **신규 `oxsfud/.../handler/client_event.rs`**(events 순회 agg_inc_with(client_event:source:event:severity 카운터, room 단위), SESSION_DISCONNECT agg 패턴 동형) / mod.rs dispatch arm / `wire_v3_catalog.md` §7. **oxhubd 변경 0**(v3 wire passthrough 가 미등록 op 자동 forward). **★발견이슈(조치완료)**: dispatch `None`→sfud 빈 wire(sfu_service:139)→hub 가 빈 프레임 클라 passthrough(ws/mod:704)→`decodeFrame` throw. None 안전은 Hub→SFU 내부통보(SESSION_DISCONNECT)뿐. 조치=fire-and-forget 은 클라측(send()/requiresAck=false)에서 충족, 서버는 wire 정합상 TELEMETRY 동형 **ACK_OK 회신**(클라 매칭 pid 없어 무시·무해). mock 전부 PASS(배치/보존/정규화/identity/sync_diff), 클라 회귀 PTT/T3d/T3c/T2b PASS index 49, 서버 oxsig 15테스트+oxsfud/oxhubd 빌드 PASS. 발견=추천1대로 decoder_stall 이중수집 회피(telemetry events 유지, er 는 타 평면만)·track-dump.js stub 폐기 가능·agg-log 는 카운터라 detail 미보존. mount/unmount=DOM 경로 Phase D 라이브 검증. 다음=Phase D 라이브(부장 RUN). home `f84516b` / server `dfccd85` |
 
+## Phase 147: uniform-ack 정합 — requiresAck 거짓 no-ack 예외 제거 (0606a, doc-only)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0606 | `20260606a_uniform_ack_done` | 클라+서버 | **동작 0, 선언/주석 정리** — v3 "대칭 ACK+슬라이딩 윈도우" 의 거짓 no-ack 예외 청산. 실증(§1): 서버 hub event_rx arm 이 sfud 이벤트를 **무조건** outbound.enqueue→windowed(requires_ack 분기 없음, 우회는 reply_rx/bin_event_rx **채널 선택**), 클라 send()/request() 도 무조건 _outbound.enqueue, requiresAck() 실독 자리는 _handleMessage parse-fail ACK_FAIL 1곳뿐. → ACTIVE_SPEAKERS(0x2500)/CLIENT_EVENT(0x1304) 는 **이미 windowed+acked**, no-ack 예외 2줄은 배선된 적 없는 거짓(0x1304=완전 dead, 0x2500=near-dead). 규칙 수렴 = **"윈도우 타면 반드시 ack, 우회하면 면제(채널 선택)"**. **A** `wire.js`: requiresAck() 0x2500/0x1304 두 줄 삭제(카테고리 가드 Handshake/Internal/Error 유지 — parse-fail 분기 생존), docstring+근거 주석. 함수 통째 리팩터 안 함. **B** `oxsig/opcode.rs`: ACTIVE_SPEAKERS 주석 "ACK 없음" → "Event=ACK 대칭, windowed"(코드/테스트 무변). **C** `wire_v3_catalog.md`: 카테고리 표 "(ACTIVE_SPEAKERS 예외)"→"(windowed — 예외 없음)" + §13 제목 "ACK 없음"→"Event=ACK 대칭, windowed" + §7 CLIENT_EVENT 행 "클라 무시"→"클라 OutboundQueue 슬롯 해제(windowed). app-layer 응답 대기 없음(send, pending 매칭 없음)"(거짓 no-ack 잔재 제거 — 클라는 그 ACK 로 윈도우 슬롯 푼다). 검증: requiresAck uniform(0x2500/0x1304/0x1101 true·HS/Internal/Error false), 참조처 signaling.js:258 1자리 변경 견딤, 클라 회귀 PASS index 49 무변, oxsig --lib 54 PASS, 빌드 PASS. ★가드: 0605d 이미 커밋됨(워킹트리 깨끗)→§0 별 커밋 전환(한 커밋 합류 전제 깨짐). 발견=0605d done 의 "telemetry 동형/클라 무시" framing 본 정정으로 의미 갱신(uniform). 다음=0605d Phase D 라이브 RUN(부장). home `dea7310` / server `0eed964` |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1121,9 +1127,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 343개
+- **총 세션 파일**: 344개
 - **기간**: 2026-03-09 ~ 2026-06-06 (90일)
-- **최종 업데이트**: 2026-06-06 — Phase 146 CLIENT_EVENT 사건 보고 채널(wire 3곳). 클라 통로 0x1304 + 신규 event-reporter.js(배치 200ms/20, 미식별 보존 100, 단방향) + 신규 emit(pipe:identity 식별축/mount·unmount/sync_diff) + 서버 oxsig opcode·신규 client_event.rs(agg 녹임)·dispatch, oxhubd 무변경. ★발견이슈 dispatch None→빈 wire→클라 throw→ACK_OK 회신 조치. mock 전부 PASS, 클라 회귀 PASS index 49, 서버 빌드/15테스트 PASS. home f84516b/server dfccd85. 직전: 145 observability+TransportSet / 144 PTT D~E. 다음=Phase D 라이브(부장 RUN). 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-06 — Phase 147 uniform-ack 정합(doc-only). requiresAck() 거짓 no-ack 예외 2줄(0x2500/0x1304) 제거 — 둘 다 이미 windowed+acked. wire.js/oxsig opcode.rs/wire_v3_catalog(카테고리표·§13·§7) 정정. 동작 0, 클라 회귀 PASS index 49 무변, oxsig 54 PASS. ★가드 0605d 이미 커밋→별 커밋. home dea7310/server 0eed964. 직전: 146 CLIENT_EVENT / 145 observability+TransportSet. 다음=0605d Phase D 라이브(부장 RUN). 세부는 본문 Phase 표.
 
 ---
 

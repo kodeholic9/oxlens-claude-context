@@ -39,7 +39,7 @@ body 는 카테고리 별 JSON 또는 binary (Floor MBCP).
 | `0x0000~0x00FF` | Handshake | C ↔ S | pid=0, ACK 없음, hub 로컬 |
 | `0x0100~0x01FF` | Session | C ↔ S | ACK 필수, hub 로컬 |
 | `0x1000~0x1FFF` | Request | C → S | ACK = 응답 |
-| `0x2000~0x2FFF` | Event | S → C | ACK 필수 (ACTIVE_SPEAKERS 예외) |
+| `0x2000~0x2FFF` | Event | S → C | ACK 필수 (windowed — 예외 없음) |
 | `0x3000~0x3FFF` | Admin Event | S → admin WS | ACK 없음 (빈도 높음) |
 | `0xE000~0xEFFF` | Internal | hub ↔ sfud | 클라 비노출 |
 | `0xF000~0xFFFF` | Error | 양방향 | 종결 |
@@ -122,7 +122,7 @@ body 는 카테고리 별 JSON 또는 binary (Floor MBCP).
 | `0x1301` | MESSAGE | text/data |
 | `0x1302` | TELEMETRY | C → S telemetry push |
 | `0x1303` | ANNOTATE | annotation |
-| `0x1304` | CLIENT_EVENT | C → S 사건 보고(배치, fire-and-forget). event-reporter → agg-log 녹임 + admin. priority P2(INFO). 서버 ACK_OK 회신(wire 정합, 클라 무시) |
+| `0x1304` | CLIENT_EVENT | C → S 사건 보고(배치, fire-and-forget). event-reporter → agg-log 녹임 + admin. priority P2(INFO). 서버 ACK_OK 회신 — 클라 OutboundQueue 슬롯 해제(windowed). app-layer 응답 대기 없음(send, pending 매칭 없음) |
 | `0x1701` | MODERATE | hub 로컬 |
 
 ---
@@ -210,7 +210,7 @@ WS bearer wire (op=0x2400):
 
 ---
 
-## 13. Event — Speakers (0x25xx, ACK 없음)
+## 13. Event — Speakers (0x25xx, Event=ACK 대칭, windowed)
 
 | op | 이름 | body | 발생 시점 |
 |---|---|---|---|
