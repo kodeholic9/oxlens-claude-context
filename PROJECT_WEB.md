@@ -1,119 +1,82 @@
 // author: kodeholic (powered by Claude)
-# OxLens — 웹 클라이언트 구조/아키텍처 (oxlens-home, Core SDK v2)
+# OxLens — 웹 클라이언트 구조/아키텍처 (oxlens-home, 신 SDK = sdk/)
 
-> PROJECT_MASTER.md 에서 분리(2026-06-03). 웹클라 코드 종속 — 소스 구조·Core SDK v2·프리셋 체계.
+> PROJECT_MASTER.md 에서 분리(2026-06-03). 웹클라 코드 종속 — 소스 구조·평면 아키텍처·프리셋 체계.
 > 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
+> **활성 SDK = `sdk/` (전면 재작성, 설계 `design/20260603_client_rewrite_core_design.md` + `_knowledge` 짝).** `core/` 는 레거시(구 평탄 SDK) — demo 가 아직 import 중(0605c demo 실배선 전), 제거 예정. 신규 참조 금지.
 
 ---
 
 
-## 웹 클라이언트 구조 (oxlens-home, Core SDK v2)
+## 웹 클라이언트 구조 (oxlens-home, 신 SDK = sdk/)
+
+> 실트리 실측(2026-06-06). 각 1줄 = 파일 헤더 주석 대조. `[scaffold]` = 골격/시그니처만(본체 후속 Phase).
 
 ```
 oxlens-home/
-├── index.html              — 랜딩 페이지
-├── core/                   — SDK 코어 (v2, Engine→Room→Endpoint→Pipe)
-│   ├── engine.js           — Engine: Facade + PC 소유 + 모듈 조립 + enableMic/Camera API
-│   ├── sdp-negotiator.js   — SdpNegotiator: PC/SDP 협상 + track-less PC 생성 지원
-│   ├── sdp-builder.js      — SDP 조립 (2PC, PTT virtual track, m=application DC 통합)
-│   ├── sdp-builder.test.mjs — SDP builder 단위 테스트
-│   ├── room.js             — Room: 논리 컨테이너 (Endpoint/Pipe/Floor/hydrate)
-│   ├── endpoint.js         — Endpoint: 참가자 (publish/mute/filter)
-│   ├── pipe.js             — Pipe: Track Gateway + TrackState 4단계 + mount/unmount + freeze masking
-│   ├── wire.js             — v3 wire 인코더/디코더 (8B 바이너리 헤더 [ver,flags,op,pid] + ACK_STATE/PRIO + requiresAck/priorityOf)
-│   ├── signaling.js        — SignalClient (WS 시그널링, binary frame 기반 v3 재작성)
-│   ├── lifecycle.js        — Lifecycle: Phase 5단계 + Perf mark + 오류 분류 + status
-│   ├── power-manager.js    — PowerManager: half-duplex (HOT/HOT-STANDBY/COLD), Pipe 기반 suspend/resume
-│   ├── media-acquire.js    — MediaAcquire: getUserMedia 중앙 게이트웨이 + DeviceError + 권한 감시
-│   ├── datachannel.js      — DC 프레임 빌더/파서 + MBCP TS 24.380 native + Active Speakers (통합)
-│   ├── event-emitter.js    — 공유 EventEmitter (on/off/once/emit) — SDK 전체 공용
-│   ├── media-filter.js     — VideoFilterPipeline(Canvas+rVFC) + AudioFilterPipeline(Web Audio)
-│   ├── annotation-filter.js — 화면공유 위 드로잉 VideoFilter (Canvas burn-in, RTP에 합성되어 송출)
-│   ├── radio-voice-filter.js — Bandpass+Compressor+Gain 무전기 음질
-│   ├── moderate.js         — ModerateController: 청중/참여자용 MODERATE_EVENT 수신 + 자동 트랙 생성/제거
-│   ├── scope.js            — ScopeController: `engine.scope.*` (affiliate/deaffiliate/select/deselect/update/set) + SCOPE_EVENT 수신 (panRequest/panRelease 폐기)
-│   ├── scope.test.mjs      — ScopeController 단위 테스트 (14개)
-│   ├── track-dump-collector.js — 방 단위 4-Point 진단 풀 덤프 수집 (collectIdentityFromStats: getStats outbound-rtp/inbound-rtp canonical source)
-│   ├── telemetry.js        — getStats 수집 + delta 계산 + 이벤트 감지
-│   ├── health-monitor.js   — STALLED→ROOM_SYNC+토스트 (Phase 2/3 제거됨)
-│   ├── device-manager.js   — MediaAcquire 기반 디바이스 전환
-│   ├── constants.js        — MBCP_T101_MS/C101_MAX/T104_MS/C104_MAX 등
-│   └── index.js            — Engine export
-├── core/ptt/
-│   └── floor-fsm.js        — 5-state Floor FSM (DC-only, T101/T104 재전송, bearer 분기)
-├── core/extensions/
-│   ├── annotate.js          — OP.ANNOTATE 패스스루 Extension
-│   ├── moderate.js          — ModerateExtension: 진행자용 (grant/revoke), engine.use/ext 패턴
-│   └── filter.js            — Video/Screen/Audio FilterPipeline Extension
-├── core/annotation/
-│   └── annotation-layer.js — SVG overlay (수신자측 실시간), perfect-freehand, 제스처 자동분기, 페이드아웃, readOnly
-└── demo/
-    ├── presets.js           — 역할 프리셋 12개 + resolvePreset + 시나리오 10개
-    ├── index.html           — 시나리오 허브 페이지
-    ├── scenarios/           — 시나리오별 독립 페이지
-    │   ├── conference/      — Main+Thumb 레이아웃
-    │   ├── voice_radio/     — 음성무전 (PttPanel)
-    │   ├── video_radio/     — 영상무전 (PttPanel + freeze masking)
-    │   ├── dispatch/        — 관제사(VideoGrid) + 현장요원(PttPanel + duplex 전환)
-    │   ├── support/         — 전문가(화면공유+annotation) + 현장기사(readOnly)
-    │   └── moderate/        — 진행자(캐러셀+grant) + 청중(PTT+duplex 전환)
-    ├── components/          — 시나리오 공유 UI
-    │   ├── shared.js, video-grid.js, ptt-panel.js
-    └── admin/               — 어드민 대시보드 (SFU + Hub Gateway + DC 섹션 + Track Dump 매트릭스 탭)
+├── core/        ← 레거시(구 평탄 SDK). demo 가 아직 import 중 → 제거 예정(0605c demo 실배선 후). 신규 참조 금지.
+├── sdk/         ← 활성 SDK (전면 재작성, 설계 20260603_client_rewrite_core_design.md)
+│   ├── engine.js          — 얇은 facade + DI 조립 + join orchestration. 구 God Object(63KB)의 ②조립+④Facade. 물리 소유 ✗
+│   ├── index.js           — sdk 골격 조립/export (단방향 의존, 순환 없음)
+│   ├── shared/            — constants.js(공용 상수) · dc-frame.js(DC frame codec + SVC 레지스트리, Transport③+PTT MBCP 공유)
+│   ├── runtime/           — event-bus.js(① 훅 실체 — 코어 emit/플러그인 on) · env-adapter.js(브라우저/장치 종속 격리 → env:* 정규화 단일창구)
+│   ├── signaling/         — wire.js(v3 wire codec + OutboundQueue) · signaling.js(hub WS 단일, v3 binary frame) · op-registry.js(op dispatch 등록제 [scaffold])
+│   ├── transport/         — transport.js("나↔하나의 sfu" 미디어 연결, webrtc 단일 응집처) · transport-set.js(Map<sfuId,Transport>, cross-sfu 물리축) · negotiator.js(SDP 협상+직렬화 큐 [scaffold]) · sdp-builder.js(정책 JSON→fake remote SDP) · dc-channel.js(DC svc 멀티플렉싱 [scaffold])
+│   ├── domain/            — room.js(논리 컨테이너, RemoteEndpoint+recv Pipe 매칭+수신배선) · local-endpoint.js("나" 송신, LocalPipe 컬렉션+_stream 소유) · remote-endpoint.js(상대 참가자 수신) · pipe.js(base 공통) · local-pipe.js(송신 Track Gateway) · remote-pipe.js(수신 표시제어) [논리 3계층 Room→Endpoint→Pipe]
+│   ├── media/             — media-acquire.js(getUserMedia/getDisplayMedia 중앙 게이트) · device-manager.js(열거/입력전환/출력전환/핫플러그 [scaffold])
+│   ├── observability/     — telemetry.js(깊은 시계열+보고, 구 core 이식+결합청산 틈⑫) · lifecycle.js(Phase FSM+status 평면취합 틈⑩) · event-reporter.js(CLIENT_EVENT 사건 보고, 146)
+│   ├── ptt/              — ptt.js(서브시스템 조립+공개 API) · floor.js(Floor 5-state FSM, MBCP over ③DC) · power.js(half-duplex 전력 FSM HOT/HOT_STANDBY/COLD) · virtual.js(PTT virtual track slot pipe) · freeze.js(PTT 수신 표시제어 ②훅) · mbcp.js(MBCP TS24.380 wire codec)
+│   ├── plugins/          — annotate.js · moderate.js · track-dump.js (③훅 b: WS op 등록제 [scaffold])
+│   └── scope/            — scope.js(sub_rooms 청취 전용, 서버 정합 재작성 [scaffold])
+└── demo/        — 시나리오 6종 + admin (현 core/ 의존 — 0605c 에서 sdk/ 실배선 예정)
+    ├── presets.js, index.html
+    ├── scenarios/        — conference/voice_radio/video_radio/dispatch/support/moderate
+    ├── components/       — shared.js, video-grid.js, ptt-panel.js
+    └── admin/            — 어드민 대시보드 (SFU + Hub Gateway + DC + Track Dump 탭)
 ```
 
 ---
 
-## Core SDK v2 아키텍처 (Engine→Room→Endpoint→Pipe)
+## 신 SDK 아키텍처 (6 평면 + 3 확장 훅)
 
-```
-Engine (Facade, PC 소유, 공개 API)
-  ├── sig: SignalClient              ← WS 1개 (JSON + binary)
-  ├── pubPc / subPc                  ← 서버 단위 물리 연결 (track-less 생성, cross-room 대비)
-  ├── nego: SdpNegotiator            ← PC 생성 + SDP 협상
-  ├── power: PowerManager            ← half-duplex 전력 관리 (Pipe suspend/resume 기반)
-  ├── lifecycle: Lifecycle           ← Phase 5단계 (IDLE→CONNECTED→JOINED→PUBLISHING→READY)
-  ├── acquire: MediaAcquire          ← getUserMedia 중앙 게이트웨이
-  ├── scope: ScopeController         ← Cross-Room sub_rooms/pub_rooms 제어 (Server-authoritative)
-  ├── _extensions: Map               ← Extension 시스템 (moderate/annotate/filter)
-  ├── _floorBearer: 'dc'|'ws'       ← Floor Control bearer 선택
-  ├── _pttPipes: {audio,video}      ← PTT virtual pipe Engine 소유 (cross-room SDP duplicate 방지, 4/25i)
-  ├── tel / health / device          ← 재활용 모듈
-  │
-  └── _currentRoom: Room|null
-        ├── roomId, serverConfig
-        ├── floor: FloorFsm           ← 방 단위 발화권 (DC-only, T101/T104 재전송)
-        ├── localEndpoint: Endpoint    ← "나"
-        └── remoteEndpoints: Map<userId, Endpoint>
-              └── pipes: Map<trackId, Pipe>
-                    ├── kind, source, duplex, simulcast
-                    ├── direction: "send" | "recv"
-                    ├── mid, ssrc, active
-                    ├── trackState: INACTIVE|ACTIVE|SUSPENDED|RELEASED
-                    ├── _sender (private, bindSender로만 설정)
-                    └── track, _mountedElement, _pendingShow
-```
+> 설계 단일출처: `design/20260603_client_rewrite_core_design.md` §2 (+ `_knowledge` 짝).
+> engine = **얇은 facade + DI 조립**(물리 소유 ✗ — 구 God Object 63KB 분해). 평면이 자기 책임 소유.
+
+### 6 평면
+| 평면 | 모듈 | 책임 |
+|------|------|------|
+| 코어 설비 | EventBus / EnvAdapter | ① 훅 실체(emit/on) · 브라우저 종속 격리(env:*) |
+| 관측 | Lifecycle / Telemetry / event-reporter | **단방향 push**(평면→관측). Phase FSM+status 취합 / 시계열 보고 / 사건 보고(CLIENT_EVENT) |
+| 제어 | Signaling | hub WS **1개**(v3 binary frame, pid 대칭 ACK + 슬라이딩 윈도우) |
+| 미디어 | TransportSet → Transport | sfu **별 N**(단일 sfu=size 1 동형). Transport = "나↔하나의 sfu" PC pair+ICE/DTLS+SDP+DC |
+| 장치 | MediaAcquire / DeviceManager | getUserMedia 단일 게이트 · 열거/전환/핫플러그 |
+| 논리축 | domain/ (Room → Endpoint → Pipe) | Room = sfuId 라벨 논리 컨테이너. Endpoint = 참가자. Pipe = Track Gateway |
+
+### 3 확장 훅
+- **① 생명주기 이벤트** — EventBus emit/on (코어 emit, 플러그인 on).
+- **② 미디어 파이프라인** — 송신 게이트(LocalPipe) / 수신 분기(RemotePipe). freeze masking = ② 훅.
+- **③ 메시지 채널** — DC svc(dc-frame/dc-channel) + WS op 등록제(OpRegistry). PTT/plugins 가 자기 op 등록.
+
+**불변**: 코어 `if(ptt)` = 0(코어는 PTT 모름, ptt/ 가 ①②③ 훅으로만 접속) · 의존 단방향(부가→코어, 순환 0).
 
 ### 핵심 설계 판단
-- **PC = Engine 소유** — PC는 "나↔서버" 물리 연결. Room(논리) 아닌 서버 단위. cross-room 시 sub PC 공유
-- **Pipe = Track Gateway** — `sender.replaceTrack`의 유일한 게이트웨이. TrackState 4단계(INACTIVE/ACTIVE/SUSPENDED/RELEASED). `mount/unmount`로 video element 소유. `bindSender`는 SdpNegotiator만 호출
-- **MediaAcquire = getUserMedia 단일 게이트** — audio/video/screen 3메서드, DeviceError 6종, 권한 사전 체크 + 감시, 공통 5초 timeout
-- **PttController 삭제** — FloorFsm=Room.floor, PowerFsm=PowerManager(Engine). "PTT 모드" 개념 없음, `pipe.duplex === 'half'` 자연 분기
-- **connect→publish 분리** — joinRoom은 미디어 미포함. enableMic/enableCamera로 분리. 입장 1331ms→33ms (40배)
-- **Lifecycle Phase 5단계** — IDLE → CONNECTED(WS) → JOINED(Room) → PUBLISHING(intent) → READY(PC connected). stream 보존 복구(PC failed 시 track/stream 재사용 → getUserMedia 0ms), 오류 분류(classifyMediaError 6종 / classifyPcError 3종)
-- **Extension 시스템** — Moderate/Annotate/Filter를 extensions/로 분리. `engine.use()/ext()` 패턴
-- **공개 API 100% 하위호환** — Engine에 `get media()` 프록시
+- **PC = Transport 소유** — Transport 가 "나↔하나의 sfu" 물리 연결 소유(engine 아님). cross-sfu = TransportSet 크기 N, 멀티룸 subscribe 합집합 = engine `_renegotiateSfu`(같은 sfu 전 Room recv pipe 합집합 1회 renego).
+- **Pipe = Track Gateway** — `sender.replaceTrack` 유일 게이트웨이. LocalPipe(송신)/RemotePipe(수신) 타입 분리. `mount/unmount` 로 video element 소유.
+- **MediaAcquire = getUserMedia 단일 게이트** — audio/video/screen, DeviceError 분류, 권한 감시.
+- **PTT = 응집 서브시스템** — floor+power+virtual+freeze 조립(ptt.js). "PTT 모드" 개념 없음, `pipe.duplex==='half'` 자연 분기. 코어 무지.
+- **connect→publish 분리** — joinRoom 미디어 미포함. enableMic/enableCamera 분리.
+- **Lifecycle Phase FSM** — IDLE→CONNECTED(WS)→JOINED(Room)→PUBLISHING(intent)→READY. status = 각 평면 status getter 취합(횡단조회 폐기, 틈⑩).
+- **관측 단방향 철칙** — 평면→관측 push OK, 관측을 pull 해서 제어 = 반칙. getStats 소유 = Transport.collectStats()(틈⑫).
 
 ### PTT Video Freeze Masking
-- **숨김**: `left:-9999px` + `overflow:hidden` — floor:state(시그널링) 기반, 즉각
-- **표시**: listening AND rVFC(requestVideoFrameCallback) 둘 다 만족
-- **display:none 금지** — 디코더 정지 → onmute 연쇄 장애
-- track.onmute는 보조 안전망 (발화 시점 보장 안 됨, 업계도 시그널링 기반)
+- **숨김**: `left:-9999px` + `overflow:hidden` — floor:state(시그널링) 기반, 즉각.
+- **표시**: listening AND rVFC(requestVideoFrameCallback) 둘 다 만족.
+- **display:none 금지** — 디코더 정지 → onmute 연쇄 장애.
+- track.onmute 는 보조 안전망(발화 시점 보장 안 됨, 업계도 시그널링 기반).
 
 ### 설계 문서
-- `context/design/20260411_core_v2_architecture.md`, `20260411_sdk_api_design.md`
-- `context/design/20260417_lifecycle_redesign.md`, `20260417_pipe_track_gateway_design.md`
-- `context/design/20260418_media_acquire_design.md`
+- **권위(신 SDK)**: `design/20260603_client_rewrite_core_design.md` + `20260603_client_rewrite_knowledge.md`(짝).
+- 레거시(core/ v2 — 참조용): `20260411_core_v2_architecture.md`, `20260417_lifecycle_redesign.md`, `20260417_pipe_track_gateway_design.md`, `20260418_media_acquire_design.md`.
 
 ---
 
