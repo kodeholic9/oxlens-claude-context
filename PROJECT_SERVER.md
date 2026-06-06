@@ -2,7 +2,7 @@
 # OxLens — 서버 구조/아키텍처 (oxlens-sfu-server + oxhubd)
 
 > PROJECT_MASTER.md 에서 분리(2026-06-03). 서버 코드 종속 — 소스 구조·미디어 아키텍처·oxhubd·Peer 재설계·scope 자료구조.
-> 현행화 기준: 0602e(Phase B 진행). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
+> 현행화 기준: 0606a (cross-sfu Phase 0~2b + supervisor + CLIENT_EVENT 반영). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
 
 ---
 
@@ -41,7 +41,7 @@ oxlens-sfu-server/
     │       ├── signaling/
     │       │   ├── opcode.rs   — common re-export
     │       │   ├── message.rs  — 패킷 타입 (common::Packet re-export) + ScopeUpdate/Set/EventPayload
-    │       │   └── handler/    — gRPC dispatch (8파일)
+    │       │   └── handler/    — gRPC dispatch (9파일)
     │       │       ├── mod.rs      — DispatchContext, dispatch, dispatch_binary
     │       │       ├── room_ops.rs — JOIN, LEAVE, SYNC (per-user TRACKS_UPDATE), SESSION_DISCONNECT
     │       │       ├── track_ops.rs— PUBLISH, TRACKS_READY, MUTE, CAMERA, SUBSCRIBE_LAYER, TRACK_STATE_REQ (duplex 전환 단일 경로, 2026-05-31)
@@ -49,7 +49,8 @@ oxlens-sfu-server/
     │       │       ├── scope_ops.rs — SCOPE 단일 op 핸들러 (body 안 `mode=update/set` 분기) + sub primitive (묶음 1 Phase A, Cross-Room rev.2)
     │       │       ├── helpers.rs  — emit_to_hub, emit_per_user_tracks_update, collect_subscribe_tracks(mid 할당), flush_ptt_silence
     │       │       ├── admin.rs    — build_rooms_snapshot + build_users_snapshot (축 분리: 방 뷰 + User 뷰)
-    │       │       └── telemetry.rs— telemetry passthrough
+    │       │       ├── telemetry.rs— telemetry passthrough
+    │       │       └── client_event.rs — CLIENT_EVENT(0x1304) 사건 보고 → agg-log 녹임 (146, source/event/severity 카운터)
     │       ├── grpc/
     │       │   ├── mod.rs          — tonic Server (SfuService 1개만 등록)
     │       │   └── sfu_service.rs  — Handle(JSON/binary passthrough → dispatch 재사용), Subscribe, SubscribeAdmin
@@ -99,16 +100,19 @@ oxlens-sfu-server/
     │           ├── env.rs          — EnvironmentMeta
     │           └── tokio_snapshot.rs
     │
-    └── oxhubd/             ← WS 게이트웨이 + REST + JWT + Extension
+    └── oxhubd/             ← WS 게이트웨이 + REST + JWT + Extension + SFU supervisor
         └── src/
-            ├── main.rs / lib.rs / state.rs (HubState, WsSession + SessionPhase, room_clients 2차 인덱스)
+            ├── main.rs / lib.rs
+            ├── state.rs        — HubState + **cross-sfu registry**(sfu_registry: DashMap<sfu_id, Arc<SfuNode>> + room_sfu 1:1 DashMap + RoundRobin place 카운터). place_room/assign_room/sfu_for_room/sfu_by_id/all_sfu_clients/bind_room. WsSession+SessionPhase, room_clients 2차 인덱스, admin_clients
             ├── metrics.rs      — HubMetrics (metrics_group! 6카테고리)
             ├── convert.rs      — proto→JSON 변환 (비움 — passthrough 전환)
-            ├── grpc/mod.rs     — SfuClient (SfuServiceClient 1개, ArcSwap lazy reconnect)
-            ├── rest/           — auth.rs (JWT), rooms.rs, admin.rs, helpers.rs
+            ├── grpc/mod.rs     — SfuClient (per-sfud 연결 래퍼, lazy reconnect). 단일 client→**per-node registry**(SfuNode 가 node별 client 보유)
+            ├── rest/           — auth.rs(JWT), rooms.rs, admin.rs, helpers.rs, **supervisor.rs**(supervisor REST), **health.rs**(healthz)
             ├── ws/
-            │   ├── mod.rs      — WS 게이트웨이 (select! 4-way + OutboundQueue + 대칭 ACK + Binary 수신)
+            │   ├── mod.rs      — WS 게이트웨이 (select! 4-way + OutboundQueue + 대칭 ACK + Binary 수신). ROOM_CREATE assign/place_room+bind, sfu_for_room 라우팅, ROOM_LIST fan-out 병합
             │   └── dispatch/mod.rs — user_id 주입 + JSON/binary 그대로 gRPC Handle (투명 프록시)
+            ├── supervisor/     — **자식 프로세스 supervisor**(oxsfud 기동/감시/backoff 재기동, POSIX. 0603e~i): backoff.rs / component.rs / mod.rs / ready.rs / spec.rs / stop.rs / unit.rs / tests.rs
+            ├── track_dump/mod.rs — Track Dump REPLY 수집 풀 (Hub Extension, 0520)
             ├── moderate/       — Moderated Floor Control (authorization 상태머신, grant/revoke)
             ├── events/mod.rs   — sfud→hub 이벤트 소비 + WS broadcast(per_user/binary 분기) + reconnect loop
             └── shadow/mod.rs   — 이벤트 기반 상태 누적 (복구용)
@@ -320,6 +324,32 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 - system.toml: static (포트, 경로, TLS, JWT secret, gRPC 주소)
 - policy.toml: dynamic (타이머, 대역폭, 로그레벨, 방 정책) + ArcSwap 런타임 교체
 - `.env` / dotenvy 완전 삭제
+
+---
+
+## Cross-SFU (Phase 0~2b, 2026-06-03)
+
+> Source: done `0603j`(Phase0)/`0603k`(Phase1)/`0603l`(ROOM_CREATE 멱등)/`0603m`(Phase2a)/`0603n`(Phase2b). substance 는 해당 done 단일출처 — 본 섹션은 scope/위치.
+
+- **배치 단위 = room → sfu 1:1** — `room_sfu: DashMap<room_id, sfu_id>`. user 단위 경계 관통 없음(SFU-SFU 미디어 relay/cascading 기각 — 가드레일 ①, Ghost Participant 기각 정합). 클라가 sfu별 멀티 sub PC.
+- **place_room (RoundRobin)** — 자동 id(빈 room_id) ROOM_CREATE 시 registry 순서대로 1차 RoundRobin 배치. `[routing]` config 정책.
+- **assign_room (멱등)** — 명시 room_id ROOM_CREATE 는 원자적 결정+기록(동시 same-id race 방지). 자동 id 는 응답 uuid 로 bind(uuid 유일 → race 없음).
+- **hub 라우팅 = sfu_for_room** — 방 귀속 op(JOIN/PUBLISH/...) 는 room_sfu 매핑으로 해당 sfu 라우팅. 매핑 없으면 에러(default 폴백 안 함 — 버그 은폐 방지).
+- **ROOM_LIST = fan-out 병합** — 전 sfu 에 fan-out 후 rooms 병합(1방1sfu 라 room_id 중복 없음).
+- **registry** = `sfu_registry: DashMap<sfu_id, Arc<SfuNode>>`(state.rs). SfuNode 가 node별 gRPC client(lazy reconnect) 보유. 단일 sfu = size 1 동형.
+
+---
+
+## Supervisor (oxhubd, POSIX, 2026-06-03)
+
+> Source: done `0603e`(sfud SIGTERM graceful)/`0603f`(core)/`0603g`(intensity fix)/`0603h`(rename unit)/`0603i`(observability). substance 는 해당 done 단일출처 — 본 섹션은 scope/위치.
+
+- **역할** — oxhubd 가 자식 프로세스 oxsfud(N node)를 기동/감시/재기동(POSIX). `supervisor/`(backoff/component/mod/ready/spec/stop/unit/tests).
+- **spec** — 자식 프로세스 정의(실행 커맨드/env/node id).
+- **기동 + ready** — spawn 후 ready 신호(healthz 등) 대기 → 등록.
+- **backoff 재기동** — 비정상 종료 시 backoff 정책으로 재기동(intensity 가드 — 폭주 재기동 방지, 0603g).
+- **stop** — graceful 정지(SIGTERM, 0603e sfud 측 graceful 수신 정합).
+- **observability** — supervisor 상태 REST(`rest/supervisor.rs`) + healthz(`rest/health.rs`), 0603i.
 
 ---
 
