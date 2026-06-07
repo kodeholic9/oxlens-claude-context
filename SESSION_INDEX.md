@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-06 — **Phase 147 uniform-ack 정합(doc-only)**. requiresAck() 의 거짓 no-ack 예외 2줄(0x2500 ACTIVE_SPEAKERS/0x1304 CLIENT_EVENT) 제거 — 실증상 둘 다 이미 windowed+acked(우회 면제는 채널 선택, op 예외는 배선된 적 없는 거짓). wire.js(2줄+docstring)/oxsig opcode.rs(주석)/wire_v3_catalog(카테고리표·§13·§7 CLIENT_EVENT 행) 정정. 동작 0, 클라 회귀 PASS index 49 무변, oxsig 54 PASS. ★가드: 0605d 이미 커밋됨→별 커밋 전환. home dea7310/server 0eed964. 직전: 146 CLIENT_EVENT / 145 observability+TransportSet. 다음=0605d Phase D 라이브(부장 RUN). **세부는 아래 Phase 표 참조.**
+> 최종 업데이트: 2026-06-06 — **문서 현행화·클라 API 분석 4세션(0606b~d, 코드 동작 0)**. PROJECT_* 마스터 3종 현행화(0606b, 신 SDK 6평면+cross-sfu+supervisor) + repo `CLAUDE.md`/`README` v3 재작성 + `.env` 死파일 청산(0606c, 포지셔닝 위반 제거·system.toml sfud2 udp 19742→19741) + 클라 SDK 7 카테고리 분석(0606b client_api, 김대리, design/ 6종) + **C1~C7 4열 대조표**(0606d, C7 PTT/무전 독립 신설·Scope 편입). server `f3d2bd3`/`dff8a0c`/`135f7ca`·context `848cd08`. 직전: 147 uniform-ack / 146 CLIENT_EVENT. **세부는 아래 Phase 표 + "문서 현행화·클라 API 분석 세션" 섹션 참조.**
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -1116,6 +1116,17 @@
 |------|------|------|------|
 | 0606 | `20260606a_uniform_ack_done` | 클라+서버 | **동작 0, 선언/주석 정리** — v3 "대칭 ACK+슬라이딩 윈도우" 의 거짓 no-ack 예외 청산. 실증(§1): 서버 hub event_rx arm 이 sfud 이벤트를 **무조건** outbound.enqueue→windowed(requires_ack 분기 없음, 우회는 reply_rx/bin_event_rx **채널 선택**), 클라 send()/request() 도 무조건 _outbound.enqueue, requiresAck() 실독 자리는 _handleMessage parse-fail ACK_FAIL 1곳뿐. → ACTIVE_SPEAKERS(0x2500)/CLIENT_EVENT(0x1304) 는 **이미 windowed+acked**, no-ack 예외 2줄은 배선된 적 없는 거짓(0x1304=완전 dead, 0x2500=near-dead). 규칙 수렴 = **"윈도우 타면 반드시 ack, 우회하면 면제(채널 선택)"**. **A** `wire.js`: requiresAck() 0x2500/0x1304 두 줄 삭제(카테고리 가드 Handshake/Internal/Error 유지 — parse-fail 분기 생존), docstring+근거 주석. 함수 통째 리팩터 안 함. **B** `oxsig/opcode.rs`: ACTIVE_SPEAKERS 주석 "ACK 없음" → "Event=ACK 대칭, windowed"(코드/테스트 무변). **C** `wire_v3_catalog.md`: 카테고리 표 "(ACTIVE_SPEAKERS 예외)"→"(windowed — 예외 없음)" + §13 제목 "ACK 없음"→"Event=ACK 대칭, windowed" + §7 CLIENT_EVENT 행 "클라 무시"→"클라 OutboundQueue 슬롯 해제(windowed). app-layer 응답 대기 없음(send, pending 매칭 없음)"(거짓 no-ack 잔재 제거 — 클라는 그 ACK 로 윈도우 슬롯 푼다). 검증: requiresAck uniform(0x2500/0x1304/0x1101 true·HS/Internal/Error false), 참조처 signaling.js:258 1자리 변경 견딤, 클라 회귀 PASS index 49 무변, oxsig --lib 54 PASS, 빌드 PASS. ★가드: 0605d 이미 커밋됨(워킹트리 깨끗)→§0 별 커밋 전환(한 커밋 합류 전제 깨짐). 발견=0605d done 의 "telemetry 동형/클라 무시" framing 본 정정으로 의미 갱신(uniform). 다음=0605d Phase D 라이브 RUN(부장). home `dea7310` / server `0eed964` |
 
+## 문서 현행화 · 클라 API 분석 세션 (0606b ~ 0606d, 코드 동작 0)
+
+> 라이브 마스터/repo 문서 stale 청산 + 신 SDK 외부 API 평면 설계. 전부 문서·분석(코드 무수정). 김대리 분석 = 0606b client_api, 김과장 구현 = 0606b master/0606c repo/0606d 대조표.
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0606 | `20260606b_master_doc_refresh_done` | 문서 | **PROJECT_* 마스터 3종 현행화(doc-only)** — claude.ai 지식본 + context/ 라이브본. **WEB**=신 SDK(sdk/) 6평면+3확장훅 전면 교체(core/ 레거시), 실트리+헤더 대조. **MASTER**=시그널링 43op·0x1304 CLIENT_EVENT 행 추가·0x2500 "Event=ACK 대칭(windowed)" 정합·행동원칙 4-라벨 ask 신설. **SERVER**=cross-sfu(state.rs registry/room_sfu 1:1)+supervisor/(8파일)+client_event.rs 반영(0603e~n). 직접 정독 실증(창작 0). ★부장 조치=claude.ai 지식 mirror 재업로드(안 하면 다음 세션 옛본 함정 재발). |
+| 0606 | `20260606b_client_api_categories` | 문서/분석 | **김대리 분석 세션 — 클라 SDK 외부 API 7 카테고리 분류**(C1~C7, C5 미착수). 업계(LiveKit/mediasoup/Jitsi) 공개 표면 → 우리 `sdk/` 이상적 노출 평면을 카테고리별 독립 설계문서로. 산출물 `design/` 6종(ideal_surface·c2_send·c3_recv·c4_device·c6_observability·c7_ptt). 공통원칙 P1~P5(관심사격리/facade만노출/상수화/server-authoritative/프리셋비의존). **C4** swapTrack↔PTT half-duplex 결함(floor 미보유 시 옛 device 발화)·simulcast constraints 재적용 부재. **C6** 단일 EventBus raw string → 계층 facade+enum 상수화+에러분류기 3→1. **C7** engine.scope 단일 진입+이벤트 room 핸들 동봉(floor.js 단일방→다방, mbcp wire 는 이미 다방 지원, scope.js stub). 코드 무수정. 다음=C5 분석 + 권위 설계서(`20260603_client_rewrite_core_design`) 승격. |
+| 0606 | `20260606c_repo_doc_resync_done` | 문서 | **oxlens-sfu-server repo 문서 현행화(김과장, 코드 0)** — `CLAUDE.md`/`README` v2 화석 전면 재작성: opcode v3 16진(43op)·`room/`→`domain/`·2계층 Publisher(논리 Stream⊃물리 Track)·3-Layer State·handler 9파일·MBCP TS 24.380 native TLV·cross-sfu+supervisor·"252→~204 tests". **README 포지셔닝 위반 제거**=수직시장 나열(파견센터/보안/물류/발전소)·"RPi 30명" → "웹 PTT+위젯 SaaS"·"1만 user(cross-room×SFU 3~5대)". `.env`/`.env.example` 死파일 삭제(dotenvy 0+리더 0). 발견_사항=`system.toml` `[recording]` oxtapd 死섹션(미구현)+sfud2 udp 주석 19742→**19741** 정합(부장 확정). server `f3d2bd3`/`dff8a0c`/`135f7ca`, context `848cd08`. |
+| 0606 | `20260606d_category_crossverify` (→ `design/20260606_client_api_categories.md`) | 문서/분석 | **김과장 — C1~C7 4열 대조표 작성**(0606b 분석의 현황 인벤토리축). mediasoup/livekit/jitsi/우리 4 SDK **소스 직접 추출**(README 아님), 관심사 행 × 4열, 빈칸 `—` 로 비대칭 가시화. 보정으로 **C7 PTT/무전 독립 신설**(3사 전부 `—`=차별점 가시화) + Scope C7 편입 + `mbcp.*` C7/`dc-frame` C5 공유 잔존. 미배치 경계판정 3건 닫힘(canProduce=C1·setMetadata=C5·Scope=C7). 미배치=jitsi 앱기능 클러스터(Lobby/Polls/Transcription/E2EE/Recording/Reactions)+[첨언](SDK 표면 부재가 우리 설계 결과지 누락 아님). 코드 0, 읽기전용. |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1127,9 +1138,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 344개
+- **총 세션 파일**: 360개
 - **기간**: 2026-03-09 ~ 2026-06-06 (90일)
-- **최종 업데이트**: 2026-06-06 — Phase 147 uniform-ack 정합(doc-only). requiresAck() 거짓 no-ack 예외 2줄(0x2500/0x1304) 제거 — 둘 다 이미 windowed+acked. wire.js/oxsig opcode.rs/wire_v3_catalog(카테고리표·§13·§7) 정정. 동작 0, 클라 회귀 PASS index 49 무변, oxsig 54 PASS. ★가드 0605d 이미 커밋→별 커밋. home dea7310/server 0eed964. 직전: 146 CLIENT_EVENT / 145 observability+TransportSet. 다음=0605d Phase D 라이브(부장 RUN). 세부는 본문 Phase 표.
+- **최종 업데이트**: 2026-06-06 — 문서 현행화·클라 API 분석 4세션(0606b~d, 코드 0). PROJECT_* 마스터 3종(0606b) + repo CLAUDE.md/README v3 재작성+.env 死파일(0606c) + 클라 SDK 7 카테고리 분석(0606b client_api, 김대리) + C1~C7 4열 대조표(0606d, C7 PTT 독립 신설). system.toml sfud2 udp 19742→19741. server f3d2bd3/dff8a0c/135f7ca·context 848cd08. 직전: 147 uniform-ack / 146 CLIENT_EVENT. 세부는 본문 Phase 표 + 문서·분석 세션 섹션.
 
 ---
 
