@@ -1,7 +1,8 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-09 — **클라 외부평면 재설계 G1~G7 + 서버 정합(0609a~d)**. Phase 148 참조: ① 청소(G1 TRACK_STATE_REQ 단일·G6 LocalPipeState/SSOT·G7 trackKey, `c3d5552`) → ② 다방본체(G2 duplex A안·G3 발언/청취축·G4 scope 분해·G5 room 라우터, `a52d02d`) → 서버 정합(0x1106 muted·SCOPE pub_select, `60e6dba`) → 후속 A2 주석/B cross-sfu(브라우저 미검증, `40c6465`). 미완: cross-sfu 실검증·A1 Android 이관. **이전 업데이트 2026-06-06**: 문서 현행화·클라 API 분석 4세션(0606b~d, 코드 동작 0). PROJECT_* 마스터 3종 현행화(0606b, 신 SDK 6평면+cross-sfu+supervisor) + repo `CLAUDE.md`/`README` v3 재작성 + `.env` 死파일 청산(0606c, 포지셔닝 위반 제거·system.toml sfud2 udp 19742→19741) + 클라 SDK 7 카테고리 분석(0606b client_api, 김대리, design/ 6종) + **C1~C7 4열 대조표**(0606d, C7 PTT/무전 독립 신설·Scope 편입). server `f3d2bd3`/`dff8a0c`/`135f7ca`·context `848cd08`. 직전: 147 uniform-ack / 146 CLIENT_EVENT. **세부는 아래 Phase 표 + "문서 현행화·클라 API 분석 세션" 섹션 참조.**
+> 최종 업데이트: 2026-06-09 — **클라 외부평면 재설계 G1~G7 + 서버 정합(0609a~d, Phase 148)**. 미완: cross-sfu select 브라우저 실검증·A1 Android 0x1103 이관.
+> 이전(0606b~d): 문서 현행화·클라 API 분석(코드 0) — PROJECT_* 마스터 3종·repo CLAUDE.md/README v3·클라 SDK C1~C7 카테고리. 세부는 아래 Phase 표 참조.
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
 ---
@@ -929,10 +930,10 @@
 
 ## Phase 120: 통계 자료구조 트랙 차원 정렬 — 개명 + room_stats 제거 + 텔레메트리 트랙 이동(pub/sub 대칭) (0602b~c)
 
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0602b | `20260602b_stats_track_alignment_done` | 서버 | **통계 4종 트랙 차원 정렬 3-Phase**(동작 0, oxe2e 4/4). A 개명 RecvStats→RrStats(`b4733d9`) · B room_stats 제거→직속+room_id 정체필드 승격(`10ffcca`) · C(pub) PublishPipelineStats PublisherTrack 직속+stats_primed(`9abdf43`). test 211 |
-| 0602c | `20260602c_sub_telemetry_track_move_done` | 서버 | **C(sub) pub/sub 대칭 완성**(`b5b9172`) — SubscribePipelineStats subscriber_stream.rs 직속(RoomMember.sub_stats 폐기)+rtx_received 삭제, inc 시점 교정(sr_relayed 동봉반환 등), admin room-scope 합산. test 211+oxe2e 4/4 |
+| 날짜    | 파일                                        | 영역  | 요약                                                                                                                                                                                                               |
+| ----- | ----------------------------------------- | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0602b | `20260602b_stats_track_alignment_done`    | 서버  | **통계 4종 트랙 차원 정렬 3-Phase**(동작 0, oxe2e 4/4). A 개명 RecvStats→RrStats(`b4733d9`) · B room_stats 제거→직속+room_id 정체필드 승격(`10ffcca`) · C(pub) PublishPipelineStats PublisherTrack 직속+stats_primed(`9abdf43`). test 211 |
+| 0602c | `20260602c_sub_telemetry_track_move_done` | 서버  | **C(sub) pub/sub 대칭 완성**(`b5b9172`) — SubscribePipelineStats subscriber_stream.rs 직속(RoomMember.sub_stats 폐기)+rtx_received 삭제, inc 시점 교정(sr_relayed 동봉반환 등), admin room-scope 합산. test 211+oxe2e 4/4             |
 
 > **설계자(claude.ai) 결함 적발**(부장님 "김대리 멍청" 경고대로 코드 검증): ① **room_id 핵심 오류** — "DashMap<RoomId> 죽은 차원" 주장이 절반 틀림. 구조는 잉여여도 room_id **값**은 STALLED 체커가 floor/publisher 조회에 쓰는 산 자료 → 정체 필드 승격. ② §5 영향범위 누락(track_ops/hooks/helpers/floor_broadcast). ③ rtx_received=존재 안 하는 호출처(dead). ④ rtp_dropped 2번째 자리(RTX) 누락.
 > 발견_사항: web 대시보드(oxlens-home JS)가 admin JSON `rtx_received` 키 참조 시 정리 필요(값 늘 0, 표시 키만). 서버 레포 밖.
@@ -1122,26 +1123,26 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0606 | `20260606b_master_doc_refresh_done` | 문서 | **PROJECT_* 마스터 3종 현행화(doc-only)** — claude.ai 지식본 + context/ 라이브본. **WEB**=신 SDK(sdk/) 6평면+3확장훅 전면 교체(core/ 레거시), 실트리+헤더 대조. **MASTER**=시그널링 43op·0x1304 CLIENT_EVENT 행 추가·0x2500 "Event=ACK 대칭(windowed)" 정합·행동원칙 4-라벨 ask 신설. **SERVER**=cross-sfu(state.rs registry/room_sfu 1:1)+supervisor/(8파일)+client_event.rs 반영(0603e~n). 직접 정독 실증(창작 0). ★부장 조치=claude.ai 지식 mirror 재업로드(안 하면 다음 세션 옛본 함정 재발). |
-| 0606 | `20260606b_client_api_categories` | 문서/분석 | **김대리 분석 세션 — 클라 SDK 외부 API 7 카테고리 분류**(C1~C7, C5 미착수). 업계(LiveKit/mediasoup/Jitsi) 공개 표면 → 우리 `sdk/` 이상적 노출 평면을 카테고리별 독립 설계문서로. 산출물 `design/` 6종(ideal_surface·c2_send·c3_recv·c4_device·c6_observability·c7_ptt). 공통원칙 P1~P5(관심사격리/facade만노출/상수화/server-authoritative/프리셋비의존). **C4** swapTrack↔PTT half-duplex 결함(floor 미보유 시 옛 device 발화)·simulcast constraints 재적용 부재. **C6** 단일 EventBus raw string → 계층 facade+enum 상수화+에러분류기 3→1. **C7** engine.scope 단일 진입+이벤트 room 핸들 동봉(floor.js 단일방→다방, mbcp wire 는 이미 다방 지원, scope.js stub). 코드 무수정. 다음=C5 분석 + 권위 설계서(`20260603_client_rewrite_core_design`) 승격. |
-| 0606 | `20260606c_repo_doc_resync_done` | 문서 | **oxlens-sfu-server repo 문서 현행화(김과장, 코드 0)** — `CLAUDE.md`/`README` v2 화석 전면 재작성: opcode v3 16진(43op)·`room/`→`domain/`·2계층 Publisher(논리 Stream⊃물리 Track)·3-Layer State·handler 9파일·MBCP TS 24.380 native TLV·cross-sfu+supervisor·"252→~204 tests". **README 포지셔닝 위반 제거**=수직시장 나열(파견센터/보안/물류/발전소)·"RPi 30명" → "웹 PTT+위젯 SaaS"·"1만 user(cross-room×SFU 3~5대)". `.env`/`.env.example` 死파일 삭제(dotenvy 0+리더 0). 발견_사항=`system.toml` `[recording]` oxtapd 死섹션(미구현)+sfud2 udp 주석 19742→**19741** 정합(부장 확정). server `f3d2bd3`/`dff8a0c`/`135f7ca`, context `848cd08`. |
-| 0606 | `20260606d_category_crossverify` (→ `design/20260606_client_api_categories.md`) | 문서/분석 | **김과장 — C1~C7 4열 대조표 작성**(0606b 분석의 현황 인벤토리축). mediasoup/livekit/jitsi/우리 4 SDK **소스 직접 추출**(README 아님), 관심사 행 × 4열, 빈칸 `—` 로 비대칭 가시화. 보정으로 **C7 PTT/무전 독립 신설**(3사 전부 `—`=차별점 가시화) + Scope C7 편입 + `mbcp.*` C7/`dc-frame` C5 공유 잔존. 미배치 경계판정 3건 닫힘(canProduce=C1·setMetadata=C5·Scope=C7). 미배치=jitsi 앱기능 클러스터(Lobby/Polls/Transcription/E2EE/Recording/Reactions)+[첨언](SDK 표면 부재가 우리 설계 결과지 누락 아님). 코드 0, 읽기전용. |
+| 0606 | `20260606b_master_doc_refresh_done` | 문서 | **PROJECT_* 마스터 3종 현행화(doc-only)** — WEB 신 SDK 6평면+3훅 교체·MASTER 43op+CLIENT_EVENT·SERVER cross-sfu+supervisor 반영. 직접 정독 실증. ★부장 조치=claude.ai 지식 mirror 재업로드. |
+| 0606 | `20260606b_client_api_categories` | 문서/분석 | **클라 SDK 외부 API 7 카테고리(C1~C7) 분류**(김대리). 업계 표면→이상적 노출 평면, `design/` 6종. C4 swapTrack↔half 결함·C6 EventBus facade화·C7 engine.scope(scope.js stub). 코드 0. |
+| 0606 | `20260606c_repo_doc_resync_done` | 문서 | **oxlens-sfu-server repo 문서 현행화** — CLAUDE.md/README v2→v3(opcode 16진·domain/·2계층 Publisher·MBCP TLV·cross-sfu). README 포지셔닝 정정. `.env` 死파일 삭제. system.toml sfud2 udp→19741. |
+| 0606 | `20260606d_category_crossverify` (→ `design/20260606_client_api_categories.md`) | 문서/분석 | **C1~C7 4열 대조표**(김과장) — mediasoup/livekit/jitsi/우리 소스 직접 추출, 빈칸 가시화. C7 PTT 독립 신설+Scope 편입. 경계판정 3건 닫힘. 코드 0. |
 
 ---
 
 ## Phase 148: 클라 외부평면 재설계 — 자료구조 소유/원천 + 다방 PTT + 서버 정합 (0609a~d)
 
-> 설계 `design/20260609_client_outer_plane_ownership_design.md`(부장↔김대리: 소유≠권위·원천3종(서버/PC/사용자)·Pipe 3구획·scope join/affiliate/select 분해·PTT 발언축1/청취축N·duplex A안). 지침 ①`design/20260609_client_outer_plane_work_order.md`(G1·G6·G7) + ②`claudecode/202606/20260609b_outer_plane_g2_to_g5.md`(G2~G5). 갭 G1~G7 = 설계 §11 인벤토리.
+> 설계 `design/20260609_client_outer_plane_ownership_design.md`(소유≠권위·원천3종·Pipe 3구획·scope 분해·PTT 발언축1/청취축N·duplex A안) + 지침 ①work_order(G1·G6·G7)·②`claudecode/202606/20260609b`(G2~G5). 갭=설계 §11.
 > (0607 C1~C7 클라 구현 세션군은 본 인덱스 미반영 — 별도 카탈로그 필요.)
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0609 | `20260609a_outer_plane_lowrisk_cleanup_done` | 홈 SDK | **① 저위험 청소 G1·G6·G7** — MUTE_UPDATE(0x1103)→TRACK_STATE_REQ 단일(body 분기) / `TrackState`→`LocalPipeState` 개명 + media track SSOT(권위=`sender.track`, `_liveTrack`) / **trackKey**(`${source}#${seq}`, 복수 cam/screen — getPipeByKey/getPipesBySource/_resolvePipe). 동작 불변. node 하니스 PASS. `c3d5552` |
-| 0609 | `20260609b_outer_plane_g2_g5_done` | 홈 SDK | **② 다방 본체 G2~G5** — A안 duplex full↔half(`setTrackState` ② `power.attach/detachHalfPipe`)+`_upstreamPaused` 독립축 폐기 / 발언축1·청취축N(`floor` viaRoom 통과→`room.on('speaker')` 방별, FSM 무변경) / `scope` affiliate·deaffiliate·select·join 실체화(pub⊆sub 가드) + engine `_affiliateRoom/_selectRoom` / engine `_setupRoomRouter`(room_id 직배달, broadcast+filter 폐기). 서버게이트 실측 S1(via_room)✅·S2(pub_room op)·S3(presence)❌. `a52d02d` |
-| 0609 | `20260609c_server_g1_s2_done` | 서버 | **서버 정합(클라에 맞춤)** — `TRACK_STATE_REQ`(0x1106) muted 수용(`do_mute` 공유 헬퍼 추출, 0x1103 동작 불변) + `SCOPE` `pub_select`(`peer.publish.select`, 응답 `pub_rooms`=server-authoritative 확정). cargo + oxe2e 4종(duplex_cache/conf_basic/ptt_rapid/simulcast_basic) PASS. `60e6dba` |
-| 0609 | `20260609d_outer_plane_followup_done` | 홈 SDK | **후속 A·B** — A2 거짓 주석 정정(G1/S2 서버 처리 반영) / B cross-sfu select(`migratePublish` 트랙보존[deactivate=no-stop]+ptt 재생성+롤백 경로). ⚠ **cross-sfu 브라우저 미검증**(node 유닛까지 — 실 PC 협상은 브라우저). A1 0x1103 완전폐기=Android 잔존 송신으로 **블록**. `40c6465`. 외부평면 영구 하니스 `sdk/_op_check.mjs`(`0ee52be`) |
+| 0609 | `20260609a_outer_plane_lowrisk_cleanup_done` | 홈 SDK | **① 청소 G1·G6·G7** — MUTE_UPDATE→TRACK_STATE_REQ 단일 / `TrackState`→`LocalPipeState`+media SSOT(`sender.track`) / trackKey(복수 cam/screen). 동작 불변. `c3d5552` |
+| 0609 | `20260609b_outer_plane_g2_g5_done` | 홈 SDK | **② 다방 본체 G2~G5** — duplex A안(power attach/detach)·`_upstreamPaused` 폐기 / 발언축1·청취축N(viaRoom→`room.on('speaker')`) / scope affiliate·select·join(pub⊆sub) / engine room_id 라우터. 서버게이트 S1✅·S2/S3❌. `a52d02d` |
+| 0609 | `20260609c_server_g1_s2_done` | 서버 | **서버 정합** — TRACK_STATE_REQ muted 통합(`do_mute` 공유) + SCOPE `pub_select`(`publish.select`, 응답 pub_rooms 확정). cargo+oxe2e 4종 PASS. `60e6dba` |
+| 0609 | `20260609d_outer_plane_followup_done` | 홈 SDK | **후속 A·B** — A2 거짓주석 정정 / B cross-sfu(migratePublish 트랙보존+ptt재생성+롤백, ⚠브라우저 미검증). A1 0x1103=Android 잔존으로 블록. `40c6465` + 하니스 `0ee52be` |
 
-> **상태**: 클라 G1~G7 전 구현 + 서버 G1/S2 정합 완료. **미완**: cross-sfu select 브라우저 실검증(2-sfu 기동됨: qa_test_01→sfu-2 / qa_test_02·03→sfu-1) · A1 Android 0x1103 이관 · mute/scope oxe2e 시나리오. `_t3a` 1 FAIL = 선재(Room 생성자 `floor===null`).
+> **상태**: 클라 G1~G7 + 서버 G1/S2 완료. **미완**: cross-sfu 브라우저 실검증(2-sfu 기동)·A1 Android 이관·mute/scope oxe2e. `_t3a` 1 FAIL=선재.
 
 ---
 
@@ -1156,7 +1157,7 @@
 
 - **총 세션 파일**: 367개
 - **기간**: 2026-03-09 ~ 2026-06-09 (93일)
-- **최종 업데이트**: 2026-06-09 — 클라 외부평면 재설계 G1~G7 + 서버 정합(0609a~d, Phase 148). 커밋: 클라 c3d5552(①청소)·a52d02d(②다방본체)·0ee52be(_op_check 하니스)·40c6465(A2주석+B cross-sfu) / 서버 60e6dba(0x1106 muted·SCOPE pub_select) / context 0609a~d 보고서. 미완: cross-sfu select 브라우저 실검증(2-sfu 기동: qa_test_01→sfu-2 / 02·03→sfu-1) · A1 Android 0x1103 이관. 선재 `_t3a` 1 FAIL. **이전 2026-06-06**: 문서 현행화·클라 API 분석(0606b~d). 세부는 본문 Phase 148 + 문서·분석 세션 섹션.
+- **최종 업데이트**: 2026-06-09 — 외부평면 G1~G7 + 서버 정합(Phase 148). 클라 c3d5552·a52d02d·0ee52be·40c6465 / 서버 60e6dba. 미완: cross-sfu 실검증·A1 Android 이관. 이전(0606): 문서 현행화·클라 API 분석.
 
 ---
 
