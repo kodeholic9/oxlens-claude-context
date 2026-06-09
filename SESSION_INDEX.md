@@ -625,7 +625,7 @@
 |------|------|------|------|
 | 0502 | `20260502_phase1_5_scope` | 합의 | Phase ① 완료 마일스톤 + Phase ①.5 합의 |
 | 0502b | `20260502b_phase1_5_complete` | 서버 | Phase ①.5 cross-room PTT slot 일반화 한방 commit, 252 tests PASS |
-| 0502c | `20260502c_web_client_phase1_5` | 클라 | 웹 클라 Phase ①.5 정합 (`_pttPipes` Map<roomId>, 3 파일 ~150L) |
+| 0502c | `20260502c_web_client_phase1_5` | 클라 | 웹 클라 Phase ①.5 정합 (`_pttPipes Map<roomId>`, 3 파일 ~150L) |
 | 0505 | `20260505_industry_hotpath_compare` | 분석 | 업계 4-way hot path 비교 (LiveKit/mediasoup/Janus/OxLens) |
 | 0509 | `20260509_phase1_5b_inner_ssrc_cleanup` | 서버 | inner SSRC 정합 보강 (Slot.virtual_ssrc 와 rewriter.inner 일치), push 완료 |
 
@@ -724,7 +724,7 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0518c | `20260518c_data_invariant_done` | 서버 | pub_room 단수 정합 (ArcSwap<Option<RoomId>>) + Peer mutation 일원화 + TrackSnapshot rename + SubscriberGate 단순화 (HashMap→AtomicBool). -244줄, 189 tests PASS |
+| 0518c | `20260518c_data_invariant_done` | 서버 | pub_room 단수 정합 (`ArcSwap<Option<RoomId>>`) + Peer mutation 일원화 + TrackSnapshot rename + SubscriberGate 단순화 (HashMap→AtomicBool). -244줄, 189 tests PASS |
 
 ---
 
@@ -935,7 +935,7 @@
 | 0602b | `20260602b_stats_track_alignment_done`    | 서버  | **통계 4종 트랙 차원 정렬 3-Phase**(동작 0, oxe2e 4/4). A 개명 RecvStats→RrStats(`b4733d9`) · B room_stats 제거→직속+room_id 정체필드 승격(`10ffcca`) · C(pub) PublishPipelineStats PublisherTrack 직속+stats_primed(`9abdf43`). test 211 |
 | 0602c | `20260602c_sub_telemetry_track_move_done` | 서버  | **C(sub) pub/sub 대칭 완성**(`b5b9172`) — SubscribePipelineStats subscriber_stream.rs 직속(RoomMember.sub_stats 폐기)+rtx_received 삭제, inc 시점 교정(sr_relayed 동봉반환 등), admin room-scope 합산. test 211+oxe2e 4/4             |
 
-> **설계자(claude.ai) 결함 적발**(부장님 "김대리 멍청" 경고대로 코드 검증): ① **room_id 핵심 오류** — "DashMap<RoomId> 죽은 차원" 주장이 절반 틀림. 구조는 잉여여도 room_id **값**은 STALLED 체커가 floor/publisher 조회에 쓰는 산 자료 → 정체 필드 승격. ② §5 영향범위 누락(track_ops/hooks/helpers/floor_broadcast). ③ rtx_received=존재 안 하는 호출처(dead). ④ rtp_dropped 2번째 자리(RTX) 누락.
+> **설계자(claude.ai) 결함 적발**(부장님 "김대리 멍청" 경고대로 코드 검증): ① **room_id 핵심 오류** — "`DashMap<RoomId>` 죽은 차원" 주장이 절반 틀림. 구조는 잉여여도 room_id **값**은 STALLED 체커가 floor/publisher 조회에 쓰는 산 자료 → 정체 필드 승격. ② §5 영향범위 누락(track_ops/hooks/helpers/floor_broadcast). ③ rtx_received=존재 안 하는 호출처(dead). ④ rtp_dropped 2번째 자리(RTX) 누락.
 > 발견_사항: web 대시보드(oxlens-home JS)가 admin JSON `rtx_received` 키 참조 시 정리 필요(값 늘 0, 표시 키만). 서버 레포 밖.
 
 ---
@@ -945,7 +945,7 @@
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
 | 0602d | `20260602d_enum_types_consolidation_done` | 서버 | **도메인 enum 5종→domain/types.rs 단일 출처**(`3558faf`, 로직 0). StreamKind/TrackKind/VideoCodec/DuplexMode/TrackType, stream_map.rs 폐기, 갈아끼우기(re-export 없음). test 211/oxe2e 4/4 |
-| 0602e | `20260602e_scope_wrapper_removal_done` | 서버 | **scope.rs 폐기 — RoomSet/RoomSetId 래퍼 제거**(`8291ff0`), sub_rooms: ArcSwap<HashSet<RoomId>>. 다방청취/SCOPE op 유지(래퍼만), set_id wire 폐기. baseline 211→205(동반 테스트). oxe2e 4/4. doc청소 `26f120b` |
+| 0602e | `20260602e_scope_wrapper_removal_done` | 서버 | **scope.rs 폐기 — RoomSet/RoomSetId 래퍼 제거**(`8291ff0`), `sub_rooms: ArcSwap<HashSet<RoomId>>`. 다방청취/SCOPE op 유지(래퍼만), set_id wire 폐기. baseline 211→205(동반 테스트). oxe2e 4/4. doc청소 `26f120b` |
 
 > **★ hub shadow 검증**(부장님 지적 — 클라 아닌 서버 경로): oxhubd `ShadowState`는 `ROOM_EVENT` join/left만 누적, SCOPE/sub_set_id 미참조. SCOPE_EVENT broadcast op=정의만 미emit. 재연결 SCOPE 재emit 0 → sub_set_id 영향 **클라 한정** 확정.
 > 발견_사항(별 토픽): `pub_add`/`pub_remove`(ScopeUpdateRequest)·`pub`(ScopeSetRequest)·mbcp `pub_set_id` = set_id 동성격 dead wire 잔재(Phase A 이후) — 일관성 정석 폐기 후보. / 클라(oxlens-home·Android) SCOPE 응답 set_id 키 제거 정합 필요.
@@ -998,7 +998,7 @@
 
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
-| 0603 | `20260603i_supervisor_observability_done` | 서버 | **supervisor 관측 레이어**(설계 §12). status()→Vec<UnitStatus>/all_units_ready, HubState attach(cfg(unix) ArcSwap), REST /admin/supervisor/{status,restart}(admin 인증), healthz live/ready(무인증). HTTP e2e(status 401/200·restart 202+재기동). fix admin kick `{}`→`:`(axum 0.7). test oxhubd 24. `4bd5caa` |
+| 0603 | `20260603i_supervisor_observability_done` | 서버 | **supervisor 관측 레이어**(설계 §12). `status()→Vec<UnitStatus>`/all_units_ready, HubState attach(cfg(unix) ArcSwap), REST /admin/supervisor/{status,restart}(admin 인증), healthz live/ready(무인증). HTTP e2e(status 401/200·restart 202+재기동). fix admin kick `{}`→`:`(axum 0.7). test oxhubd 24. `4bd5caa` |
 
 ## Phase 129: Cross-SFU Phase 0 — sfud CLI arg override + 2-unit 시험 환경 (0603j)
 
