@@ -82,8 +82,8 @@ body 는 카테고리 별 JSON 또는 binary (Floor MBCP).
 |---|---|---|---|---|
 | `0x1001` | ROOM_LIST | `{}` | `{rooms: [...]}` | — |
 | `0x1002` | ROOM_CREATE | `{room_id, ...}` | `{ok}` | — |
-| `0x1003` | ROOM_JOIN | `{room_id, role, participant_type?}` | `{members, existing_tracks, ...}` | take-over 자리 포함 |
-| `0x1004` | ROOM_LEAVE | `{room_id}` | `{}` | floor auto-release + leaver SDP 정리 |
+| `0x1003` | ROOM_JOIN | `{room_id, role, participant_type?, select?}` | `{room_id, participants, tracks, scope, server_config, floor}` | take-over 자리 포함. `select`(기본 true)=발언방 지정 의도 — false=affiliate(청취 합류만, 20260610 S-e, auto-select 폐기). `scope:{sub,pub}` 동봉(S-a) |
+| `0x1004` | ROOM_LEAVE | `{room_id}` | `{room_id, scope}` | floor auto-release + leaver SDP 정리. `scope:{sub,pub}` 동봉(20260610 S-b) |
 | `0x1005` | ROOM_SYNC | `{room_id}` | `{members, existing_tracks, ...}` | — |
 
 ---
@@ -104,14 +104,14 @@ body 는 카테고리 별 JSON 또는 binary (Floor MBCP).
 
 | op | 이름 | 요청 body | 응답 body | 비고 |
 |---|---|---|---|---|
-| `0x1200` | SCOPE | `{mode, change_id?, sub?, pub?}` | `ScopeEventPayload` | mode: `"update"` / `"set"` 분기 |
+| `0x1200` | SCOPE | update: `{mode:"update", change_id?, sub_add?, sub_remove?, pub_select?, pub_deselect?}` / set: `{mode:"set", change_id?, sub}` | `ScopeEventPayload` | pub_add/pub_remove dead 필드 청산(S-c). `pub_deselect`=발언방 명시 해제(S-g, cross-sfu select 의 이전 sfud 정리). ★단일 sfud 귀속 계약 — hub 가 pub_select→pub_deselect→sub_add[0]→sub_remove[0] 힌트로 라우팅(S-f), 여러 sfud 변경은 클라가 쪼개 송신 |
 
-`ScopeEventPayload` (응답 + broadcast 공용):
-- `sub_set_id: String` — `"sub-{user_id}"` (세션 수명 불변)
-- `pub_set_id: String` — 호환 layer, 현재 빈 문자열
-- `sub: [String]` — sub_rooms 스냅샷
-- `pub: [String]` (JSON key) / `pub_rooms: Vec<String>` (Rust 필드) — pub_room (1방 발언) 단일 자리 또는 empty
+`ScopeEventPayload` (응답 + SCOPE_EVENT broadcast 공용) — **적용 후 최종 스냅샷, 클라 applyEvent 입력**:
+- `sub: [String]` — sub_rooms 스냅샷 (복수)
+- `pub: String|null` (JSON key) / `pub_room: Option<String>` (Rust 필드) — 발언방 **단수** (20260610 S-c — 구 배열 화석 폐기)
 - `cause: String` — `"user"` / `"moderate"` / `"kick"` / `"room_closed"` / `"implicit"` / `"reconnect_restore"`
+- `change_id: String?` — 요청 echo (없으면 생략)
+- (구 sub_set_id/pub_set_id 는 2026-06-02 scope.rs 폐기 때 삭제 — 본 표기 지연 정정)
 
 ---
 

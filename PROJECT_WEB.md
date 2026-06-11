@@ -3,32 +3,33 @@
 
 > PROJECT_MASTER.md 에서 분리(2026-06-03). 웹클라 코드 종속 — 소스 구조·평면 아키텍처·프리셋 체계.
 > 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
-> **활성 SDK = `sdk/` (전면 재작성, 설계 `design/20260603_client_rewrite_core_design.md` + `_knowledge` 짝).** `core/` 는 레거시(구 평탄 SDK) — demo 가 아직 import 중(0605c demo 실배선 전), 제거 예정. 신규 참조 금지.
+> **활성 SDK = `sdk/` (전면 재작성).** 설계 권위: `design/20260603_client_rewrite_core_design.md` + `_knowledge` 짝(§7 = 헌법 5조).
+> `core/` 는 레거시(구 평탄 SDK) — demo 일부가 아직 import 중, 제거 예정. 신규 참조 금지.
 
 ---
 
+## 웹 클라이언트 구조 (실트리 실측 2026-06-12)
 
-## 웹 클라이언트 구조 (oxlens-home, 신 SDK = sdk/)
-
-> 실트리 실측(2026-06-06). 각 1줄 = 파일 헤더 주석 대조. `[scaffold]` = 골격/시그니처만(본체 후속 Phase).
+> 각 1줄 = 파일 헤더 주석 대조. `[STUB]` = 본체 보류. `sdk/**/_*.mjs` = node mock 검증 스크립트(런타임 아님).
 
 ```
 oxlens-home/
-├── core/        ← 레거시(구 평탄 SDK). demo 가 아직 import 중 → 제거 예정(0605c demo 실배선 후). 신규 참조 금지.
-├── sdk/         ← 활성 SDK (전면 재작성, 설계 20260603_client_rewrite_core_design.md)
-│   ├── engine.js          — 얇은 facade + DI 조립 + join orchestration. 구 God Object(63KB)의 ②조립+④Facade. 물리 소유 ✗
+├── core/        ← 레거시(구 평탄 SDK). demo 일부가 아직 import 중 → 제거 예정. 신규 참조 금지.
+├── sdk/         ← 활성 SDK (전면 재작성)
+│   ├── engine.js          — 얇은 facade + DI 조립 + join orchestration + **사실 단일 라우터(제5조)** + observe 분배기 + 복구(R1/R2)
 │   ├── index.js           — sdk 골격 조립/export (단방향 의존, 순환 없음)
-│   ├── shared/            — constants.js(공용 상수) · dc-frame.js(DC frame codec + SVC 레지스트리, Transport③+PTT MBCP 공유)
-│   ├── runtime/           — event-bus.js(① 훅 실체 — 코어 emit/플러그인 on) · env-adapter.js(브라우저/장치 종속 격리 → env:* 정규화 단일창구)
-│   ├── signaling/         — wire.js(v3 wire codec + OutboundQueue) · signaling.js(hub WS 단일, v3 binary frame) · op-registry.js(op dispatch 등록제 [scaffold])
-│   ├── transport/         — transport.js("나↔하나의 sfu" 미디어 연결, webrtc 단일 응집처) · transport-set.js(Map<sfuId,Transport>, cross-sfu 물리축) · negotiator.js(SDP 협상+직렬화 큐 [scaffold]) · sdp-builder.js(정책 JSON→fake remote SDP) · dc-channel.js(DC svc 멀티플렉싱 [scaffold])
-│   ├── domain/            — room.js(논리 컨테이너, RemoteEndpoint+recv Pipe 매칭+수신배선) · local-endpoint.js("나" 송신, LocalPipe 컬렉션+_stream 소유) · remote-endpoint.js(상대 참가자 수신) · pipe.js(base 공통) · local-pipe.js(송신 Track Gateway) · remote-pipe.js(수신 표시제어) [논리 3계층 Room→Endpoint→Pipe]
-│   ├── media/             — media-acquire.js(getUserMedia/getDisplayMedia 중앙 게이트) · device-manager.js(열거/입력전환/출력전환/핫플러그 [scaffold])
-│   ├── observability/     — telemetry.js(깊은 시계열+보고, 구 core 이식+결합청산 틈⑫) · lifecycle.js(Phase FSM+status 평면취합 틈⑩) · event-reporter.js(CLIENT_EVENT 사건 보고, 146)
-│   ├── ptt/              — ptt.js(서브시스템 조립+공개 API) · floor.js(Floor 5-state FSM, MBCP over ③DC) · power.js(half-duplex 전력 FSM HOT/HOT_STANDBY/COLD) · virtual.js(PTT virtual track slot pipe) · freeze.js(PTT 수신 표시제어 ②훅) · mbcp.js(MBCP TS24.380 wire codec)
-│   ├── plugins/          — annotate.js · moderate.js · track-dump.js (③훅 b: WS op 등록제 [scaffold])
-│   └── scope/            — scope.js(sub_rooms 청취 전용, 서버 정합 재작성 [scaffold])
-└── demo/        — 시나리오 6종 + admin (현 core/ 의존 — 0605c 에서 sdk/ 실배선 예정)
+│   ├── shared/            — constants.js(공용 상수) · emitter.js(**Emitter — 핸들별 로컬 emitter 토대**) · serial-lock.js(SerialLock — 제3조 직렬화+epoch) · reconnect-policy.js(재시도 백오프 단일 출처) · dc-frame.js(DC frame codec + SVC 레지스트리 + Speakers payload)
+│   ├── runtime/           — env-adapter.js(브라우저/장치 종속 격리 — visibility/online/devicechange/netchange 자기 emitter)
+│   ├── signaling/         — wire.js(v3 wire codec + OutboundQueue) · signaling.js(hub WS 단일 — pid Promise 응답 + **onServerEvent/onConnEvent 콜백 2개** + ReconnectPolicy 재접) · op-registry.js(op dispatch 등록제)
+│   ├── transport/         — transport.js("나↔하나의 sfu" PC pair/SDP/DC — **onTrackReceived/onPcEvent 콜백 2개**) · transport-set.js(Map<sfuId,Transport> 취합/패스스루) · sdp-builder.js(정책 JSON→fake remote SDP)
+│   ├── domain/            — room.js(수신 논리 컨테이너) · talkgroups.js(**방 관계 권위** — rooms Map 소유 + applyEvent/reconcile) · local-endpoint.js("나" 송신 — LocalPipe 컬렉션 + publish 직렬화 §13.6 + migratePublish) · remote-endpoint.js(상대 참가자) · pipe.js(base) · local-pipe.js(송신 Track Gateway) · remote-pipe.js(수신 — receiver.track 파생 + adoptTrack/setRemoteState/setVisible 게이트) · video-surface.js(표시 평면 — `_hiddenBy` 사유 합성 + rVFC reveal) · local-stream.js/remote-stream.js(외부 핸들 C2/C3)
+│   ├── media/             — media-acquire.js(getUserMedia/getDisplayMedia 중앙 게이트) · device-manager.js(열거/출력/핫플러그 — 입력전환은 후속) · adaptive-stream.js(ElementInfo — element 관측→rid 자동)
+│   ├── observability/     — telemetry.js(깊은 시계열 — observe 수신 전용) · lifecycle.js(Phase FSM + status 평면취합 — 통지 emit 없음) · event-reporter.js(CLIENT_EVENT 배치 보고 — report() 직접 호출 단일)
+│   ├── ptt/               — ptt.js(서브시스템 조립 + 공개 API) · floor.js(Floor 5-state FSM, MBCP over ③DC — 자기 emitter) · power.js(half-duplex 전력 FSM HOT/HOT_STANDBY/COLD) · virtual.js(PTT virtual slot — 방별 Map) · freeze.js(taken/idle→setVisible('floor') 얇은 어댑터) · mbcp.js(MBCP TS24.380 wire codec)
+│   └── plugins/           — annotate.js · moderate.js · track-dump.js (③훅 b: WS op 등록제 [STUB 보류])
+├── e2e/         ← 외부평면 E2E 하니스(브라우저 — 부장님 run). 케이스 14종(CONN/ROOM/CONF/MUTE/CAM/SCR/SW/PTT/TG/RECON) + 합성 봇 + 반복 통계 + 실패 힌트(타임라인/스냅샷) + 육안/음성 타일
+│   ├── runner.js, bot.js, cases.js, e2e.js, index.html
+└── demo/        — 시나리오 6종 + admin (일부 core/ 의존 잔존 — sdk/ 실배선 진행 중. 신규 검증 표면은 e2e/)
     ├── presets.js, index.html
     ├── scenarios/        — conference/voice_radio/video_radio/dispatch/support/moderate
     ├── components/       — shared.js, video-grid.js, ptt-panel.js
@@ -37,45 +38,81 @@ oxlens-home/
 
 ---
 
-## 신 SDK 아키텍처 (6 평면 + 3 확장 훅)
+## 신 SDK 아키텍처
 
-> 설계 단일출처: `design/20260603_client_rewrite_core_design.md` §2 (+ `_knowledge` 짝).
-> engine = **얇은 facade + DI 조립**(물리 소유 ✗ — 구 God Object 63KB 분해). 평면이 자기 책임 소유.
+> 설계 단일출처: `design/20260603_client_rewrite_core_design.md` §2 + `_knowledge` §7(헌법 5조) + `design/20260611_bus_diet_design.md`(제5조 — 글로벌 버스 폐기).
+> engine = **얇은 facade + DI 조립 + 사실 단일 라우터**(물리 소유 ✗). 평면이 자기 책임 소유.
 
-### 6 평면
-| 평면 | 모듈 | 책임 |
-|------|------|------|
-| 코어 설비 | EventBus / EnvAdapter | ① 훅 실체(emit/on) · 브라우저 종속 격리(env:*) |
-| 관측 | Lifecycle / Telemetry / event-reporter | **단방향 push**(평면→관측). Phase FSM+status 취합 / 시계열 보고 / 사건 보고(CLIENT_EVENT) |
-| 제어 | Signaling | hub WS **1개**(v3 binary frame, pid 대칭 ACK + 슬라이딩 윈도우) |
-| 미디어 | TransportSet → Transport | sfu **별 N**(단일 sfu=size 1 동형). Transport = "나↔하나의 sfu" PC pair+ICE/DTLS+SDP+DC |
-| 장치 | MediaAcquire / DeviceManager | getUserMedia 단일 게이트 · 열거/전환/핫플러그 |
-| 논리축 | domain/ (Room → Endpoint → Pipe) | Room = sfuId 라벨 논리 컨테이너. Endpoint = 참가자. Pipe = Track Gateway |
+### 구조도 (사실/관측/통지 3채널 — 글로벌 버스 없음)
 
-### 3 확장 훅
-- **① 생명주기 이벤트** — EventBus emit/on (코어 emit, 플러그인 on).
-- **② 미디어 파이프라인** — 송신 게이트(LocalPipe) / 수신 분기(RemotePipe). freeze masking = ② 훅.
-- **③ 메시지 채널** — DC svc(dc-frame/dc-channel) + WS op 등록제(OpRegistry). PTT/plugins 가 자기 op 등록.
+```
+                              ┌──────────────────────── 앱 ────────────────────────┐
+                              │  engine.on / room.on / stream.on / ptt.on /        │
+                              │  talkgroups.on / device.on   ← 핸들별 로컬 emitter │
+                              └─────────────────────▲───────────────────────────────┘
+                                                    │ ③ 통지(facade — 외부 계약)
+                                                    │
+ hub WS ━━► Signaling ──onServerEvent/onConnEvent──►┃
+            (제어 평면·WS 1개)                      ┃ Engine ── 사실 단일 라우터 + DI 조립
+                                                    ┃   │      + observe 분배기(REPORT_MAP/
+ sfu ×N ━━► Transport ──onTrackReceived/onPcEvent──►┃   │        TELEMETRY_EVENTS — "누가
+ (PC/SDP/DC) └ TransportSet(취합)  ① 사실(콜백 직결)┛   │        무엇을 관측하나" 한 곳)
+                                                        │
+                          ┌──────────────┬──────────────┼──────────────┬─────────────┐
+                          │직접 호출(자료구조: rooms Map / mid 매칭 / virtual 우선)   │
+                          ▼              ▼              ▼              ▼             ▼
+                     TalkGroups       Room ×N      LocalEndpoint      Ptt         복구 R1/R2
+                     (방 관계 권위    (수신 컨테이너) ("나" 송신 1개)  floor─power  R1=_syncRoom
+                      rooms Map 소유)  │ RemoteEndpoint │ LocalPipe ──┐ ├virtual    (signal 재동기)
+                                       │  └RemotePipe   │  (송신 게이트│ └freeze    R2=_rebuildTransport
+                                       │   └VideoSurface│  replaceTrack)│           (media 국소 재수립)
+                                       │                ▼             ▼
+                                       │           MediaAcquire(gUM 단일 게이트)─DeviceManager
+                                       │
+        EnvAdapter(visibility/devicechange…) ──env.on 직접 구독──► Power / DeviceManager / Telemetry
+                          │
+                          ▼ ② 관측(observe 단방향 push — 능동 구독 0)
+        각 평면 ──observe(ev,d)──► engine 분배기 ──► EventReporter(CLIENT_EVENT 배치)
+                                                 └─► Telemetry(시계열 — 읽기전용, 제어 금지)
+```
 
-**불변**: 코어 `if(ptt)` = 0(코어는 PTT 모름, ptt/ 가 ①②③ 훅으로만 접속) · 의존 단방향(부가→코어, 순환 0).
+### 헌법 5조 (코드 도그마 — `_knowledge` §7 전문)
+
+| 조 | 원칙 | 핵심 |
+|---|---|---|
+| 제1조 | 권위 파생 | track 권위 = sender/receiver.track — `this.track` 은 파생 getter(직접 대입 즉사) |
+| 제2조 | 단일 게이트 | replaceTrack→Pipe만 / getUserMedia→MediaAcquire만 / 표시→setVisible / mute·duplex→setTrackState |
+| 제3조 | 직렬화+세대 | 비동기 교체 = SerialLock(직렬 큐 + 종단 epoch). 자체 구현 금지, 재사용 |
+| 제4조 | 식별 평면 분리 | trackKey/track_id/mid/ssrc 4평면 독립. **kind 단위 식별 금지** |
+| 제5조 | 연결은 자료구조로 | **글로벌 버스 금지.** 연결 3종뿐 — ①사실=콜백 직결(engine 단일 수신) ②관측=observe 단방향 ③통지=핸들별 로컬 emitter. 死이벤트(수신 0 emit) 즉시 삭제 |
+
+### 확장 접점 (코어 `if(ptt)` = 0, 의존 단방향)
+
+- **② 미디어 파이프라인** — 송신 게이트(LocalPipe) / 수신 게이트(RemotePipe.adoptTrack) / 표시(VideoSurface.setVisible — freeze 는 'floor' 사유 어댑터).
+- **③ 메시지 채널** — DC svc 등록제(transport.onChannelMessage: MBCP=floor, SPEAKERS=engine) + WS op 등록제(OpRegistry — plugins).
+- (구 ① 생명주기 이벤트(EventBus) 는 제5조로 대체 — 콜백/observe/로컬 emitter.)
 
 ### 핵심 설계 판단
-- **PC = Transport 소유** — Transport 가 "나↔하나의 sfu" 물리 연결 소유(engine 아님). cross-sfu = TransportSet 크기 N, 멀티룸 subscribe 합집합 = engine `_renegotiateSfu`(같은 sfu 전 Room recv pipe 합집합 1회 renego).
-- **Pipe = Track Gateway** — `sender.replaceTrack` 유일 게이트웨이. LocalPipe(송신)/RemotePipe(수신) 타입 분리. `mount/unmount` 로 video element 소유.
-- **MediaAcquire = getUserMedia 단일 게이트** — audio/video/screen, DeviceError 분류, 권한 감시.
-- **PTT = 응집 서브시스템** — floor+power+virtual+freeze 조립(ptt.js). "PTT 모드" 개념 없음, `pipe.duplex==='half'` 자연 분기. 코어 무지.
+
+- **PC = Transport 소유** — "나↔하나의 sfu" 물리 연결(engine 아님). cross-sfu = TransportSet 크기 N. 멀티룸 subscribe = 같은 sfu 전 Room recv pipe **합집합 1회 renego**(PTT slot 포함).
+- **rooms Map = TalkGroups 소유** — 방 관계 권위(applyEvent/reconcile, server-authoritative). engine.rooms 는 동일 Map 참조.
+- **publish 직렬화(§13.6)** — addPublishTrack→enrich→PUBLISH_TRACKS await ok→track_id 학습→setTrack(RTP). ok 전 RTP 차단(holdRtp).
+- **복구(RESYNC 금지)** — 0단계: 서버 ICE Address Migration 자연복구(disconnected 는 트리거 아님, **failed 만**). R1(signal): WS 재접+전방 ROOM_SYNC 재동기. R2(media): Transport 국소 재수립+migratePublish 재사용. 백오프 = ReconnectPolicy 단일 출처.
+- **PTT = 응집 서브시스템** — floor+power+virtual+freeze 조립(ptt.js). "PTT 모드" 개념 없음, `pipe.duplex==='half'` 자연 분기.
 - **connect→publish 분리** — joinRoom 미디어 미포함. enableMic/enableCamera 분리.
-- **Lifecycle Phase FSM** — IDLE→CONNECTED(WS)→JOINED(Room)→PUBLISHING(intent)→READY. status = 각 평면 status getter 취합(횡단조회 폐기, 틈⑩).
-- **관측 단방향 철칙** — 평면→관측 push OK, 관측을 pull 해서 제어 = 반칙. getStats 소유 = Transport.collectStats()(틈⑫).
+- **관측 단방향 철칙** — 평면→관측 push OK, 관측을 pull 해 제어 = 반칙. getStats 소유 = Transport.collectStats().
+- **Lifecycle Phase FSM** — IDLE→CONNECTED→JOINED→PUBLISHING→READY. status = 각 평면 status getter 취합(횡단조회 금지). 통지 emit 없음(getter 관찰).
 
 ### PTT Video Freeze Masking
-- **숨김**: `left:-9999px` + `overflow:hidden` — floor:state(시그널링) 기반, 즉각.
-- **표시**: listening AND rVFC(requestVideoFrameCallback) 둘 다 만족.
+- **숨김**: `visibility:hidden` + `left:-9999px` 동시(VideoSurface) — floor 사실(시그널링) 기반, 즉각.
+- **표시**: 사유 전부 해소 AND rVFC(첫 프레임)/unmute 확인 — `_hiddenBy` Set 합성(floor/device/app 독립 사유).
 - **display:none 금지** — 디코더 정지 → onmute 연쇄 장애.
 - track.onmute 는 보조 안전망(발화 시점 보장 안 됨, 업계도 시그널링 기반).
 
 ### 설계 문서
-- **권위(신 SDK)**: `design/20260603_client_rewrite_core_design.md` + `20260603_client_rewrite_knowledge.md`(짝).
+- **권위(신 SDK)**: `design/20260603_client_rewrite_core_design.md` + `20260603_client_rewrite_knowledge.md`(§7 헌법 5조).
+- 헌법/대칭: `20260611_client_sdk_constitution_and_pipe_symmetry.md`. 버스 폐기: `20260611_bus_diet_design.md`(§5 지도·§6 처분표). 복구: `20260611_recovery_design.md`(+3사 비교 짝).
+- API 계열(C1~C7): `20260606_client_api_*` + `20260607_client_api_*_work_order`. e2e: `20260610_sdk_e2e_case_matrix.md`.
 - 레거시(core/ v2 — 참조용): `20260411_core_v2_architecture.md`, `20260417_lifecycle_redesign.md`, `20260417_pipe_track_gateway_design.md`, `20260418_media_acquire_design.md`.
 
 ---
@@ -113,24 +150,28 @@ conference, voice_radio, video_radio, dispatch, support, moderate
 
 ---
 
-## Scope SDK API (`engine.scope.*`)
+## TalkGroups SDK API (`engine.talkgroups.*`) — 구 Scope 표면 대체
 
-> PROJECT_SERVER.md 에서 이전(2026-06-03, 발견_사항 3) — 클라 SDK 공개 API. 서버 자료구조(sub_rooms HashSet)·불변 원칙은 [PROJECT_SERVER.md](PROJECT_SERVER.md) "Scope 모델".
+> 방 관계 단일 표면(구 `engine.scope` 폐기 — 별칭 없음). 서버 자료구조(sub_rooms HashSet)·불변 원칙은
+> [PROJECT_SERVER.md](PROJECT_SERVER.md) "Scope 모델". 설계: `design/20260610_talkgroups_applyevent_design.md`(모델 2).
 
 ```js
-// sub_rooms 변경 — 서버 실제 처리
-engine.scope.affiliate(roomId)     // sub_rooms += {R}
-engine.scope.deaffiliate(roomId)   // sub_rooms -= {R}
-engine.scope.update({ sub_add, sub_remove, change_id? })
-engine.scope.set({ sub, change_id? })   // 전체 지정 (서버 diff 분해)
+// 방 관계 변경 — 전부 server-authoritative(응답/SCOPE_EVENT 수신 시 applyEvent 로만 갱신)
+await engine.talkgroups.affiliate(roomId)  // 청취 가입(ROOM_JOIN, select 없이)
+await engine.talkgroups.join(roomId)       // 가입 + 발언방 선택(Room 반환)
+await engine.talkgroups.select(roomId)     // 발언방 전환 (pub 단수 — 발언축 물리 이전 동반)
+await engine.talkgroups.leave(roomId)
 
-// 상태 조회 — pub 은 단수 의미 (0/1-element Set). set_id 폐기(0602e — 클라 정합 별 세션)
-engine.scope.{sub, pub, snapshot(), hasSub, hasPub}
-engine.scope.on('changed', ({ sub, pub, cause, change_id }) => ...)
+// 상태 조회 — pub 은 단수 의미
+engine.talkgroups.{affiliated, selected, pending}
+engine.talkgroups.on('changed' | 'pending' | 'conflict', fn)   // 자기 emitter(제5조)
 ```
 
-**Server-authoritative**: `affiliate()` 는 전송만. 상태는 서버 응답 (SCOPE ok / SCOPE_EVENT broadcast) 수신 시 `applyEvent` 로만 갱신. partial success 경로 대응 — SDK 낙관적 업데이트 금지.
+**Server-authoritative**: 명령 메서드는 전송+응답 대기만. 상태는 서버 응답(SCOPE ok / SCOPE_EVENT broadcast)
+수신 시 `applyEvent` 로만 갱신(SerialLock 직렬). 강제 편입(SCOPE_EVENT)은 pending 등재 + 보고까지가 클라 계약.
+SDK 낙관적 업데이트 금지.
 
-**JSON key**: SCOPE wire body `"sub"` array 만 의미. SCOPE_EVENT broadcast payload = `{sub, pub, cause, change_id}` (`pub`=0/1-element Vec, serde rename). **`sub_set_id`/`pub_set_id` 필드 폐기(0602e)** — RoomSetId 제거 동반.
+**JSON key**: SCOPE wire body `"sub"` array 만 의미. SCOPE_EVENT broadcast payload = `{sub, pub, cause, change_id}`
+(`pub`=0/1-element Vec, serde rename). `sub_set_id`/`pub_set_id` 필드 폐기 — RoomSetId 제거 동반.
 
 ---

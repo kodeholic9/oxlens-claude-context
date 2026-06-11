@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-09 — **클라 외부평면 재설계 G1~G7 + 서버 정합(0609a~d, Phase 148)**. 미완: cross-sfu select 브라우저 실검증·A1 Android 0x1103 이관.
+> 최종 업데이트: 2026-06-12 — **글로벌 EventBus 완전 폐기(헌법 제5조 D1~D5) + 복구 묶음 P1~P4 + 주석 청소(Phase 152)**. 미완: ptt:restore_metrics push 복원·media:track 처분 확인·LiveKit 이식(§9)·FRAME-1 미디어 단언·PTT 수신 oxe2e·A1 Android 0x1103 이관.
 > 이전(0606b~d): 문서 현행화·클라 API 분석(코드 0) — PROJECT_* 마스터 3종·repo CLAUDE.md/README v3·클라 SDK C1~C7 카테고리. 세부는 아래 Phase 표 참조.
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
@@ -1146,6 +1146,49 @@
 
 ---
 
+## Phase 149: talkgroups 재구조화 — applyEvent 전면 reconcile + scope.js 삭제 (0610)
+
+> 설계 `design/20260610_talkgroups_applyevent_design.md` (검토 `202606/20260610_client_send_room_review.md` 후속).
+> 결정: 모델 2 전면 reconcile / scope 응답 동봉 / presence 단독 불인정 / pub wire 단수화 / scope.js 삭제 / hub selected 권위(A') **보류**.
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0610 | `20260610_talkgroups_phase12_done` | 서버+클라 | **Phase 1 서버**(S-a~S-c·S-e~S-g): JOIN/LEAVE 응답 scope 동봉·pub 단수화·auto-select 폐기(select 플래그)·SCOPE 라우팅 힌트·pub_deselect. **Phase 2 클라**: `talkgroups.js`(applyEvent 직렬화+멱등/reconcile/재료 보관소/pending/cross-sfu 분할 송신) + engine 권위 이관 + **scope.js 삭제**(floor 표면→ptt.on). ★발견 F8(scope=user×sfud 조각)·F9(auto-select 독립 발사)·F10(sfu 식별자 부재→ICE 종단 키 파생). cargo 206+24·oxe2e 4종·mock 12종·라이브(실 SDK×2-sfud) 전 PASS. 서버 `6877599` 클라 `0df5408` |
+| 0610 | `20260610_talkgroups_phase12_done` (Phase 3 절) | 서버+클라 | **Phase 3 청취축**: `ptt.on(TAKEN/IDLE,{room,...})` affiliated 전 방 수신(SPEAKER 폐기·무전기 모델·room 핸들 — 부장님 결정 3건) + 타방 FSM 비오염 + virtual per-room slot. ★발견: ①slot pipe subscribe 합집합 누락(0605 재작성 — PTT 수신 m-line 부재, 부채 D 실체) ②datachannel floor `event_tx=&None` 하드코딩(청취 전용/cross-sfu floor 영구 미달) → **S-h WS unicast fallback**. 라이브: DC 없는 청취자가 봇 발화 TAKEN/IDLE WS 수신 PASS. 서버 `db930f7` 클라 `4f27cc0` |
+| 0610 | `20260610_talkgroups_phase12_done` (F11~F13 절) | 서버+클라 | **F11 hub 다방 배달**(user당 1방 가정 폐기 — `WsConn.rooms` Set, 정밀 가입/탈퇴, 종료 전 방 순회) + **F13 "마지막 join 방" 힌트 전면 폐기**(부장님 지적 — 멀티룸 오염값. sfud행 op room_id 필수 계약, 위반자 봇/oxrtc TRACKS_READY 정정 — SubscriberGate video 회귀 stash 이분으로 확정) + **F12** ROOM_EVENT `type` 키 정정(participant_left 죽은 분기 부활). ★교훈(메모리 등재): 계약 변경 시 소비자 전수조사 = 봇/oxrtc 포함, 회귀엔 stash 이분 첫 수, mock 단언은 wire 실측 기준. A' 숙고 재료 C안(무상태 질의-병합) §8 등재. 서버 `5a39e87` 클라 `1e0b763` |
+| 0610 | `20260610_talkgroups_phase12_done` (묶음1~3 절) | 클라 | **Pipe 송출 상태 재설계**(부장님 지시 — track 멤버 폐기·base 비대 지적, 검토 기록 부수 발견 ①~⑤ 소화). 묶음1=상태축 5→2(track 파생 getter·_heldTrack 통합·_upstreamPaused 폐기→suspend 갈음·**종단 epoch** 로 lock 큐 부활 구멍 봉쇄) / 묶음2=게이트 일관성(holdRtp 신설·unbindSender 경유·sender setter 우회로 삭제) / 묶음3=base 합집합 해체(send→LocalPipe, recv→RemotePipe, 死 fallback 제거). mock 12종+라이브 PASS. 클라 `c0ca900` |
+| 0610 | (세션 말 결정) | 설계 | **A'/C 최종 보류** — 무전 채널 방/멤버·초대/퇴장 이력은 영속(DB 권위)으로 진화 예정 → 조각 합성 문제 자체가 소멸할 구조. 합의 전제 "**hub = DB 의 사서(무상태 길목 판정)이되 금고 아님**, sfud 멤버십 사본 배포 금지, 변경은 멱등 이벤트 전파". DB 등장은 타이밍 이르다 판단 — 별도 의제 이월. Phase 3b(강제 경로/S-d/pending wire)는 영속 계층 의제에 자연 흡수(별도 기록 불요 — 부장님). 잔여 = PTT 수신 oxe2e 시나리오(차기 세션) |
+
+---
+
+## Phase 150: 클라 SDK stub 전수 감사 — 화석 삭제 + STALLED 복구/BWE probe 흡수 (0610b)
+
+> 설계 대조: `design/20260603_client_rewrite_core_design.md` §8·§10·§12. plugins 3종(Moderate/Annotate/TrackDump)은 부장님 보류.
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0610 | `20260610b_sdk_stub_audit_health_bwe_done` | 홈 SDK | **stub 4분류 감사**(순수 stub 6·자리 상수·죽은 잔재·의도적 미이식) + 설계 대조 — negotiator/dc-channel=설계 폐기 확정 화석 **삭제**, §8 미결 2건=실 구멍 확인 → **STALLED 복구 engine 흡수**(pub_pid 방 역해석+ROOM_SYNC+calcSyncDiff 첫 배선+applyTracksUpdate, 방별 쿨다운 — 구 health-monitor 110줄의 실체는 SYNC 1단+쿨다운뿐) + **BWE probe telemetry 흡수**(publish:ok→30초 창, tick 산출물 재사용 getStats 0). mock 12종+ad-hoc PASS. ⚠TRACK_STALLED 실발화 E2E 미검증. 클라 `9afdbe5` |
+
+---
+
+## Phase 151: SDK 헌법 적용 + 외부평면 E2E 하니스 + per-track mid 단일화 (0611)
+
+> 설계 `design/20260611_client_sdk_constitution_and_pipe_symmetry.md`(rev.2 — 헌법 4조·Pipe 대칭·VideoSurface) + `design/20260610_sdk_e2e_case_matrix.md`.
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0611 | `20260611_sdk_constitution_e2e_harness_done` | 홈 SDK+서버 | **① e2e 하니스**(`30864e1`): 케이스 12종+합성 봇+반복 통계+실패 힌트(타임라인/스냅샷)+타일. ★첫 가동에 실버그 2건 발굴 — TRACK_STATE_REQ room_id 누락(원격 mute 전멸)·PTT DC open 레이스. **② 헌법 적용**(`fe1a975`): room_id 전수 4곳 / SerialLock 추출(제3조) / RemotePipe 대칭(receiver.track 파생+adoptTrack+setRemoteState) / **VideoSurface**(`_hiddenBy` 사유 합성)+freeze 어댑터화 / _sfuIdOf throw·getPipeByKind 삭제·네이밍. **③ per-track mid 단일화**(클라 `c021fd3`+서버 `5a97a05` 한 쌍): top-level audio_mid/video_mid 폐기(video_mid=死필드), ingress 저장원 per-track 전환, 봇 정합. **④ transport 버그 4건**(`a552ced`): 혼합배치 audio SSRC 누락(per-track 판정)·failed PC 재사용·usedtx video 오염·死라인. cargo 206+24·oxe2e 4종·mock·라이브(부장님) 전 PASS. 이월: LiveKit 이식(§9)·FRAME-1 미디어 단언·floor pending 패턴·① sim 혼합 실확인 |
+
+## Phase 152: 글로벌 EventBus 완전 폐기(헌법 제5조) + 복구 묶음 + 주석 청소 (0612)
+
+> 설계 `design/20260611_bus_diet_design.md` rev.2(§6 처분표) + `design/20260611_recovery_design.md`. 헌법 4조→**5조**(`design/20260603_client_rewrite_knowledge.md` §7).
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0612 | `20260612_bus_abolition_recovery_done` | 홈 SDK | **① 버스 폐기 D1~D5**(`f1a9cea`): 연결 3종만 — 콜백 직결(signaling 2개/transport 2개→engine 단일 라우터)·observe 채널(REPORT_MAP/TELEMETRY_EVENTS 분배기)·핸들별 로컬 emitter. runtime/event-bus.js 삭제→shared/emitter.js. 死이벤트 처분표 9행(§6). _t3a 기준선 해소(Room `floor=null` 선언 누락). ★발견: `ptt:restore_metrics` = 포팅 갭(push 측 미이식, 별건). **② 복구 묶음 P1~P4**(같은 커밋): R1 signal 재동기(_syncRoom)·R2 media 국소 재수립(RESYNC 금지)·ReconnectPolicy(LiveKit 값)·calcSyncDiff PTT slot 제외(RECON-2)·SPEAKERS 이식·RECON-1·2 케이스. **③ 주석 이력 청소**(`0a3d527`): 변천 서사/단계 태그/날짜 삭제 + stale 현행화(engine "범위 밖"·bus 배선 설명 등). mock 24종 + 라이브 하니스 전 케이스 + oxe2e 4종 PASS. 이월: ptt:restore_metrics push 복원·media:track 처분 확인·FRAME-1·LiveKit §9 |
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -1155,9 +1198,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 367개
-- **기간**: 2026-03-09 ~ 2026-06-09 (93일)
-- **최종 업데이트**: 2026-06-09 — 외부평면 G1~G7 + 서버 정합(Phase 148). 클라 c3d5552·a52d02d·0ee52be·40c6465 / 서버 60e6dba. 미완: cross-sfu 실검증·A1 Android 이관. 이전(0606): 문서 현행화·클라 API 분석.
+- **총 세션 파일**: 371개
+- **기간**: 2026-03-09 ~ 2026-06-12 (96일)
+- **최종 업데이트**: 2026-06-12 — **Phase 152 버스 폐기+복구 묶음+주석 청소**(클라 `f1a9cea`·`0a3d527`. 헌법 5조 명문화 + 死이벤트 처분표 §6). 이전: Phase 151 헌법+e2e 하니스+per-track mid / Phase 150 stub 감사. 잔여: ptt:restore_metrics push 복원·media:track 처분·LiveKit 이식·FRAME-1·PTT 수신 oxe2e.
 
 ---
 

@@ -143,4 +143,66 @@ Kernel (Engine 후신)
 
 ---
 
+## 7. SDK 헌법 5조 (2026-06-11 명문화 — 코드 도그마)
+
+> 출처: 제1~4조 = `20260611_client_sdk_constitution_and_pipe_symmetry.md` §2 (지어낸 규칙이 아니라
+> **LocalPipe 코드에서 읽어낸 것**을 전역 원칙으로 승격). 제5조 = `20260611_bus_diet_design.md`
+> rev.2 (글로벌 EventBus 완전 폐기 — 부장님 확정). 신규/수정 코드는 5조를 통과해야 한다.
+
+### 제1조 — 권위 파생 (Authority derivation)
+
+브라우저 객체의 상태를 **사본하지 않는다. 항상 파생한다.** track 권위 = `sender.track`(송신) /
+`receiver.track`(수신). `this.track` 데이터 멤버 금지 → **파생 getter**(직접 대입 = TypeError 즉사).
+
+근거표 (MDN 검증 — 권위가 이미 브라우저에 있다):
+
+| 상태 | 권위 소유 | 가변성 |
+|---|---|---|
+| muted/enabled/readyState | MediaStreamTrack | muted=브라우저 RO, enabled=개발자 토글 |
+| track (송신) | sender.track | 가변 (replaceTrack/null) |
+| track (수신) | receiver.track | **불변** (read-only) |
+| mid/direction | transceiver | mid=협상 후 고정 |
+| connectionState 등 | RTCPeerConnection | read-only |
+
+이벤트 발생처 = MediaStreamTrack(mute/unmute/ended) + RTCPeerConnection(track/state류).
+**sender·receiver·transceiver 자체엔 이벤트 없음** → SDK 는 파생/구독만.
+
+### 제2조 — 단일 게이트 (Single gateway)
+
+상태를 바꾸는 입구는 도메인마다 **정확히 하나**. replaceTrack→Pipe만 / getUserMedia→MediaAcquire만 /
+표시→VideoSurface.setVisible 하나 / mute·duplex→setTrackState 하나. 분산 진입점 = last-write-wins 충돌.
+
+### 제3조 — 직렬화 + 세대 (Serialization + epoch)
+
+비동기 교체는 **직렬 큐**, 종단은 **epoch**. 공통 구현체 = `sdk/shared/serial-lock.js` `SerialLock`
+(run/terminate). 사용처: LocalPipe(교체류) · TalkGroups(applyEvent). 비동기 상태 전이가 있는 모든
+곳에 적용 — 새 직렬화 필요 시 자체 구현 금지, SerialLock 재사용.
+에러 흘림이 묘수: 한 작업 실패가 큐를 막지 않되(다음 진행), 반환 promise 는 호출자에 그대로 reject.
+
+### 제4조 — 식별 평면 분리 (Identity planes)
+
+`trackKey`(클라 intent) / `track_id`(서버 불투명 키) / `mid`(media) / `ssrc`(wire) 네 평면 독립.
+키는 조회만, 파싱 금지. **kind 단위 식별 금지**(`getPipeByKind`류 첫 매칭 = 다중 source 에서 깨짐 —
+PT 하드코딩 금지와 동급 도그마). 식별은 mid/trackKey 단위.
+
+### 제5조 — 연결은 자료구조로 (No global bus)
+
+**전역 EventBus 금지.** 모듈 간 연결은 3종뿐 — 그 외 경로를 만들면 위반:
+
+1. **사실의 단일 수신 = 콜백 직결.** 외부 사실(서버 push, PC/track 사건)은 발원지가 콜백
+   필드로 engine 에 직접 전달(`signaling.onServerEvent/onConnEvent`,
+   `transport.onTrackReceived/onPcEvent`). engine 이 자료구조(rooms Map, mid 매칭)로 배달.
+   브로드캐스트+수신측 필터링 금지 — 라우팅은 보내는 쪽 책임.
+2. **관측 = observe 채널(단방향 push).** 평면→관측은 주입된 `observe(ev, d)` 콜백 하나.
+   engine 조립부 분배기(REPORT_MAP/TELEMETRY_EVENTS)가 "누가 무엇을 관측하나"를 한 곳에 명시.
+   관측 평면의 능동 구독 0. **텔레메트리 ≠ 제어** 와 한 쌍 — observe 로 들어온 걸 읽어 의사결정 금지.
+3. **통지 = 핸들별 로컬 emitter.** 외부 계약(engine.on/room.on/ptt.on …)과 서브시스템 내부
+   배선(floor→power/freeze, env→power/device)은 그 핸들 소유의 `Emitter`(shared/emitter.js).
+   누가 듣는지 핸들 단위로 닫혀 있어 호출 관계가 코드에서 읽힌다.
+
+수신자 없는 emit 는 死이벤트 — 발견 즉시 삭제(보관 금지). 도착지 지도 =
+`20260611_bus_diet_design.md` §5.
+
+---
+
 *author: kodeholic (powered by Claude)*
