@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-12 — **글로벌 EventBus 완전 폐기(헌법 제5조 D1~D5) + 복구 묶음 P1~P4 + 주석 청소(Phase 152)**. 미완: ptt:restore_metrics push 복원·media:track 처분 확인·LiveKit 이식(§9)·FRAME-1 미디어 단언·PTT 수신 oxe2e·A1 Android 0x1103 이관.
+> 최종 업데이트: 2026-06-12 — **미디어 평면 결함 수정+장치 정책 하이브리드+blockedBy(Phase 153)**(클라 `6d6ba08`·`02d5cbb`+1. 0612b 감사 이월 전량 소화). 미완: ptt:restore_metrics push 복원·media:track 처분 확인·LiveKit 이식(§9)·FRAME-1 미디어 단언·PTT 수신 oxe2e·A1 Android 0x1103 이관·UA 스니핑 3곳 중복.
 > 이전(0606b~d): 문서 현행화·클라 API 분석(코드 0) — PROJECT_* 마스터 3종·repo CLAUDE.md/README v3·클라 SDK C1~C7 카테고리. 세부는 아래 Phase 표 참조.
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
@@ -1186,6 +1186,15 @@
 | 날짜 | 파일 | 영역 | 요약 |
 |------|------|------|------|
 | 0612 | `20260612_bus_abolition_recovery_done` | 홈 SDK | **① 버스 폐기 D1~D5**(`f1a9cea`): 연결 3종만 — 콜백 직결(signaling 2개/transport 2개→engine 단일 라우터)·observe 채널(REPORT_MAP/TELEMETRY_EVENTS 분배기)·핸들별 로컬 emitter. runtime/event-bus.js 삭제→shared/emitter.js. 死이벤트 처분표 9행(§6). _t3a 기준선 해소(Room `floor=null` 선언 누락). ★발견: `ptt:restore_metrics` = 포팅 갭(push 측 미이식, 별건). **② 복구 묶음 P1~P4**(같은 커밋): R1 signal 재동기(_syncRoom)·R2 media 국소 재수립(RESYNC 금지)·ReconnectPolicy(LiveKit 값)·calcSyncDiff PTT slot 제외(RECON-2)·SPEAKERS 이식·RECON-1·2 케이스. **③ 주석 이력 청소**(`0a3d527`): 변천 서사/단계 태그/날짜 삭제 + stale 현행화(engine "범위 밖"·bus 배선 설명 등). mock 24종 + 라이브 하니스 전 케이스 + oxe2e 4종 PASS. 이월: ptt:restore_metrics push 복원·media:track 처분 확인·FRAME-1·LiveKit §9 |
+| 0612b | `20260612b_client_media_plane_audit_audiopath` | 홈 SDK | 미디어 평면 감사+오디오 패스 업계조사(분석, 코딩0). 확정 결함 2 — `_publishCamera` SUSPENDED 미처리(resume 우회→좀비, active축 vs trackState축 혼용)·BT 영구분리 fallback 부재(full-duplex). local-pipe=정교(헌법1·2·3조, setInputDevice 게이트 완성) → 결함은 조립층 부품 미사용, 재배선 3~4곳. 오디오 패스=**업계 따라가기로 충분**(우선순위 자동·모바일 출력 강제 기각, 모바일 현장=네이티브). |
+
+## Phase 153: 미디어 평면 결함 수정 + 장치 정책 하이브리드 + blockedBy (0612)
+
+> 0612b 감사 이월 전량 소화(구현). 결정 — devicechange=**하이브리드**·축 완전 단일화 기각(publish 진행 구간 = 등록축/미디어축 의도적 어긋남)·mic-check 통째 흡수 기각(자체 gUM 호출 = MediaAcquire 단일 게이트 충돌).
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0612c | `20260612c_client_media_plane_fix_done` | 홈 SDK | **① 감사 ①~⑤+추가2**(`6d6ba08`): `_revivePipe`(trackState 전체 분기 — SUSPENDED→resume/RELEASED→같은 SSRC 재장착, publishAudio 동일 구멍도)·`_recoverPipe`(BT 영구분리 → deviceId 제거 1회 재시도=내장 fallback, half 비개입)·gum timeout 이원화(granted 5s/prompt 60s)+늦은 resolve orphan stop·facingMode ideal:user·unpublish Map 정리·restartTrack 옛 track 정지·`_lifecycles`(잔여 debounce 오발동 차단). **② ⑥⑦**(같은 커밋): `_followDefault`(미선택=OS default 추종, 선택=고정·분리 시 해제)·`switchCamera`/`setVideoInput`(restartTrack 수렴)·`applyInputTrack`(전환 적용 단일 경로). **③ tests 일원화**(`02d5cbb`): check 19개 → sdk/tests/(접두사 제거)·브라우저 probe 3건 폐기(e2e 일원화 방침). **④ blockedBy**(mic-check 매트릭스 차용): code 보존+안내처 별도 축(system/user/dismissed/null)·dismissed 는 denied 캐시 금지·Safari=gUM catch 커버. 글루 19/19(mp_check 50체크). 이월: UA 스니핑 3곳 중복(shared/ua.js 후보) |
 
 ---
 
@@ -1198,9 +1207,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 371개
+- **총 세션 파일**: 373개
 - **기간**: 2026-03-09 ~ 2026-06-12 (96일)
-- **최종 업데이트**: 2026-06-12 — **Phase 152 버스 폐기+복구 묶음+주석 청소**(클라 `f1a9cea`·`0a3d527`. 헌법 5조 명문화 + 死이벤트 처분표 §6). 이전: Phase 151 헌법+e2e 하니스+per-track mid / Phase 150 stub 감사. 잔여: ptt:restore_metrics push 복원·media:track 처분·LiveKit 이식·FRAME-1·PTT 수신 oxe2e.
+- **최종 업데이트**: 2026-06-12 — **Phase 153 미디어 평면 수정+하이브리드+blockedBy**(클라 `6d6ba08`·`02d5cbb`+1. 0612b 이월 전량 소화, 글루 19/19). 이전: Phase 152 버스 폐기+복구 묶음 / Phase 151 헌법+e2e 하니스. 잔여: ptt:restore_metrics push 복원·media:track 처분·LiveKit 이식·FRAME-1·PTT 수신 oxe2e·UA 스니핑 통합.
 
 ---
 
