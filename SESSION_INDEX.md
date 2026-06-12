@@ -1,7 +1,7 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-12 — **미디어 평면 결함 수정+장치 정책 하이브리드+blockedBy(Phase 153)**(클라 `6d6ba08`·`02d5cbb`+1. 0612b 감사 이월 전량 소화). 미완: ptt:restore_metrics push 복원·media:track 처분 확인·LiveKit 이식(§9)·FRAME-1 미디어 단언·PTT 수신 oxe2e·A1 Android 0x1103 이관·UA 스니핑 3곳 중복.
+> 최종 업데이트: 2026-06-13 — **발행 트랜잭션 재편+표면 정리+검은 화면 해결(Phase 154)**(클라 커밋 5: `8233b74`·`3ad5d00`·`b7dfa00`·`6fdc26a`·`be50c6c`). ★검은 화면 = 2겹(TRACKS_READY 갭 + 배치 codec 폴백 부재→서버 묵시 VP8 오등록) — CONF-2/3 라이브 PASS. 디버깅 확인 사항 = **guide/MEDIA_DEBUG_GUIDE_FOR_AI.md**("미디어 디버깅"/"검은 화면" 키워드 로드). 미완: [서버] 묵시 VP8·NEW rtx 반복 + ptt:restore_metrics push 복원·media:track 처분·LiveKit 이식(§9)·FRAME-1·PTT 수신 oxe2e·A1 Android 0x1103 이관.
 > 이전(0606b~d): 문서 현행화·클라 API 분석(코드 0) — PROJECT_* 마스터 3종·repo CLAUDE.md/README v3·클라 SDK C1~C7 카테고리. 세부는 아래 Phase 표 참조.
 > 표 안 `0518/0519/0520` 등 접두사는 김대리 작업 지침 파일명 별칭 — 파일명 보존 정합 (5/17 묶음 1~9 단일 세션, 5/18 F29 + 후속 단일 세션, 5/19 클라 v3 Phase 1)
 
@@ -1196,6 +1196,14 @@
 |------|------|------|------|
 | 0612c | `20260612c_client_media_plane_fix_done` | 홈 SDK | **① 감사 ①~⑤+추가2**(`6d6ba08`): `_revivePipe`(trackState 전체 분기 — SUSPENDED→resume/RELEASED→같은 SSRC 재장착, publishAudio 동일 구멍도)·`_recoverPipe`(BT 영구분리 → deviceId 제거 1회 재시도=내장 fallback, half 비개입)·gum timeout 이원화(granted 5s/prompt 60s)+늦은 resolve orphan stop·facingMode ideal:user·unpublish Map 정리·restartTrack 옛 track 정지·`_lifecycles`(잔여 debounce 오발동 차단). **② ⑥⑦**(같은 커밋): `_followDefault`(미선택=OS default 추종, 선택=고정·분리 시 해제)·`switchCamera`/`setVideoInput`(restartTrack 수렴)·`applyInputTrack`(전환 적용 단일 경로). **③ tests 일원화**(`02d5cbb`): check 19개 → sdk/tests/(접두사 제거)·브라우저 probe 3건 폐기(e2e 일원화 방침). **④ blockedBy**(mic-check 매트릭스 차용): code 보존+안내처 별도 축(system/user/dismissed/null)·dismissed 는 denied 캐시 금지·Safari=gUM catch 커버. 글루 19/19(mp_check 50체크). 이월: UA 스니핑 3곳 중복(shared/ua.js 후보) |
 
+## Phase 154: 발행 트랜잭션 재편 + 표면 정리 + TRACKS_READY 포팅 갭 (0613)
+
+> 0612c 연속 세션 후반부 — domain 검토(부장 의구심: trackKey 권위 vs m:{mid} 임시키 / assembleRoom 이름·역할) 파생. 결정 — pipes Map=trackKey 키잉·rVFC 게이트 제거(실측 후 재강구)·DeviceManager static 전역화 기각(상태 보유자+bus 폐기 교훈).
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0613 | `20260613_client_publish_tx_surface_tracksready_done` | 홈 SDK+서버 | **① 발행 트랜잭션**(`8233b74`): `_publishMany`→`_publishTracks`(stage/register/startRtp + `_unwindPublish` 단일 청소 — 실결함 3: 선행분 좀비/_stream·lifecycle 미청소/acquire track 고아)·`preserveTracks`(migrate/BYO 만 보존)·**pipes Map=trackKey 키잉**(m:{mid} 임시키/재키잉 폐기 — trackId 키 소비자 0 실측)·死코드 4종. **② rVFC 게이트 제거**(`3ad5d00`): 숨김 video 에서 rVFC 발화 미보장 → "보이려면 프레임, 콜백은 보여야" 순환 = 영구 미노출 → 동기 즉시 적용(재설계 후보=opacity 마스킹). **③ 미개시 일괄**(`b7dfa00`): onMount 조립부 직접 주입(join opts 패스스루 폐기 — Phase 3a 죽은 배관, `device.applyOutput`=sink 갭 해소)·assembleRoom 분해(`_bindPubAxis`)·attach 0ms 재대입 가드·`streamHandle`(trackId 당 1핸들)·shared/ua.js. **④⑤ 검은 화면 해결 — 2겹 원인**(`6fdc26a`+`be50c6c`): 1겹=TRACKS_READY 포팅 갭(서버 video gate pause 5s+resume/PLI 가 대기 — 신 SDK 송신처 0 → `_renegotiateSfu` 완료 후 복원)·2겹(근본)=배치 발행 codec 폴백 부재 → 서버 묵시 VP8 등록 vs 실 인코딩 H264 → 구독 SDP 코덱 오선언 → pkts 도달+frames 0+PLI 폭주(라이브 대조 실험 확정, `|| "H264"` 1줄). e2e framesDecoded 가드 신설(track 도착 단언만으론 검은 화면 PASS — 시험 구멍)·CONF-2/3 라이브 전체 PASS. 환경 정합 교훈(고아 빌드/crash loop 296회/ES 모듈 캐시/UTC-KST) 포함 **→ guide/MEDIA_DEBUG_GUIDE_FOR_AI.md 승격(부장 지시)**. 검토 종결 2: unpublish {kind:"audio"}=서버 audio 단수 모델 정합·TRACK_STATE_REQ ssrc=0 무해(track_id 우선). 이월: [서버] 묵시 VP8 기본·NEW rtx 매 패킷 반복·recycle·lifecycle.ptt 재바인딩 |
+
 ---
 
 ## 백로그 (다음 세션 진입 거리)
@@ -1207,9 +1215,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 373개
-- **기간**: 2026-03-09 ~ 2026-06-12 (96일)
-- **최종 업데이트**: 2026-06-12 — **Phase 153 미디어 평면 수정+하이브리드+blockedBy**(클라 `6d6ba08`·`02d5cbb`+1. 0612b 이월 전량 소화, 글루 19/19). 이전: Phase 152 버스 폐기+복구 묶음 / Phase 151 헌법+e2e 하니스. 잔여: ptt:restore_metrics push 복원·media:track 처분·LiveKit 이식·FRAME-1·PTT 수신 oxe2e·UA 스니핑 통합.
+- **총 세션 파일**: 374개
+- **기간**: 2026-03-09 ~ 2026-06-13 (97일)
+- **최종 업데이트**: 2026-06-13 — **Phase 154 발행 트랜잭션+표면 정리+검은 화면 해결**(클라 커밋 5, CONF-2/3 라이브 PASS. 디버깅 가이드 = guide/MEDIA_DEBUG_GUIDE_FOR_AI.md). 이전: Phase 153 미디어 평면 수정+하이브리드+blockedBy / Phase 152 버스 폐기. 잔여: [서버] 묵시 VP8·NEW rtx 반복·recycle·lifecycle.ptt 재바인딩·rVFC 재설계(opacity)·실기기(BT/iOS).
 
 ---
 

@@ -157,9 +157,12 @@ oxlens-sfu-server/
 - 설계: `context/design/20260415_mbcp_datachannel_v2_design.md`
 
 ### SubscriberGate (mediasoup pause/resume 패턴)
-- 새 publisher video 발견 → subscriber에 gate pause
-- subscriber SDP re-nego 완료(TRACKS_READY, 구 TRACKS_ACK) → gate resume + GATE:PLI
+- 새 publisher video 발견(TRACKS_UPDATE) → subscriber video gate pause(TrackDiscovery, 5s)
+- subscriber SDP re-nego 완료(TRACKS_READY, 구 TRACKS_ACK) → gate resume + GATE:PLI(키프레임 요청)
 - video fan-out hot path에서 `gate.is_allowed()` O(1) 체크, 5초 타임아웃 안전장치
+- ⚠ **클라 TRACKS_READY 송신 의무** (0613 실증) — 미송신이면 5s 타임아웃으로 gate 는 풀려도
+  그 경로엔 PLI 가 없어 키프레임 부재 → 수신 video 영구 블랙(audio 는 gate 비대상이라 멀쩡).
+  resume 은 peer 전체 스트림 순회 — 클라는 sfu 당 1회면 충분. 디버깅 = `guide/MEDIA_DEBUG_GUIDE_FOR_AI.md`
 
 ### Fan-out 방향 역전 (0528~0601)
 - **물리 Track 이 다운스트림을 직접 보유**: `PublisherTrack.subscribers: ArcSwap<Vec<Weak<SubscriberStream>>>` (Full), Half(PTT)는 방 `Slot.subscribers`.
@@ -241,8 +244,12 @@ track = duplex(full/half) + simulcast(on/off) + priority(0~N)
 - `has_half_duplex_tracks()` / `has_simulcast_tracks()` 헬퍼로 대체
 - full+half 트랙 공존 가능 (같은 방에 conference + PTT 참가자 혼합)
 - 파생 규칙: half-duplex → simulcast 강제 off (PttRewriter + SimulcastRewriter 충돌 방지)
-- 클라이언트가 PUBLISH_TRACKS에 duplex/simulcast 명시 전송
-- TRACKS_UPDATE(add)에 duplex/simulcast/mid 필드 포함 (per-user 전달)
+- 클라이언트가 PUBLISH_TRACKS에 duplex/simulcast 명시 전송 (per-track tracks[].mid — top-level audio_mid/video_mid 폐기, 0611)
+- TRACKS_UPDATE(add)에 duplex/simulcast/mid/codec/video_pt 필드 포함 (per-user 전달)
+- ⚠ **codec 묵시 기본 = VP8 함정** (`VideoCodec::from_str_or_default`, 0613 실증) — intent 에 codec
+  미지정이면 VP8 로 등록되는데 클라 실 인코딩은 offer 협상 결과(보통 H264) → 구독자 SDP 가
+  같은 pt 를 VP8 로 선언 → "패킷은 오는데 디코딩 0" 검은 화면. 클라는 폴백으로 봉합(0613) —
+  서버 정도(正道)는 offer 의 pt rtpmap 동적 판별 또는 미지정 reject ("PT 는 동적" 원칙). **이월**
 
 ### Subscribe MID 서버 주도 할당
 - 서버가 mid 할당 (per-subscriber `MidPool`, kind별 분리: recycled_audio/recycled_video) — 클라 자체 할당 시 m-line 무한 누적 → video freeze
@@ -383,7 +390,8 @@ Peer {
 
 - **외부 접근은 `peer.publish_room() -> Option<RoomId>` 단일 진입 헬퍼만** — `publish.pub_room` 직접 접근 금지 (Peer 재설계 원칙 — publish 자료 home 일원화)
 - **set_id(RoomSetId) 폐기 (0602e)** — `sub_set_id`/`pub_set_id` wire 필드(SCOPE_EVENT)·admin 키 제거. 구 `"sub-{user_id}"` 식별자 모델 접음. SCOPE op(sub_add/remove)·다방 청취 기능은 유지.
-- **묶음 1 Phase A (2026-05-18)**: Cross-Room publish 폐기 → SCOPE handler 는 *sub_rooms 전용*. pub_room 은 `join(R)` 시 auto-select 1방, `leave(R)` 시 auto-deselect 자동 — SCOPE 가 건드리지 않음
+- **묶음 1 Phase A (2026-05-18)**: Cross-Room publish 폐기 → 발언축은 단수(pub_room 1방).
+- **S-a~S-g (2026-06-09~10) — auto-select 폐기, 명시 select 단일**: ROOM_JOIN `select` 플래그(기본 true=발언방 지정, `select:false`=청취 affiliate). pub 전환 = SCOPE `mode=update` 의 **`pub_select`/`pub_deselect`** (cross-sfu 는 이전 sfud pub_deselect + 새 sfud pub_select 분할 송신 — 클라 책임, hub cascade 보류). 응답/이벤트에 scope 스냅샷 `{sub, pub}` 동봉 — 클라(talkgroups)는 스냅샷 reconcile 로만 상태 갱신(낙관 0)
 - **방/트랙은 scope 모름** — 기존 경로로 동작. Scope 는 라우팅 대상 판정 / 전달 대상 수집 / 관측 축 통일에만 등장
 - **SubscriberIndex** (`PeerMap.by_room_subscriber: DashMap<RoomId, DashMap<user_id, Arc<Peer>>>`) — fan-out 핫패스에서 방 순회 없애고 user 단위 O(1) 조회
 
@@ -393,7 +401,7 @@ Peer {
 |---|---|---|---|
 | joined_rooms | `join(R)` | `leave(R)` | ROOM_JOIN(0x1003) / ROOM_LEAVE(0x1004) |
 | sub_rooms | `affiliate(R)` | `deaffiliate(R)` | SCOPE(0x1200) `mode=update` body 안 `sub_add` / `sub_remove` |
-| pub_room | (`join(R)` 시 auto-select) | (`leave(R)` 시 auto-deselect) | SCOPE 가 건드리지 않음 |
+| pub_room | `join(R)`(select 기본 true) / SCOPE `pub_select` | `leave(R)` / SCOPE `pub_deselect` | ROOM_JOIN(0x1003) / SCOPE(0x1200) — S-e~g(0610) |
 
 **SCOPE handler batch 순서**: `sub_add → sub_remove`. (Phase A 이전 `pub_add` / `pub_remove` 자리는 폐기 — wire 호환 위해 클라가 보내도 서버 무시)
 
