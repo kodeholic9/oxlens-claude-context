@@ -37,6 +37,7 @@ description: |
 | `guide/REGRESSION_GUIDE_FOR_AI.md` | 회귀시험 | oxe2e 시나리오 운용 |
 | `guide/RUN_GUIDE_FOR_AI.md` | 기동/실행 | 서버·클라 기동 절차 |
 | `guide/MEDIA_DEBUG_GUIDE_FOR_AI.md` | **미디어 디버깅 / 검은 화면** | 환경 정합 0순위·4축 계층 분해(getStats)·게이트/PLI 체인·코덱 계약 (2026-06-13 신설) |
+| `guide/WEBSDK_GUIDE_FOR_AI.md` | **웹 SDK 사용 / SDK 시험 작성** | 외부 평면 전수(커버리지 매핑표 §11)·검증된 샘플·합성 미디어·수신 단언 원칙 (2026-06-13 신설) |
 
 ---
 
