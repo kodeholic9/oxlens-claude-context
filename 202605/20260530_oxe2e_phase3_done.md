@@ -1,4 +1,5 @@
 # 완료 보고 — oxe2e Phase 3 (gating 음성 검증 — 판정 정밀화)
+> 작업 지침 ← [20260530_oxe2e_phase3](../claudecode/202605/20260530_oxe2e_phase3.md)
 
 > 지침: `claudecode/202605/20260530_oxe2e_phase3.md`
 > 설계: `design/20260530_oxe2e_design.md` §6 (phase 경계 = 이벤트 수신 시점 + guard band)

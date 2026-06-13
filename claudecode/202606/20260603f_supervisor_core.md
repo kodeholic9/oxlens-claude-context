@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603f — oxhubd Supervisor 1차 구현 (Level 1 코어)
+> 완료 보고 → [20260603f_supervisor_core_done](../../202606/20260603f_supervisor_core_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 §작업 지침 표준 구조 준수.
 > 단일 출처. 완료 보고는 `context/202606/20260603f_supervisor_core_done.md`.

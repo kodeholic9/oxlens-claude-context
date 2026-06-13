@@ -1,3 +1,5 @@
+> 작업 지침 ← [20260518d_project_master_5_18_case](../claudecode/202605/20260518d_project_master_5_18_case.md)
+
 ## 작업 완료 — PROJECT_MASTER §분업 체계 §적용 사례 5/18 항목 추가
 
 > 작성: 2026-05-18 (김과장, Claude Code)

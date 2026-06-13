@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603i — Supervisor 관측 레이어 (완료 보고)
+> 작업 지침 ← [20260603i_supervisor_observability](../claudecode/202606/20260603i_supervisor_observability.md)
 
 > 지침: `claudecode/202606/20260603i_supervisor_observability.md`. 설계 §12.
 > f+g+h(커밋 `c761543`) 위 관측 레이어. **커밋 전 상태** — 부장님 GO 후 커밋(f~h 와 별 커밋), push 별도.

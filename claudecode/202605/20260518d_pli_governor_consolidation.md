@@ -1,4 +1,5 @@
 # 작업 지침 — 묶음 4: 자료구조 일관성 ② (PLI Governor 통합 + F8 + gate.resume symmetric reset)
+> 완료 보고 → [20260518d_pli_governor_consolidation_done](../../202605/20260518d_pli_governor_consolidation_done.md)
 
 > 작성: 2026-05-18 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

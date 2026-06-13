@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603k — Cross-SFU Phase 1: hub sfu 레지스트리 (단일 sfu 가정 해체)
+> 완료 보고 → [20260603k_cross_sfu_phase1_done](../../202606/20260603k_cross_sfu_phase1_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 표준 구조.
 > 완료 보고: `context/202606/20260603k_cross_sfu_phase1_done.md`.

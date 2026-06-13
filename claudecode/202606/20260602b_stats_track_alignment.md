@@ -1,4 +1,5 @@
 # 작업 지침 — 통계 자료구조 트랙 차원 정렬 (개명 + room_stats 잉여 제거 + 텔레메트리 이동)
+> 완료 보고 → [20260602b_stats_track_alignment_done](../../202606/20260602b_stats_track_alignment_done.md)
 
 > 작성: 김대리 (claude.ai) · 결재: 부장님 (kodeholic) · 구현: 김과장 (Claude Code)
 > 파일: `context/claudecode/202606/20260602b_stats_track_alignment.md`

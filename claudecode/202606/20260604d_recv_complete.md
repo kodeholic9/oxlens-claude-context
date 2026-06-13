@@ -1,4 +1,5 @@
 # 작업 지침 — 새 SDK 재작성 Phase 3e: 수신 경로 완결 (TRACKS_UPDATE consumer + leave/remove + N-party, 라이브까지)
+> 완료 보고 → [20260604d_recv_complete_done](../../202606/20260604d_recv_complete_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic, GO 2026-06-04)
 > 토픽: 신규 sdk 수신 경로를 **양방향 + 동적 + 다자**까지 한 번에 완결. mock 아님 — 라이브 2~3 peer 까지.

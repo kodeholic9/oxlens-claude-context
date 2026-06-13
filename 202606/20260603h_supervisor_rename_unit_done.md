@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603h — Supervisor 용어 정정 Slave→Unit (완료 보고)
+> 작업 지침 ← [20260603h_supervisor_rename_unit](../claudecode/202606/20260603h_supervisor_rename_unit.md)
 
 > 지침: `claudecode/202606/20260603h_supervisor_rename_unit.md`. **순수 mechanical rename — 동작/로직 0 변경.**
 > `f`+`g`(미커밋) 위 rename. **커밋 전 상태** — f+g+h 한 커밋, push 는 부장님 GO 후.

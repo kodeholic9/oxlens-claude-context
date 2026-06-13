@@ -1,6 +1,6 @@
 # 20260426 QA Phase 61 후속 처리
 
-> Phase 61 (`20260426_qa_session_progress`) 시험 결과 라이브 큐 처리 세션.
+> Phase 61 ([20260426_qa_session_progress](20260426_qa_session_progress.md)) 시험 결과 라이브 큐 처리 세션.
 > 라이브 큐는 `context/qa/README.md` (단일 출처) — 본 파일은 처리 기록 + 학습.
 
 ---

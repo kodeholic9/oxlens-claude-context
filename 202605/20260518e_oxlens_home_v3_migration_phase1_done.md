@@ -1,3 +1,5 @@
+> 작업 지침 ← [20260518e_oxlens_home_v3_migration_phase1](../claudecode/202605/20260518e_oxlens_home_v3_migration_phase1.md)
+
 ## 작업 완료 — oxlens-home v3 마이그 Phase 1
 
 > 작성: 2026-05-19 (김과장, Claude Code)

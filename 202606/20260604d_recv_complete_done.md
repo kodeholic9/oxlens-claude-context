@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260604d — 수신 경로 완결 완료 보고 (Phase 3e: TRACKS_UPDATE consumer + leave + N-party)
+> 작업 지침 ← [20260604d_recv_complete](../claudecode/202606/20260604d_recv_complete.md)
 
 > 지침: `claudecode/202606/20260604d_recv_complete.md`. 설계 §13 / wire §9(TRACKS_UPDATE)·§8(ROOM_EVENT) / QA README.
 > 직전: `20260604c`(Phase G) alice-first 라이브 PASS. **커밋 전** — ★정지점 1(배선+mock) 완료, ★정지점 2(라이브 3경로)는 부장님 RUN.

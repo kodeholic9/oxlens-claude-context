@@ -1,4 +1,5 @@
 # 완료 보고 — oxe2e Phase 2 (oxrtc 클라 DC 스택 + ptt_rapid)
+> 작업 지침 ← [20260530_oxe2e_phase2](../claudecode/202605/20260530_oxe2e_phase2.md)
 
 > 지침: `claudecode/202605/20260530_oxe2e_phase2.md`
 > 설계: `design/20260530_oxe2e_design.md` §5-② / DC 설계서

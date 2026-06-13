@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603m — Cross-SFU Phase 2a: hub room 라우팅 (room_sfu + 배치 + sfu_for_room)
+> 완료 보고 → [20260603m_cross_sfu_phase2a_done](../../202606/20260603m_cross_sfu_phase2a_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 표준 구조.
 > 완료 보고: `context/202606/20260603m_cross_sfu_phase2a_done.md`.

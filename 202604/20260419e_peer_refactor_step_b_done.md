@@ -2,7 +2,7 @@
 
 **날짜**: 2026-04-19
 **영역**: 서버 리팩터 (Peer 재설계)
-**선행**: `20260419c_peer_refactor_direction`, `20260419d_peer_refactor_step_a_done`
+**선행**: [20260419c_peer_refactor_direction](20260419c_peer_refactor_direction.md), [20260419d_peer_refactor_step_a_done](20260419d_peer_refactor_step_a_done.md)
 **설계서**: `design/20260419_peer_refactor_step_b.md`
 
 ---
@@ -152,7 +152,7 @@ Phase 2 cross-room 진입 전 선결 과제. ROOM_JOIN 시 두 번째 방에서 
 
 ## 다음 Step — Step C 방향
 
-설계서 `20260419c_peer_refactor_direction` 기준, Step C는 **Pub PC-scope 필드 이주**. 6개 서브스텝으로 쪼개 있음:
+설계서 [20260419c_peer_refactor_direction](20260419c_peer_refactor_direction.md) 기준, Step C는 **Pub PC-scope 필드 이주**. 6개 서브스텝으로 쪼개 있음:
 
 - **C1**: RTP 관련 (`rtp_cache`, `twcc_recorder`, `recv_stats`)
 - **C2**: Simulcast (`simulcast_video_ssrc`, `stream_map`, `expected_video_pt`, `expected_rtx_pt`)

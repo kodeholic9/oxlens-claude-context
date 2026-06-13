@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260605a — PTT 서브시스템 완료 보고 (Phase A~C, ★정지점)
+> 작업 지침 ← [20260605a_ptt_subsystem](../claudecode/202606/20260605a_ptt_subsystem.md)
 
 > 지침: `claudecode/202606/20260605a_ptt_subsystem.md`. 설계 `20260605_ptt_subsystem_design.md` §2·§4·§6·§7·§8.
 > ★정지점(Phase C 끝). **커밋 전** — 부장님 검토/GO 후 Phase D(virtual/freeze/조립)+E(데모/라이브).

@@ -1,4 +1,5 @@
 # 작업 지침 — oxe2e judge negative 검증 (약속 외 ssrc 누수)
+> 완료 보고 → [20260601c_oxe2e_judge_negative_done](../../202606/20260601c_oxe2e_judge_negative_done.md)
 
 > 김대리(분석/설계) → 김과장(구현). 부장님 GO 후 진행.
 > 토픽: judge `evaluate` 에 negative 검증(약속 외 ssrc 도착 = 누수 FAIL) 추가. **judge 한 곳만** 손댄다.

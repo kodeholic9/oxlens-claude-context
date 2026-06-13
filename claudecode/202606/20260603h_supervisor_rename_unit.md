@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603h — Supervisor 용어 정정 Slave→Unit (rename only, mechanical)
+> 완료 보고 → [20260603h_supervisor_rename_unit_done](../../202606/20260603h_supervisor_rename_unit_done.md)
 
 > 김과장(Claude Code) 작업 지침. **순수 mechanical rename — 동작/로직 0 변경.**
 > 완료 보고: `context/202606/20260603h_supervisor_rename_unit_done.md`.

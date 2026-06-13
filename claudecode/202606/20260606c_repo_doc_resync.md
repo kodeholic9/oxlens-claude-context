@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 작업지침 20260606c — repo 서버 문서 현행화 + 소스 잔재 청산 (CLAUDE.md / README.md / .env)
+> 완료 보고 → [20260606c_repo_doc_resync_done](../../202606/20260606c_repo_doc_resync_done.md)
 
 > 본 건은 0606b(마스터 PROJECT_* 3종 현행화)에서 **누락된 영역** — repo 안 서버 문서 + 소스 잔재.
 > 라이브 master = `context/PROJECT_{MASTER,SERVER,WEB}.md` (0606b 가 갱신 중). **본 지침은 PROJECT_* 를 손대지 않는다** (범위 충돌 금지).

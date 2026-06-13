@@ -1,4 +1,5 @@
 # _done 보고 — Publisher 2계층 Stage 3 (명명 청산)
+> 작업 지침 ← [20260530d_publisher_2layer_stage3](../claudecode/202605/20260530d_publisher_2layer_stage3.md)
 
 문서 ID: `20260530d_publisher_2layer_stage3_done.md`
 작성: 김과장 (Claude Code)

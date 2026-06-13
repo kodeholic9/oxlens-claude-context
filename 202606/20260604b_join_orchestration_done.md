@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260604b — join orchestration 완료 보고 (Phase 3d)
+> 작업 지침 ← [20260604b_join_orchestration](../claudecode/202606/20260604b_join_orchestration.md)
 
 > 지침: `claudecode/202606/20260604b_join_orchestration.md`. 설계 §13 + wire_v3_catalog §2·§4·§5.
 > 직전: 3b(`20260603s`)+결함패치(`20260604a`). **커밋 전** — 검토 후 GO. 본 작업 완료 = Phase G(라이브) 진입 가능.

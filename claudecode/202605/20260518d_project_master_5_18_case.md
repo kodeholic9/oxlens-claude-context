@@ -1,4 +1,5 @@
 # PROJECT_MASTER §분업 체계 §적용 사례 — 5/18 사례 추가
+> 완료 보고 → [20260518d_project_master_5_18_case_done](../../202605/20260518d_project_master_5_18_case_done.md)
 
 작업 일자: 2026-05-18
 지침 작성: 김대리 (claude.ai)

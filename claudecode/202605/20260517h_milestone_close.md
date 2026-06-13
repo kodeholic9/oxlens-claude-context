@@ -1,4 +1,5 @@
 # 작업 지침 — 묶음 9: 세션 마무리 + 별 토픽 분류 (옵션 D)
+> 완료 보고 → [20260517h_milestone_close_done](../../202605/20260517h_milestone_close_done.md)
 
 > 작성: 2026-05-17 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

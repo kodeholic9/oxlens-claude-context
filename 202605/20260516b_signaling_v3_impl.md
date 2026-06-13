@@ -2,7 +2,7 @@
 
 ## 한 줄 요약
 
-설계서 `20260516_signaling_v3` 합의 후 구현 박음. 서버 측 v3 wire 마이그 완료, 35 파일 변경, 빌드 + cargo test --release 모두 통과. 클라 측 (oxlens-home, oxlens-sdk-core) 은 부정합 fix 완료 후 별도 진행.
+설계서 [20260516_signaling_v3](../design/20260516_signaling_v3.md) 합의 후 구현 박음. 서버 측 v3 wire 마이그 완료, 35 파일 변경, 빌드 + cargo test --release 모두 통과. 클라 측 (oxlens-home, oxlens-sdk-core) 은 부정합 fix 완료 후 별도 진행.
 
 ---
 

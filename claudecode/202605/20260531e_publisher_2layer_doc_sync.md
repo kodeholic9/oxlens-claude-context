@@ -1,4 +1,5 @@
 # 작업 지침 — Publisher 2계층 배선 완료 반영 (소스 주석 + 마스터 현행화)
+> 완료 보고 → [20260531e_publisher_2layer_doc_sync_done](../../202605/20260531e_publisher_2layer_doc_sync_done.md)
 
 문서 ID: `20260531e_publisher_2layer_doc_sync.md`
 작성: 김대리 (claude.ai)

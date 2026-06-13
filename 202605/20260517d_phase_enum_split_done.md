@@ -1,4 +1,5 @@
 # Hook Phase 3 완료 — ParticipantPhase 3-Layer State 분해
+> 작업 지침 ← [20260517d_phase_enum_split](../claudecode/202605/20260517d_phase_enum_split.md)
 
 > 작업 지침: `claudecode/202605/20260517d_phase_enum_split.md` (단일 출처)
 > 완료일: 2026-05-17

@@ -1,4 +1,5 @@
 # 작업 지침 — sub 텔레메트리 트랙 차원 정렬 (SubscribePipelineStats → SubscriberStream, 정공)
+> 완료 보고 → [20260602c_sub_telemetry_track_move_done](../../202606/20260602c_sub_telemetry_track_move_done.md)
 
 > 작성: 김대리 (claude.ai) · 결재: 부장님 (kodeholic) · 구현: 김과장 (Claude Code)
 > 파일: `context/claudecode/202606/20260602c_sub_telemetry_track_move.md`

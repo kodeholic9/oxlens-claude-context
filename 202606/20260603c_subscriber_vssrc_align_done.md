@@ -1,4 +1,5 @@
 # 완료보고 — SubscriberStream.virtual_ssrc → vssrc 어휘 정합 (20260603c)
+> 작업 지침 ← [20260603c_subscriber_vssrc_align](../claudecode/202606/20260603c_subscriber_vssrc_align.md)
 
 지침: `context/claudecode/202606/20260603c_subscriber_vssrc_align.md`
 작업: 0603 식별 계층 vssrc 통일의 **마지막 미아 청산** — `SubscriberStream.virtual_ssrc` 단일 필드 → `vssrc`.

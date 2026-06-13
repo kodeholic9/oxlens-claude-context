@@ -1,4 +1,5 @@
 # Floor Control v2 — 코딩 완료
+> 작업 지침 ← [20260321_floor_priority_queue](20260321_floor_priority_queue.md)
 
 > 날짜: 2026-03-21
 > 영역: oxlens-sfu-server

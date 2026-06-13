@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 완료보고 20260606c — repo 서버 문서 현행화 + 소스 잔재 청산
+> 작업 지침 ← [20260606c_repo_doc_resync](../claudecode/202606/20260606c_repo_doc_resync.md)
 
 > 지침: `claudecode/202606/20260606c_repo_doc_resync.md`. 갱신 대상 = `oxlens-sfu-server/CLAUDE.md`/`README.md`/`.env(.example)` 뿐. 코드 동작 변경 0.
 > 모든 재작성 사실 = 이번 세션 직접 정독 실증(opcode.rs / domain 실트리 / PROJECT_SERVER 라이브 / 0606b done). 창작 0.

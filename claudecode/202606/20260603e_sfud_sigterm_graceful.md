@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603e — sfud SIGTERM graceful shutdown 수신 (supervisor 선결)
+> 완료 보고 → [20260603e_sfud_sigterm_graceful_done](../../202606/20260603e_sfud_sigterm_graceful_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 §작업 지침 표준 구조 준수.
 > 단일 출처. 완료 보고는 `context/202606/20260603e_sfud_sigterm_graceful_done.md`.

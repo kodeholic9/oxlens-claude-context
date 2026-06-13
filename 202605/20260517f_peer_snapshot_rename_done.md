@@ -1,4 +1,5 @@
 # Hook Phase 3 후속 cleanup 2 완료 — PeerSnapshot DTO + set_phase_state rename
+> 작업 지침 ← [20260517f_peer_snapshot_rename](../claudecode/202605/20260517f_peer_snapshot_rename.md)
 
 > 작업 지침: `claudecode/202605/20260517f_peer_snapshot_rename.md` (단일 출처)
 > 완료일: 2026-05-17

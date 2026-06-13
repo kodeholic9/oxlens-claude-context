@@ -1,4 +1,5 @@
 # _done — Publisher 2계층 배선 완료 반영 (소스 주석 + 마스터 현행화)
+> 작업 지침 ← [20260531e_publisher_2layer_doc_sync](../claudecode/202605/20260531e_publisher_2layer_doc_sync.md)
 
 문서 ID: `20260531e_publisher_2layer_doc_sync_done.md`
 지침: `20260531e_publisher_2layer_doc_sync.md`

@@ -1,4 +1,5 @@
 # 작업 지침 — 새 SDK 재작성 Phase 3d: join orchestration (connect→IDENTIFY→ROOM_JOIN→hydrate→publish 글루)
+> 완료 보고 → [20260604b_join_orchestration_done](../../202606/20260604b_join_orchestration_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic, GO 2026-06-04)
 > 토픽: oxlens-home 웹 클라 재작성 — **engine.js 에 join 전체 흐름 배선.** Phase G(라이브 E2E)의 진입점.

@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 완료보고 20260605b — observability + TransportSet (B 덩어리)
+> 작업 지침 ← [20260605b_observability_transportset](../claudecode/202606/20260605b_observability_transportset.md)
 
 > 지침: `claudecode/202606/20260605b_observability_transportset.md`
 > 설계 단일출처: 코어 `20260603_client_rewrite_core_design.md` §2·§8·§12·틈⑩·틈⑫.

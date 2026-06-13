@@ -1,4 +1,5 @@
 # 작업 지침 — Publisher 2계층 Stage 3: 명명 청산 (fan-out 전환 폐기)
+> 완료 보고 → [20260530d_publisher_2layer_stage3_done](../../202605/20260530d_publisher_2layer_stage3_done.md)
 
 문서 ID: `20260530d_publisher_2layer_stage3.md`
 작성: 김대리 (claude.ai)

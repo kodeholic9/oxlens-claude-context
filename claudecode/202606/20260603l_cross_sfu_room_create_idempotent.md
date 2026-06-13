@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603l — Cross-SFU Phase 2 선행: sfud ROOM_CREATE 멱등 + default rooms 제거
+> 완료 보고 → [20260603l_cross_sfu_room_create_idempotent_done](../../202606/20260603l_cross_sfu_room_create_idempotent_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 표준 구조.
 > 완료 보고: `context/202606/20260603l_cross_sfu_room_create_idempotent_done.md`.

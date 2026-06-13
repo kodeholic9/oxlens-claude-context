@@ -1,4 +1,5 @@
 # 작업 지침 — A + D 통합: 모듈 doc 갱신 + F28 race 해소
+> 완료 보고 → [20260518c_doc_and_test_race_done](../../202605/20260518c_doc_and_test_race_done.md)
 
 > 작성: 2026-05-18 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

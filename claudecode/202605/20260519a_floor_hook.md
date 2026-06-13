@@ -1,4 +1,5 @@
 # 작업 지침 — 묶음 5: Floor 천이 hook 화 (set_phase 패턴 정합)
+> 완료 보고 → [20260519a_floor_hook_done](../../202605/20260519a_floor_hook_done.md)
 
 > 작성: 2026-05-18 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

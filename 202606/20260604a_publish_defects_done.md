@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260604a — publish 결함 2건 수정 완료 보고 (소형 패치)
+> 작업 지침 ← [20260604a_publish_defects](../claudecode/202606/20260604a_publish_defects.md)
 
 > 지침: `claudecode/202606/20260604a_publish_defects.md`. 직전 3b(`20260603s`) A~F 위 패치.
 > 대상: `sdk/domain/local-endpoint.js` (`_publishOne`) **단일 파일**. **커밋 전** — 검토 후 GO.

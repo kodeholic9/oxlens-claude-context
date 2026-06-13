@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603i — Supervisor 관측 레이어 (REST status/restart + healthz + HubState attach)
+> 완료 보고 → [20260603i_supervisor_observability_done](../../202606/20260603i_supervisor_observability_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 표준 구조.
 > 완료 보고: `context/202606/20260603i_supervisor_observability_done.md`.

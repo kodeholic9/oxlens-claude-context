@@ -231,8 +231,9 @@ WS bearer wire (op=0x2400):
 | op | 이름 | body | 발생 시점 |
 |---|---|---|---|
 | `0x3001` | ADMIN_TELEMETRY | (telemetry payload) | TelemetryBus emit |
-| `0x3002` | ADMIN_SNAPSHOT | (rooms snapshot) | 현재 dead op |
+| `0x3002` | ADMIN_SNAPSHOT | (rooms snapshot) | hub admin REST: track-dump + oxadmin room snapshot (admin→sfud) |
 | `0x3003` | ADMIN_METRICS | (metrics dump) | 현재 dead op |
+| `0x3004` | ADMIN_REAP | `{room_id, user_id}` | oxadmin reap — 좀비 퇴장 강제 (admin→sfud, evict_user_from_room, 20260613) |
 
 ---
 

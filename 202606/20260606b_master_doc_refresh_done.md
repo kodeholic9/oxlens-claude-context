@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 완료보고 20260606b — 마스터 문서 현행화 (PROJECT_WEB / MASTER / SERVER)
+> 작업 지침 ← [20260606b_master_doc_refresh](../claudecode/202606/20260606b_master_doc_refresh.md)
 
 > 지침: `claudecode/202606/20260606b_master_doc_refresh.md`. 문서만, 코드 0. 창작 금지(명시 source 대조).
 

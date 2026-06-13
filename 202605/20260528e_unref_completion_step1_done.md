@@ -1,4 +1,5 @@
 # 완료 보고 — 1차: 무참조 완성 (peer_ref 폐기) + publisher_user_id 무참조 + Layer 통합
+> 작업 지침 ← [20260528e_unref_completion_step1](../claudecode/202605/20260528e_unref_completion_step1.md)
 
 **문서 ID**: `20260528e_unref_completion_step1_done.md`
 **작성**: 김과장 (Claude Code, Opus 4.7)

@@ -1,4 +1,5 @@
 # 작업 지침 — 묶음 8: 운영성 마무리 (axis4 + 백로그 청산)
+> 완료 보고 → [20260520a_operability_wrapup_done](../../202605/20260520a_operability_wrapup_done.md)
 
 > 작성: 2026-05-19 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

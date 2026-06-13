@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603o — Reference 검토 (로컬 3종) 완료 보고: 새 클라 골격 근거 수집
+> 작업 지침 ← [20260603o_reference_review_local](../claudecode/202606/20260603o_reference_review_local.md)
 
 > 지침: `claudecode/202606/20260603o_reference_review_local.md`. 코드 변경 0(정독만). 베끼기 금지(§7) 준수 — "그들은 이렇게 했다" 사실만, "우리도" 결론 없음.
 > 방법: 3종을 병렬 정독(Explore) → Q1~Q5 코드위치+사실 수집 → 본 보고에서 15셀 표 + 교차비교 + Q5 집중 종합.

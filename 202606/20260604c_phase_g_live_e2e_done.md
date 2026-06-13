@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260604c — Phase G 라이브 2-peer E2E 완료 보고 (harness 작성 + 실행 절차)
+> 작업 지침 ← [20260604c_phase_g_live_e2e](../claudecode/202606/20260604c_phase_g_live_e2e.md)
 
 > 지침: `claudecode/202606/20260604c_phase_g_live_e2e.md`. QA README + 설계 §13 + wire §2·§4·§5 정독.
 > 성격: 검증 세션 + 최소 harness. 신규 sdk 본체 무수정. **라이브 RUN = 부장님 수동 1회**(방안 ii).

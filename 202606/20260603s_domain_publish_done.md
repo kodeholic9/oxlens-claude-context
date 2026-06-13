@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603s — domain publish + 타입 분리 + v2 잔재 청산 완료 보고 (Phase 3b)
+> 작업 지침 ← [20260603s_domain_publish](../claudecode/202606/20260603s_domain_publish.md)
 
 > 지침: `claudecode/202606/20260603s_domain_publish.md`. 설계 §13(domain 위상) + wire_v3_catalog §0·§1.
 > 직전: 3a(`20260603r`) domain 수신. **2정지점 구조** — 본 보고는 **★정지점 1(타입 분리 + signaling v3 청산)** 완료분.

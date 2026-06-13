@@ -1,4 +1,5 @@
 # 묶음 7 — scope 통지 흔적 제거 (YAGNI 정합) 완료 보고
+> 작업 지침 ← [20260519c_scope_traces_cleanup](../claudecode/202605/20260519c_scope_traces_cleanup.md)
 
 - 작업자: 김과장 (Claude Code)
 - 일자: 2026-05-17

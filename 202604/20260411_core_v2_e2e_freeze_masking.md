@@ -54,7 +54,7 @@ ptt-touch-area (overflow:hidden, background:#000)
 voice_radio/video_radio에서 영상 토글 OFF 시 `sdk.power._userVideoOff = true` 설정.
 removeVideoTrack("camera")가 mute 패턴(replaceTrack(null)) → sender 생존 → PowerManager cold→hot 시 video 복원 방지.
 
-이전 세션(`20260405_dispatch_scenario`)의 Power FSM full-duplex video 보존 설계와 일관.
+이전 세션([20260405_dispatch_scenario](20260405_dispatch_scenario.md))의 Power FSM full-duplex video 보존 설계와 일관.
 
 ---
 

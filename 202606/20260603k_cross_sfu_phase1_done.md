@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603k — Cross-SFU Phase 1: hub sfu 레지스트리 (완료 보고)
+> 작업 지침 ← [20260603k_cross_sfu_phase1](../claudecode/202606/20260603k_cross_sfu_phase1.md)
 
 > 지침: `claudecode/202606/20260603k_cross_sfu_phase1.md`. 설계 cross_sfu §3/§6/§9 Phase 1.
 > Phase 0(c1a938f) 위 hub 영역. **커밋 전 상태** — 부장님 GO 후 커밋(Phase 0 와 별 커밋), push 별도.

@@ -1,4 +1,5 @@
 # 작업 지침 — 묶음 2: 코드/주석 청결성
+> 완료 보고 → [20260518b_code_cleanliness_done](../../202605/20260518b_code_cleanliness_done.md)
 
 > 작성: 2026-05-18 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

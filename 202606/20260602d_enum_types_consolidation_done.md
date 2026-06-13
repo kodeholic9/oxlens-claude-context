@@ -1,4 +1,5 @@
 # 완료 보고 — 도메인 어휘 enum types.rs 통합 (원본 제거 + 호출처 일괄 + stream_map 폐기)
+> 작업 지침 ← [20260602d_enum_types_consolidation](../claudecode/202606/20260602d_enum_types_consolidation.md)
 
 > 지침: `claudecode/202606/20260602d_enum_types_consolidation.md`
 > 선행: `20260602c`(sub 텔레메트리, `b5b9172`) 위에 적층.

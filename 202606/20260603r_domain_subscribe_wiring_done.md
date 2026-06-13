@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603r — domain 이식 + 수신(subscribe) 배선 완료 보고 (Phase 3a)
+> 작업 지침 ← [20260603r_domain_subscribe_wiring](../claudecode/202606/20260603r_domain_subscribe_wiring.md)
 
 > 지침: `claudecode/202606/20260603r_domain_subscribe_wiring.md`. 설계 §2(논리 축)·§3(Transport)·§4(track:received).
 > 직전: 2a/2b(`20260603q`) Transport 본체. **커밋 전** — ★정지점 1(publish 진입 전) → 부장님 GO 후 Phase 3b.

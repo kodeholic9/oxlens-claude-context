@@ -1,4 +1,5 @@
 # 완료 보고 — Step 1: PublisherStream.subscribers 신설 + 양방향 등록 (병행)
+> 작업 지침 ← [20260528a_fanout_direction_step1](../claudecode/202605/20260528a_fanout_direction_step1.md)
 
 **문서 ID**: `20260528a_fanout_direction_step1_done.md`
 **작성**: 김과장 (Claude Code)

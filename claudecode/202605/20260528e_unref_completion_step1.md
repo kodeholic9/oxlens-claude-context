@@ -1,4 +1,5 @@
 # 작업 지침 — 1차: 무참조 완성 (peer_ref 폐기) + publisher_user_id 무참조 + Layer 통합
+> 완료 보고 → [20260528e_unref_completion_step1_done](../../202605/20260528e_unref_completion_step1_done.md)
 
 **문서 ID**: `20260528e_unref_completion_step1.md`
 **작성**: 김대리 (claude.ai)

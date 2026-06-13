@@ -1,6 +1,7 @@
 // author: kodeholic (powered by Claude)
 
 # 작업 지침 — Slot.subscribers 도입 (Half fanout lookup #2 소거 + Half/Full broadcast 본문 통일)
+> 완료 보고 → [20260601_slot_subscribers_done](../../202606/20260601_slot_subscribers_done.md)
 
 > 작성: 김대리 (claude.ai) / 구현: 김과장 (Claude Code)
 > 범위: **Slot.subscribers 도입만**. virtual_ssrc 의 PublisherStream 이주, Phase 2 전체 재작성은 범위 밖.

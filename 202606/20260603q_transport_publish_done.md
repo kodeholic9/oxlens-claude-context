@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603q — Transport 골조 + Publish 경로 완료 보고 (Phase 2a)
+> 작업 지침 ← [20260603q_transport_publish](../claudecode/202606/20260603q_transport_publish.md)
 
 > 지침: `claudecode/202606/20260603q_transport_publish.md`. 설계 §3(Transport 인터페이스). 매핑표 §4.
 > Phase 1 골격(`39e22a1`) 위 transport/ stub → 본체 주입. **커밋 전** — ★정지점 1(Subscribe 진입 전) → 부장님 GO 후 Phase 2b.

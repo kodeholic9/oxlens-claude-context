@@ -1,4 +1,5 @@
 # 작업 지침 — Phase G: 신규 SDK 라이브 2-peer E2E (단일방 full-duplex 실 RTP 검증)
+> 완료 보고 → [20260604c_phase_g_live_e2e_done](../../202606/20260604c_phase_g_live_e2e_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic, GO 2026-06-04)
 > 토픽: 신규 `sdk/` 첫 **라이브** 검증 — 실 서버 + 2-peer 실 RTP + admin 교차검증. 3b~3d 가 세운 publish/join 흐름의 실증.

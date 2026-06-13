@@ -2,7 +2,7 @@
 
 **날짜**: 2026-04-19
 **영역**: 서버 리팩터 (Peer 재설계)
-**선행**: `20260419c_peer_refactor_direction`, `20260419d_peer_refactor_step_a_done`, `20260419e_peer_refactor_step_b_done`, `20260419f_peer_refactor_step_c1_done`, `20260419g_peer_refactor_step_c2_done`
+**선행**: [20260419c_peer_refactor_direction](20260419c_peer_refactor_direction.md), [20260419d_peer_refactor_step_a_done](20260419d_peer_refactor_step_a_done.md), [20260419e_peer_refactor_step_b_done](20260419e_peer_refactor_step_b_done.md), [20260419f_peer_refactor_step_c1_done](20260419f_peer_refactor_step_c1_done.md), [20260419g_peer_refactor_step_c2_done](20260419g_peer_refactor_step_c2_done.md)
 **설계서**: `design/20260419_peer_refactor_step_c3_c5.md`, `design/20260419_peer_refactor_step_c6.md`
 
 ---

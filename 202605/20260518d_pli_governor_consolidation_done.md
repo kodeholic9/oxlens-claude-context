@@ -1,4 +1,5 @@
 # 묶음 4 — 자료구조 일관성 ② (PLI Governor 통합) 완료 보고
+> 작업 지침 ← [20260518d_pli_governor_consolidation](../claudecode/202605/20260518d_pli_governor_consolidation.md)
 
 - 작업자: 김과장 (Claude Code)
 - 일자: 2026-05-17

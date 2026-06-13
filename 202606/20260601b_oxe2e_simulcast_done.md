@@ -1,4 +1,5 @@
 # _done — oxe2e simulcast publish 시나리오 추가
+> 작업 지침 ← [20260601b_oxe2e_simulcast](../claudecode/202606/20260601b_oxe2e_simulcast.md)
 
 문서 ID: `20260601b_oxe2e_simulcast_done.md`
 지침: `claudecode/202606/20260601b_oxe2e_simulcast.md`

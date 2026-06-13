@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 작업지침 20260606b — 마스터 문서 현행화 (PROJECT_WEB / MASTER / SERVER)
+> 완료 보고 → [20260606b_master_doc_refresh_done](../../202606/20260606b_master_doc_refresh_done.md)
 
 > 라이브 master = `context/PROJECT_{MASTER,SERVER,WEB}.md` (repo 루트 아님 — 거긴 `.bak.20260526` 만).
 > `/mnt/project/` 는 claude.ai 프로젝트 지식 mirror — **갱신 후 부장님 재업로드 필요**(안 하면 다음 세션 ME 가 옛본 보고 또 core/ 함정).

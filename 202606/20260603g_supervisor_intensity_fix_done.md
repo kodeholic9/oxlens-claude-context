@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603g — Supervisor intensity 카운트 정정 + 보강 2건 (완료 보고)
+> 작업 지침 ← [20260603g_supervisor_intensity_fix](../claudecode/202606/20260603g_supervisor_intensity_fix.md)
 
 > 지침: `claudecode/202606/20260603g_supervisor_intensity_fix.md`. 설계 출처 §9.
 > `20260603f`(미커밋) 위 국소 수정. **커밋 전 상태** — f+g 합쳐 부장님 GO 후 한방 커밋.

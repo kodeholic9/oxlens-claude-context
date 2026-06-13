@@ -1,4 +1,5 @@
 # 완료 보고 — 통계 자료구조 트랙 차원 정렬 (개명 + room_stats 잉여 제거 + 텔레메트리 이동)
+> 작업 지침 ← [20260602b_stats_track_alignment](../claudecode/202606/20260602b_stats_track_alignment.md)
 
 > 지침: `claudecode/202606/20260602b_stats_track_alignment.md`
 > 선행: domain rename (`b5f76a1`) 위에 적층.

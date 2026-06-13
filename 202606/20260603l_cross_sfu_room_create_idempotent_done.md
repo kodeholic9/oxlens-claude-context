@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603l — sfud ROOM_CREATE 멱등 + default rooms 제거 (완료 보고)
+> 작업 지침 ← [20260603l_cross_sfu_room_create_idempotent](../claudecode/202606/20260603l_cross_sfu_room_create_idempotent.md)
 
 > 지침: `claudecode/202606/20260603l_cross_sfu_room_create_idempotent.md`. 설계 cross_sfu §7.2/§7.3.
 > Phase 1(da29ad8) 위 sfud 영역 — Phase 2a 의 토대. **커밋 전 상태** — 부장님 GO 후 커밋, push 별도.

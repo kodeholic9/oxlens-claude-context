@@ -1,4 +1,5 @@
 # 작업 지침 — 새 SDK Phase 3c-fix + 3d-duplex: setTrackState 단일 게이트 통합
+> 완료 보고 → [20260604f_track_state_gate_done](../../202606/20260604f_track_state_gate_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic)
 > 토픽: 3c(mute) 가 설계서 §3/§5 를 어긴 구조 위반 2건 교정 + duplex 전환(0x1106) 흡수.

@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 작업지침 20260606a — uniform ACK 정합 (거짓 no-ack 선언 제거)
+> 완료 보고 → [20260606a_uniform_ack_done](../../202606/20260606a_uniform_ack_done.md)
 
 > 0605d(CLIENT_EVENT) 미커밋 워킹트리에 합류. **동작 코드 0 — 선언/주석만.** 한 커밋.
 > 단일 출처. 근거는 §1(실증 정독 — 추측 0).

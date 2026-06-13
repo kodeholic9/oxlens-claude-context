@@ -3,6 +3,8 @@
 > **이 문서의 목적**: 텔레메트리 스냅샷을 분석할 때, 이 문서를 context에 함께 넣어 오진을 방지한다.
 > **소비자**: Claude (AI). 인간이 아닌 AI가 읽고 판단하기 위한 레퍼런스.
 > **핵심 원칙**: duplex(트랙 단위 full/half)를 먼저 확인하라. half-duplex 트랙이 있으면 PTT 동작, 없으면 Conference 동작. PTT에서 정상인 것을 Conference에서는 이상으로, 그 역도 마찬가지.
+> **데이터 소스 2종**: 본문 §2~§4 = 실시간 어드민 스냅샷(동시각, 휘발). §4.5 = ccc 영속 수집
+> (10분 window, REST 사후 조회). **분석 시작 시 어느 소스를 보는지부터 확정** — 둘은 시점·보존이 다르다.
 
 ---
 
@@ -647,6 +649,108 @@ fan_out: avg=3.0 min=2 max=4
 
 ---
 
+## 4.5 ccc 영속 수집 — 두 번째 데이터 소스 (20260613 신설)
+
+> 본 가이드 §2~§4 는 전부 **실시간 어드민 스냅샷**(`buildSnapshot()` 텍스트, 어드민 WS 푸시)
+> 기준이다. **oxcccd(ccc)** 는 그와 **다른 소스** — 같은 텔레메트리를 10분 window 로 영속 수집해
+> hub REST 로 되읽는다. 분석 시 둘을 혼동하지 말 것. 어느 소스를 보는지부터 확정한다.
+
+### 4.5.1 두 소스의 성격 차이
+
+| | 실시간 스냅샷 (§2~§4) | ccc 영속 수집 |
+|---|---|---|
+| 데이터 | `buildSnapshot()` 한 시점 전체 텍스트 | telemetry samples + events (시계열) |
+| 시점 | **동시각** (한 캡처 = 모든 참가자 동기) | 비동기 (telemetry 3s 주기 / agg-log 3s flush, 참가자별 분산) |
+| 보존 | 어드민 WS 접속 중 실시간 (휘발) | **10분 rolling window, 사후 조회** |
+| 조회 | 어드민 대시보드 / __qa__ | `GET /media/telemetry/rooms/:room/samples\|events` (admin JWT) |
+| 강점 | 동시각 정합 (TRACK IDENTITY 4축 대조) | 과거 시점 사후 추적, 무왕복 |
+
+> **핵심**: "지금 이 순간 전체 정합"은 스냅샷, "조금 전 무슨 일이 있었나"는 ccc.
+> ccc 합성으로 4축을 재구성할 수는 있으나 동시각 보장이 없어 **±3s 시간창 매칭**이 필요하다
+> (스냅샷의 TRACK IDENTITY 동시각 대조만큼 엄밀하지 않음).
+
+### 4.5.2 ccc 조회 표면 (현재)
+
+room 단위 2개 엔드포인트뿐 (전역 덤프 없음):
+
+```
+GET /media/telemetry/rooms/:room_id/samples?since=<epoch_ms>   # 클라 TELEMETRY 시계열
+GET /media/telemetry/rooms/:room_id/events?type=<event명>       # CLIENT_EVENT + sfu agg-log
+GET /media/telemetry/rooms/:room_id/track-identity             # 4-Point 합성(아래 §4.5.5)
+```
+
+- **samples** = 클라 TELEMETRY(0x1302) raw. `{ts_ms, room_id, user_id, data:<telemetry body>}`.
+  data 안에 §4 의 SDP/mline + publish/subscribe 통계 + codec + PTT 진단이 그대로.
+- **events** = `{ts_ms, room_id, user_id, source:"cli"|"sfu", data}`.
+  - `source:"cli"` = CLIENT_EVENT body (§4.1/4.2 이벤트)
+  - `source:"sfu"` = agg-log 분배분 `data:{label, key, room_id, count, delta_ms}` (§2.13 레이블) 또는
+    TRACKS_UPDATE broadcast `data:{action, tracks}`
+- 주의: events 의 agg-log 식별은 `data.label` 안 텍스트(최상위 아님). 필터는 label substring.
+  type 필터(`?type=`)는 `data.event` 한 필드만 봐서 agg-log 엔 안 걸린다.
+
+### 4.5.3 디버깅 신호 ↔ ccc 수집처 매핑
+
+진단 플로우(§5)의 결정 신호가 ccc 어디에 있나 (또는 미수집):
+
+| 디버깅 | 결정 신호 | ccc 수집처 |
+|---|---|---|
+| 검은 화면 — 코덱 축 (§3, 0613 근본) | 클라 인코딩 codec/pt vs 서버 등록 codec | samples `mline_summary.codec/pt` + events `track:registered codec=/pt=` → **양변 같은 ssrc 로 대조** |
+| 검은 화면 — 디코딩 축 (§5.1) | framesDecoded=0 + freeze + (pub)pliCount | samples `subscribe.inbound.framesDecoded/freezeCount` + `publish.outbound.pliCount` ✓ |
+| 소리 안 들림 (§5.2) | recv_delta / audio_concealment / jb_delay | samples `subscribe.inbound.*` ✓ / events `audio_gap`(agg) ✓ |
+| jb_delay 폭등 (§5.3) | jb_delay 시계열 | samples `jitterBufferDelay` ✓ / **sr_relay 등 sfu_metrics = 갭(아래)** |
+| NACK storm (§5.4) | loss_burst/nack_burst + rtx 카운터 | samples 이벤트(cli) ✓ / events `nack_escalation`·`rtx_cache_miss`·`rtx_budget_exceeded`·`rtx:learned`(agg) ✓ |
+| 인코더 품질 (§5.5) | qualityLimit / avgQP / huge | samples `publish.outbound.*` ✓ |
+| 세션 liveness | suspect/zombie/recovered | events `session:*`(agg) ✓ |
+| 트랙 lifecycle | intent→registered→removed→cleanup | events `track:*`(agg) ✓ |
+| 검은 화면 — 게이트 축 (§2 1차) | TRACKS_READY 후 gate 해제 | events `gate:resume sub=/pub=/vssrc=`(agg, 20260613 B 승격) ✓ — **이 이벤트 "부재"가 검은 화면 신호** |
+| PTT 발화권 (floor 진단) | granted/released/revoked 상태전이 | events `floor:granted speaker=/priority=` · `floor:released` · `floor:revoked cause=`(agg, 20260613 B 승격) ✓ — 성공경로도 수집(구: 실패만) |
+
+### 4.5.4 ★ ccc 미수집 갭 — 로그 전용 신호 (분석 시 스냅샷/서버 로그로 가야 함)
+
+아래는 디버깅에 결정적이지만 **agg-log 미발행**이라 ccc 로 안 들어온다. 이 신호가 필요하면
+실시간 스냅샷(§2.16/2.17) 또는 서버 로그를 직접 봐야 한다:
+
+| 미수집 신호 | 발화 위치(로그) | 어느 디버깅에 결정적 |
+|---|---|---|
+| **PLI Governor 상태/결정** (pending, FORWARD/DROP) | `[PLI:GOV]`/`[GATE:PLI]` | 검은 화면 §5.1 step2, PLI 고착. 스냅샷 §2.16 PLI GOVERNOR 로 |
+| ~~SubscriberGate resume (TRACKS_READY)~~ | — | **20260613 B 승격 — 이제 ccc `gate:resume` 으로 수집됨**(§4.5.3) |
+| **SubscriberGate pause** (track_discovery) | `[GATE]` | resume 부재로 추론 가능해 미승격. 필요 시 스냅샷 §2.17 |
+| **PLI burst 분기** (TRACKS_READY 후) | track_ops.rs | PLI 자체는 `pli_server_initiated`(agg) 수집됨. 분기 판단만 로그 |
+| ~~floor 상태전이 성공경로 (granted/released/revoked)~~ | — | **20260613 B 승격 — 이제 ccc `floor:granted`/`floor:released`/`floor:revoked` 로 수집됨**(§4.5.3) |
+| **floor queued/denied/preempted** | `[FLOOR]` | 큐/거부 경로는 미승격(granted/released 로 주 흐름 추적 가능) |
+| **sfu_metrics 카운터** (sr_relay/egress_drop/rr_generated/pli_sent…) | admin event(ADMIN_METRICS) | jb_delay §5.3, 릴레이 진단. ccc 는 admin 전역이라 **room="" 로 저장**(agg_log 만 room 분배) → 방별 조회 불가. 스냅샷 §2.11/§3.2 로 |
+| **STREAM:PROMOTE / placeholder 분화** | `[STREAM:PROMOTE]` | simulcast SSRC 재할당. 서버 로그 |
+
+> 정리: ccc 로 **코덱·디코딩·전달·jb·NACK·세션·트랙 lifecycle·게이트 해제(gate:resume)·
+> floor 상태전이(granted/released/revoked) 는 사후 추적 가능**. **PLI Governor 결정과
+> sfu_metrics 카운터는 ccc 밖** — 실시간 스냅샷이 정답. (sfu_metrics 는 전역 카운터라 room
+> 차원이 없어 ccc 분배 부적합 — §2.11/§3.2 스냅샷 전용. 20260613 B: gate:resume + floor 승격.)
+
+### 4.5.5 track-identity 4-Point 합성 (20260613) — track-dump 의 ccc 버전
+
+`GET /media/telemetry/rooms/:room/track-identity` — samples(클라축) + events(서버축)를
+**ssrc 키로 join** 해 트랙별 4-Point + codec_mismatch 자동감지. §2.15 TRACK IDENTITY 스냅샷의
+영속/사후 버전이다(동시각 보장 없음 — §4.5.1 차이).
+
+```json
+{ "tracks": [ {
+    "ssrc": "0xB044ECD6",
+    "server_pub": { "kind": "video", "codec": "Vp8", "pt": "96" },   // events track:registered (B 에서 codec/pt 동봉)
+    "client_pub": { "user_id": "u1", "kind": "video", "codec": "H264/90000", "pt": 96, "mid": "1" },  // samples pub_mline_summary
+    "server_sub": { "present": true },                                // events subscribe:active (vssrc)
+    "client_sub": { ... },                                           // samples sub_mline_summary
+    "issues": ["codec_mismatch: server=Vp8 client=H264/90000 (검은 화면 위험)"]
+  } ], "count": N }
+```
+
+- **4축**: server_pub(서버 등록) / client_pub(클라 인코딩 SDP) / server_sub(서버 송출) / client_sub(클라 수신 SDP).
+- **codec_mismatch**: server_pub.codec ≠ client_pub.codec(정규화 후) → 검은 화면 0613 근본 자동감지.
+- ★ **봇은 PC 없어 client_* 비어있음** — 클라축은 **실클라 E2E 에서만** 채워진다. 봇 회귀로는
+  서버축 2축(+codec/pt)까지만 검증, codec_mismatch 는 실클라 또는 단위(oxhubd build_track_identity)로.
+- track-dump(동시각 동기 fan-in) 와 **병행** — 정밀 진단은 track-dump, 무왕복 사후 조회는 본 합성.
+
+---
+
 ## 5. 진단 플로우차트
 
 ### 5.1 "화면이 안 나온다" (video freeze / fps=0)
@@ -873,4 +977,5 @@ fan_out: avg=3.0 min=2 max=4
 ---
 
 *작성: kodeholic (powered by Claude)*
-*최종 갱신: 2026-04-18 v1.2 (섹션 2.19 DC STATE 스냅샷, 섹션 3.7 DC 카운터 사전 19종, §2.11 DC 라인 추가, §2.13 ptt:virtual_remove_skipped/dc:unknown_label 레이블 추가, §3.3 floor_revoked RTP liveness 반영, §8.3 해결 이슈 4건 분리(PTT 참가자 퇴장/STALLED kf_pending/transceiver 누수/TRACKS_ACK 단순화), FLOOR_PING→RTP liveness 전환 반영)*
+*최종 갱신: 2026-06-13 v1.3 (§4.5 ccc 영속 수집 섹션 신설 — 두 소스 차이/조회 표면/디버깅 신호↔수집처 매핑/미수집 갭. §0 데이터 소스 2종 안내. B: gate:resume + floor:granted/released/revoked agg-log 승격 → ccc 수집. §4.5.5 track-identity 4-Point 합성 엔드포인트(samples+events join + codec_mismatch 자동감지, track:registered codec/pt 동봉). sfu_metrics 는 전역 카운터라 ccc 분배 부적합 명시)*
+*v1.2 (2026-04-18): 섹션 2.19 DC STATE 스냅샷, 섹션 3.7 DC 카운터 사전 19종, §2.11 DC 라인 추가, §2.13 ptt:virtual_remove_skipped/dc:unknown_label 레이블 추가, §3.3 floor_revoked RTP liveness 반영, §8.3 해결 이슈 4건 분리, FLOOR_PING→RTP liveness 전환 반영*

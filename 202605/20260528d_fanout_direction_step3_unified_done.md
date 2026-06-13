@@ -1,4 +1,5 @@
 # 완료 보고 — Step 3 (통합): publisher_ref 무참조 폐기 + forward 전면 재작성 + attach 통일
+> 작업 지침 ← [20260528d_fanout_direction_step3_unified](../claudecode/202605/20260528d_fanout_direction_step3_unified.md)
 
 **문서 ID**: `20260528d_fanout_direction_step3_unified_done.md`
 **작성**: 김과장 (Claude Code)

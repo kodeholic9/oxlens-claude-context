@@ -1,4 +1,5 @@
 # 완료보고 — naming_cleanup 꼬리 청소 (20260603d)
+> 작업 지침 ← [20260603d_cleanup_tail](../claudecode/202606/20260603d_cleanup_tail.md)
 
 지침: `context/claudecode/202606/20260603d_cleanup_tail.md`
 작업: #5 `streams` 변수 잔존 rename + #4 dead 확정·제거. **behavior 0**.

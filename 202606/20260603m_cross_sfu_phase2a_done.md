@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603m — Cross-SFU Phase 2a: hub room 라우팅 (완료 보고)
+> 작업 지침 ← [20260603m_cross_sfu_phase2a](../claudecode/202606/20260603m_cross_sfu_phase2a.md)
 
 > 지침: `claudecode/202606/20260603m_cross_sfu_phase2a.md`. 설계 cross_sfu §7. 작명 확정.
 > Phase 1(da29ad8) + l(ca6fcf1) 위 hub 요청 경로. **커밋 전 상태** — 부장님 GO 후 커밋(l 과 별 커밋), push 별도.

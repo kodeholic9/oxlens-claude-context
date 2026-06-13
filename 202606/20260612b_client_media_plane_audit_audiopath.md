@@ -5,7 +5,7 @@
 분석/조사 세션 (코딩 없음 — 맥북 부재 대부분, 부장 소스 첨부로 진행).
 대상: `media-acquire.js` / `local-endpoint.js` / `local-pipe.js`(+`pipe.js`) 결함 발굴
      + 오디오 디바이스 권한·라우팅 업계 조사(권한 거부 / 블루투스 / setSinkId / iOS26).
-직전 `20260610_client_send_room_review`(engine/talkgroups/transport/sdp-builder)의 미디어 평면 후속.
+직전 [20260610_client_send_room_review](20260610_client_send_room_review.md)(engine/talkgroups/transport/sdp-builder)의 미디어 평면 후속.
 
 ---
 

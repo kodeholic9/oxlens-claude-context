@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 완료보고 20260606a — uniform ACK 정합 (거짓 no-ack 선언 제거)
+> 작업 지침 ← [20260606a_uniform_ack](../claudecode/202606/20260606a_uniform_ack.md)
 
 > 지침: `claudecode/202606/20260606a_uniform_ack.md`. doc/선언 정리 — **동작 코드 0**.
 

@@ -1,4 +1,5 @@
 # 작업 지침: Stream 천이 Hook + set_phase 통일 (Hook Phase 2 본정정)
+> 완료 보고 → [20260517c_stream_phase_hooks_done](../../202605/20260517c_stream_phase_hooks_done.md)
 
 > Claude Code 작업 지침. 본 파일이 단일 출처. 별도 설계서 없음.
 > 작성: 2026-05-17 (claude.ai 김대리, MCPTT 표준 분석 후 시점 본정정)

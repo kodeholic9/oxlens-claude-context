@@ -1,4 +1,5 @@
 # 작업 지침 — 묶음 1: 모델 단순화 (Pan-Floor + Cross-Room publish 폐기)
+> 완료 보고 → [20260518a_model_simplification_done](../../202605/20260518a_model_simplification_done.md)
 
 > 작성: 2026-05-18 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

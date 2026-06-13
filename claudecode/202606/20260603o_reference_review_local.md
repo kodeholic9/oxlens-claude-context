@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603o — Reference 검토 (로컬 3종): 새 클라 골격을 위한 코드 레벨 정독
+> 완료 보고 → [20260603o_reference_review_local_done](../../202606/20260603o_reference_review_local_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 표준 구조.
 > 완료 보고: `context/202606/20260603o_reference_review_local_done.md`.

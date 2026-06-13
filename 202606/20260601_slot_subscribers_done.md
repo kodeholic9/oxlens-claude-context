@@ -1,4 +1,5 @@
 # _done — Slot.subscribers 도입 (Half fanout lookup #2 소거 + Half/Full broadcast 본문 통일)
+> 작업 지침 ← [20260601_slot_subscribers](../claudecode/202606/20260601_slot_subscribers.md)
 
 문서 ID: `20260601_slot_subscribers_done.md`
 지침: `claudecode/202606/20260601_slot_subscribers.md`

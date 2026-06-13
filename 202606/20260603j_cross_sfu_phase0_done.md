@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603j — Cross-SFU Phase 0: sfud CLI arg override + 2-unit 시험 환경 (완료 보고)
+> 작업 지침 ← [20260603j_cross_sfu_phase0](../claudecode/202606/20260603j_cross_sfu_phase0.md)
 
 > 지침: `claudecode/202606/20260603j_cross_sfu_phase0.md`. 설계 §6.2/§9 Phase 0.
 > supervisor(f~i) 위 cross-sfu 토대. **커밋 전 상태** — 부장님 GO 후 커밋(supervisor 묶음과 별 커밋), push 별도.

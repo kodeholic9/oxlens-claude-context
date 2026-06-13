@@ -1,4 +1,5 @@
 # Hook Phase 2 완료 — Stream 천이 Hook + set_phase 통일
+> 작업 지침 ← [20260517c_stream_phase_hooks](../claudecode/202605/20260517c_stream_phase_hooks.md)
 
 > 작업 지침: `20260517c_stream_phase_hooks.md` (단일 출처)
 > 완료일: 2026-05-17

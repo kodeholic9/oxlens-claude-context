@@ -1,4 +1,5 @@
 # 작업 지침 — 새 SDK 재작성 Phase 3b: domain publish + 송출 직렬화 + 타입 분리 + v2 잔재 청산
+> 완료 보고 → [20260603s_domain_publish_done](../../202606/20260603s_domain_publish_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic, GO 2026-06-04)
 > 토픽: oxlens-home 웹 클라 재작성 — **LocalEndpoint publish + track_id 1급 + RTP 송출 직렬화 + Local/Remote 타입 분리 + signaling v2 잔재 청산**

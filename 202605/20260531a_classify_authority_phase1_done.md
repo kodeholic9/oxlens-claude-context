@@ -1,4 +1,5 @@
 # _done — Duplex Activeness Phase 1: 분류 권위 단일화 (TrackType 복원)
+> 작업 지침 ← [20260531a_classify_authority_phase1](../claudecode/202605/20260531a_classify_authority_phase1.md)
 
 문서 ID: `20260531a_classify_authority_phase1_done.md`
 지침: `20260531a_classify_authority_phase1.md`

@@ -1,4 +1,5 @@
 # 20260518e — oxlens-home v3 마이그 Phase 1 작업 지침
+> 완료 보고 → [20260518e_oxlens_home_v3_migration_phase1_done](../../202605/20260518e_oxlens_home_v3_migration_phase1_done.md)
 
 > 김대리 → 김과장 작업 지침. 분업 체계 §작업 지침 표준 구조 정합.
 > 단일 출처 — 본 지침서. 작업 중 다른 출처와 충돌 시 본 지침 우선.
@@ -997,7 +998,7 @@ grep -n "PFLOOR\|svc.*0x03\|handlePanDcMessage" core/sdp-negotiator.js
 
 3. **SESSION_INDEX 갱신**: 김과장이 완료 보고서 박은 후 김대리가 1줄 추가:
    ```
-   | 0518e | `20260518e_oxlens_home_v3_migration_phase1_done` | 클라 | oxlens-home v3 마이그 Phase 1 — Foundation + Pan-Floor 폐기 (wire.js + signaling.js + ...) |
+   | 0518e | [20260518e_oxlens_home_v3_migration_phase1_done](../../202605/20260518e_oxlens_home_v3_migration_phase1_done.md) | 클라 | oxlens-home v3 마이그 Phase 1 — Foundation + Pan-Floor 폐기 (wire.js + signaling.js + ...) |
    ```
 
 ---

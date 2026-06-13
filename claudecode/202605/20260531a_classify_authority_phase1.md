@@ -1,4 +1,5 @@
 # 작업 지침 — Duplex Activeness Phase 1: 분류 권위 단일화 (TrackType 복원)
+> 완료 보고 → [20260531a_classify_authority_phase1_done](../../202605/20260531a_classify_authority_phase1_done.md)
 
 문서 ID: `20260531a_classify_authority_phase1.md`
 작성: 김대리 (claude.ai)

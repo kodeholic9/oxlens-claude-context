@@ -1,4 +1,5 @@
 # 작업 지침: PeerSnapshot DTO 신설 + set_phase → set_phase_state rename
+> 완료 보고 → [20260517f_peer_snapshot_rename_done](../../202605/20260517f_peer_snapshot_rename_done.md)
 
 > Claude Code 작업 지침. 본 파일이 단일 출처. 별도 설계서 없음.
 > 작성: 2026-05-17 (claude.ai 김대리, admin cleanup (`20260517e`) 종결 후 즉시 진입)

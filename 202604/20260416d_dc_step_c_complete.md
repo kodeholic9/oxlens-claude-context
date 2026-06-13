@@ -1,7 +1,7 @@
 # 2026-04-16d — DC Phase 1 Step C 완료 (DcMetrics 19 + AssociationLost break + admin 가시화)
 
 **영역**: 서버 + 홈 (Rust 4파일 + JS 2파일)
-**전 세션**: `20260416c_dc_channel_step_b_complete`
+**전 세션**: [20260416c_dc_channel_step_b_complete](20260416c_dc_channel_step_b_complete.md)
 
 ---
 

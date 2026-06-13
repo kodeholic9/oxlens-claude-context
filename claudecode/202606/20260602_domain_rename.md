@@ -1,4 +1,5 @@
 # 작업 지침 — `room/` → `domain/` 디렉토리 rename
+> 완료 보고 → [20260602_domain_rename_done](../../202606/20260602_domain_rename_done.md)
 
 > 김대리(claude.ai) 작성 · 김과장(Claude Code) 구현 · 부장님(kodeholic) GO
 > 성격: **순수 mechanical refactor** (경로 치환 + 디렉토리 rename). 로직/주석/문자열/타입명 0 변경.

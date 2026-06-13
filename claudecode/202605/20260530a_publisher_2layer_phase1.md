@@ -1,4 +1,5 @@
 # 작업 지침 — Publisher 2계층 (Stream 논리 / Track 물리) Phase 1: 타입 정의
+> 완료 보고 → [20260530a_publisher_2layer_phase1_done](../../202605/20260530a_publisher_2layer_phase1_done.md)
 
 문서 ID: `20260530a_publisher_2layer_phase1.md`
 작성: 김대리 (claude.ai)

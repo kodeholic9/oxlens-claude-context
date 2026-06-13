@@ -1,4 +1,5 @@
 # 작업 지침 — 새 SDK 재작성 Phase 2a: Transport 골조 + Publish 경로
+> 완료 보고 → [20260603q_transport_publish_done](../../202606/20260603q_transport_publish_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic)
 > 토픽: oxlens-home 웹 클라 재작성 — **Transport(코어의 코어) 골조 + Publish 경로**
@@ -140,7 +141,7 @@
 ---
 
 ## §10 직전 작업 처리
-- 직전: `20260603p_client_rewrite_scaffold` 완료(sdk/ 골격, 미커밋 — Phase 1 통합 리뷰 GO 후 커밋 예정). 부장님이 Phase 1 커밋 타이밍 결정 시 본 Phase 2a 와 함께 또는 분리 커밋.
+- 직전: [20260603p_client_rewrite_scaffold](20260603p_client_rewrite_scaffold.md) 완료(sdk/ 골격, 미커밋 — Phase 1 통합 리뷰 GO 후 커밋 예정). 부장님이 Phase 1 커밋 타이밍 결정 시 본 Phase 2a 와 함께 또는 분리 커밋.
 - 본 작업은 Phase 1 의 transport.js stub(이미 §3 인터페이스 메서드명 박힘)에 본체 주입 — stub 시그니처와 정합 확인하며 진행.
 
 ---

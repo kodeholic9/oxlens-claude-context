@@ -1,4 +1,5 @@
 # 20260519a — oxlens-home v3 마이그 Phase 2+3 통합 작업 지침
+> 완료 보고 → [20260519a_oxlens_home_v3_migration_phase2_done](../../202605/20260519a_oxlens_home_v3_migration_phase2_done.md)
 
 > 김대리 → 김과장 자율주행 작업 지침.
 > 부장님 명시 3건 정합: (1) wire.js 통합 포함 (2) commit 마지막 1건 (3) 자율주행 (정지점 0).
@@ -620,7 +621,7 @@ adminWs.send(ackFrame);
    - 발견_사항 (영향 범위 외 미처리 / 부장님 복귀 시 회귀 추가 / Phase 4 cleanup 후보)
 3. **SESSION_INDEX 갱신**: 1줄 추가
    ```
-   | 0519a | `20260519a_oxlens_home_v3_migration_phase2_done` | 클라 | oxlens-home v3 마이그 Phase 2+3 통합 — wire.js inline + WS bearer Floor + SCOPE 단일 + admin 디코더 + cleanup |
+   | 0519a | [20260519a_oxlens_home_v3_migration_phase2_done](../../202605/20260519a_oxlens_home_v3_migration_phase2_done.md) | 클라 | oxlens-home v3 마이그 Phase 2+3 통합 — wire.js inline + WS bearer Floor + SCOPE 단일 + admin 디코더 + cleanup |
    ```
    통계 갱신 (277→279, Phase 1 보고서 + 본 보고서 누적).
 

@@ -1,4 +1,5 @@
 # 작업 지침 — 도메인 어휘 enum types.rs 통합 (원본 제거 + 호출처 일괄 + stream_map 폐기)
+> 완료 보고 → [20260602d_enum_types_consolidation_done](../../202606/20260602d_enum_types_consolidation_done.md)
 
 > 작성: 김대리 (claude.ai) · 결재: 부장님 (kodeholic) · 구현: 김과장 (Claude Code)
 > 파일: `context/claudecode/202606/20260602d_enum_types_consolidation.md`

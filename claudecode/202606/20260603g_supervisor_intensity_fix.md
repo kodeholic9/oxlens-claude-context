@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603g — Supervisor 용어 정정(Slave→Unit) + intensity 카운트 정정 + 보강 2건
+> 완료 보고 → [20260603g_supervisor_intensity_fix_done](../../202606/20260603g_supervisor_intensity_fix_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 표준 구조.
 > 완료 보고: `context/202606/20260603g_supervisor_intensity_fix_done.md`.

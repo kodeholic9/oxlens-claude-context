@@ -1,4 +1,5 @@
 # 작업 지침 — Step 2: broadcast 도입 + Full 경로 lookup 폐기 (+ Step 1 발굴 이슈 반영)
+> 완료 보고 → [20260528b_fanout_direction_step2_done](../../202605/20260528b_fanout_direction_step2_done.md)
 
 **문서 ID**: `20260528b_fanout_direction_step2.md`
 **작성**: 김대리 (claude.ai)

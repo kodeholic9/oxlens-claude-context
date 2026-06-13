@@ -73,7 +73,7 @@
 2. **공통 함수 흡수 시** — 옛 코드 순서 그대로 묶지 말 것. 자료 의미 (소유자 / 핫패스 ground truth / 시작 신호) 차원에서 순서 본질 재점검
 3. **명시 검증 = `WireAck` / `Wire` prefix grep / 옛 자료 의미 grep** — 본명 정합 안 된 흔적 / 옛 자료 의미 누락 흔적 정량 발견
 
-본 학습 자료 = [[feedback_atomic_truth_design]] / [[feedback_purpose_first]] 정합 가능.
+본 학습 자료 = `feedback_atomic_truth_design` / `feedback_purpose_first` 정합 가능.
 
 ---
 
@@ -99,7 +99,7 @@
 - 부장님 직접 박은 코드 작업 모두 완료
 - 본 진열 #6 자료 정합 완료
 - 본 세션 종료 자료 박기 완료
-- context 레포 commit/push = 부장님 직접 ([[feedback_context_repo_commit]] 정합)
+- context 레포 commit/push = 부장님 직접 (`feedback_context_repo_commit` 정합)
 
 다음 세션 진입 후보:
 1. 본 진열 철회 6건 정정 진입 (부장님 결재 후)

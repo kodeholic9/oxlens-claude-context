@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603j — Cross-SFU Phase 0: sfud CLI arg override + supervisor 2-unit 시험 환경
+> 완료 보고 → [20260603j_cross_sfu_phase0_done](../../202606/20260603j_cross_sfu_phase0_done.md)
 
 > 김과장(Claude Code) 작업 지침. 분업 체계 표준 구조.
 > 완료 보고: `context/202606/20260603j_cross_sfu_phase0_done.md`.

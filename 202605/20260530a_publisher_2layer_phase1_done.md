@@ -1,4 +1,5 @@
 # _done 보고 — Publisher 2계층 (Stream 논리 / Track 물리) Phase 1
+> 작업 지침 ← [20260530a_publisher_2layer_phase1](../claudecode/202605/20260530a_publisher_2layer_phase1.md)
 
 문서 ID: `20260530a_publisher_2layer_phase1_done.md`
 작성: 김과장 (Claude Code)

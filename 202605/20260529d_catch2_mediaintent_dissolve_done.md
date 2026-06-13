@@ -1,4 +1,5 @@
 # 완료 보고 — 3차: catch 2 MediaIntent 분해/폐기 (6 sub-phase)
+> 작업 지침 ← [20260529d_catch2_mediaintent_dissolve](../claudecode/202605/20260529d_catch2_mediaintent_dissolve.md)
 
 **문서 ID**: `20260529d_catch2_mediaintent_dissolve_done.md`
 **작성**: 김과장 (Claude Code, Opus 4.7)

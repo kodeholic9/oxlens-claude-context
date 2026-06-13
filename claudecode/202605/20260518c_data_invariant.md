@@ -1,4 +1,5 @@
 # 작업 지침 — 묶음 3: 자료구조 일관성 ① (pub_room 마이그 + Peer mutation 일원화 + Snapshot rename + Gate 단순화)
+> 완료 보고 → [20260518c_data_invariant_done](../../202605/20260518c_data_invariant_done.md)
 
 > 작성: 2026-05-18 (김대리, claude.ai)
 > 담당: 김과장 (Claude Code)

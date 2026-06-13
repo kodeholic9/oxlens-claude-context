@@ -1,4 +1,5 @@
 # 완료 보고 — `room/` → `domain/` 디렉토리 rename
+> 작업 지침 ← [20260602_domain_rename](../claudecode/202606/20260602_domain_rename.md)
 
 > 지침: `claudecode/202606/20260602_domain_rename.md`
 > 성격: 순수 mechanical refactor (경로 치환 + 디렉토리 rename). 로직/주석/문자열/타입명 0 변경.

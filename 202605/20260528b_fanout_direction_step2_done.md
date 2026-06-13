@@ -1,4 +1,5 @@
 # 완료 보고 — Step 2: broadcast 도입 + Full 경로 lookup 폐기 + attach 중복 방지
+> 작업 지침 ← [20260528b_fanout_direction_step2](../claudecode/202605/20260528b_fanout_direction_step2.md)
 
 **문서 ID**: `20260528b_fanout_direction_step2_done.md`
 **작성**: 김과장 (Claude Code)

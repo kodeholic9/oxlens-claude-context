@@ -1,7 +1,7 @@
 # 2026-04-16c — DC Channel Phase 1 Step B 완료 (label "unreliable" + readiness 버퍼링)
 
 **영역**: 서버 + SDK (Rust 3파일 + JS 3파일)
-**전 세션**: `20260416b_ptt_virtual_remove_mbcp_queue_dc_design` (Step A 완료 + Step B 4/6)
+**전 세션**: [20260416b_ptt_virtual_remove_mbcp_queue_dc_design](20260416b_ptt_virtual_remove_mbcp_queue_dc_design.md) (Step A 완료 + Step B 4/6)
 
 ---
 

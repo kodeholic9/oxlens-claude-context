@@ -1,4 +1,5 @@
 # 완료 보고 — oxe2e Phase 1 (봇 oxrtc 전환 + conf_basic)
+> 작업 지침 ← [20260530_oxe2e_phase1](../claudecode/202605/20260530_oxe2e_phase1.md)
 
 > 지침: `claudecode/202605/20260530_oxe2e_phase1.md`
 > 설계: `design/20260530_oxe2e_design.md`

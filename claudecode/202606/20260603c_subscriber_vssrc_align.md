@@ -1,4 +1,5 @@
 # 작업 지침 — SubscriberStream.virtual_ssrc → vssrc 어휘 정합 (0603 식별 계층 마무리)
+> 완료 보고 → [20260603c_subscriber_vssrc_align_done](../../202606/20260603c_subscriber_vssrc_align_done.md)
 
 > 작성: 김대리 / 결재: 부장님 ("정석대로 해") / 구현: 김과장
 > 토픽: subscriber_vssrc_align · 일자: 2026-06-03(c) · 직전: 20260603b_naming_cleanup(commit 완료) / 0603 식별 계층 A·B(`8b0627a`/`208a498`)

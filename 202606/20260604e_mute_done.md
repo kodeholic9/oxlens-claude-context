@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260604e — mute/unmute 완료 보고 (Phase 3c, full-duplex)
+> 작업 지침 ← [20260604e_mute](../claudecode/202606/20260604e_mute.md)
 
 > 지침: `claudecode/202606/20260604e_mute.md`. 설계 §13 / wire §5(MUTE_UPDATE)·§9(TRACK_STATE) / 서버 track_ops.rs handle_mute_update.
 > 직전: `20260604d`(3e 수신 완결). **커밋 전** — ★정지점 1(송수신 배선+mock) 완료, ★정지점 2(라이브)는 부장님 RUN.

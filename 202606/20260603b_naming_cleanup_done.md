@@ -1,4 +1,5 @@
 # 완료보고 — naming_cleanup (20260603b)
+> 작업 지침 ← [20260603b_naming_cleanup](../claudecode/202606/20260603b_naming_cleanup.md)
 
 지침: `context/claudecode/202606/20260603b_naming_cleanup.md`
 작업: domain/signaling/transport 식별자 rename + 주석/doc 청산. **behavior 0** (로직·제어흐름·자료구조 무변경).

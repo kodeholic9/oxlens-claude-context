@@ -1,4 +1,5 @@
 # 작업 지침 — Phase 3b 후속: publish 결함 2건 수정 (소형 패치)
+> 완료 보고 → [20260604a_publish_defects_done](../../202606/20260604a_publish_defects_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic, GO 2026-06-04)
 > 토픽: 3b ★정지점 2 코드 검토(김대리 직접 정독)에서 발견한 결함 2건. **소형 패치 — 새 기능 없음.**

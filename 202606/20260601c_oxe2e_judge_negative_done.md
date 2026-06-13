@@ -1,4 +1,5 @@
 # _done — oxe2e judge negative 검증 (약속 외 ssrc 누수)
+> 작업 지침 ← [20260601c_oxe2e_judge_negative](../claudecode/202606/20260601c_oxe2e_judge_negative.md)
 
 문서 ID: `20260601c_oxe2e_judge_negative_done.md`
 지침: `claudecode/202606/20260601c_oxe2e_judge_negative.md`

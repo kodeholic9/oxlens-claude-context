@@ -1,4 +1,5 @@
 # 작업 지침 — 새 SDK 재작성 Phase 1: 골격(scaffold)
+> 완료 보고 → [20260603p_client_rewrite_scaffold_done](../../202606/20260603p_client_rewrite_scaffold_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic)
 > 토픽: oxlens-home 웹 클라 전면 재작성 — **골격 세우기 (Phase 1)**
@@ -174,7 +175,7 @@ sdk/
 
 ## §10 직전 작업 처리
 
-- 직전: `20260603o_reference_review_local` (레퍼런스 검토 — 김과장 보고서 `20260603o_reference_review_local_done.md` 작성됨, 커밋 여부는 부장님 판단).
+- 직전: [20260603o_reference_review_local](20260603o_reference_review_local.md) (레퍼런스 검토 — 김과장 보고서 `20260603o_reference_review_local_done.md` 작성됨, 커밋 여부는 부장님 판단).
 - 이번 작업은 그 검토(Q1~Q5)가 설계 문서에 반영된 상태에서 출발 — 레퍼런스 결론(송신 평등 가정이 깨지는 3지점 = ①②③ 훅)이 §4 의 근거.
 - 이번 Phase 는 신규 sdk/ 라 직전 작업과 파일 충돌 0.
 

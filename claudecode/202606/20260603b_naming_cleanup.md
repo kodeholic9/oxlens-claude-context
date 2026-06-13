@@ -1,4 +1,5 @@
 # 작업 지침 — domain/signaling/transport 네이밍 부채 청산 (거짓 이름 + 주석 불일치)
+> 완료 보고 → [20260603b_naming_cleanup_done](../../202606/20260603b_naming_cleanup_done.md)
 
 > 작성: 김대리 / 결재: 부장님 ("전부 간다", ★1·2·3 전부 확정) / 구현: 김과장
 > 토픽: naming_cleanup · 일자: 2026-06-03(b) · 직전: 20260603_doc_split / 0603 식별 계층 재설계 A·B(`8b0627a`/`208a498`)

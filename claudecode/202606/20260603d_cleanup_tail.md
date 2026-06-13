@@ -1,4 +1,5 @@
 # 작업 지침 — naming_cleanup 꼬리 청소 (streams 변수 잔존 + dead 확정)
+> 완료 보고 → [20260603d_cleanup_tail_done](../../202606/20260603d_cleanup_tail_done.md)
 
 > 작성: 김대리 / 결재: 부장님 / 구현: 김과장
 > 토픽: cleanup_tail · 일자: 2026-06-03(d) · 직전: 20260603b naming_cleanup(`fa365f8`) / 20260603c vssrc 정합(`6775b06`)

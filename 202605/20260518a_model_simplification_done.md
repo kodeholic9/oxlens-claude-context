@@ -1,4 +1,5 @@
 # 모델 단순화 (Pan-Floor + Cross-Room publish 폐기) 완료
+> 작업 지침 ← [20260518a_model_simplification](../claudecode/202605/20260518a_model_simplification.md)
 
 > 작업 지침: `claudecode/202605/20260518a_model_simplification.md` (단일 출처)
 > 완료일: 2026-05-17

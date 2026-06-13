@@ -1,4 +1,5 @@
 # 묶음 6 — Hook 본문 + State 천이 agg-log 추적 + Floor hook 틀 완료 보고
+> 작업 지침 ← [20260519b_hook_body_state_agglog](../claudecode/202605/20260519b_hook_body_state_agglog.md)
 
 - 작업자: 김과장 (Claude Code)
 - 일자: 2026-05-17

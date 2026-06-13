@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 작업지침 20260605d — CLIENT_EVENT 사건 보고 채널 (D 덩어리)
+> 완료 보고 → [20260605d_client_event_done](../../202606/20260605d_client_event_done.md)
 
 > 대상: 김과장(Claude Code). 분업 — 김대리 지침 / 김과장 구현.
 > 설계 단일출처: `context/design/20260605_client_event_design.md`.

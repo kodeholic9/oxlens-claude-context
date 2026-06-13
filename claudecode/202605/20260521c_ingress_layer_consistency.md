@@ -3,7 +3,7 @@
 # Ingress 계층구조 정합 + 옛 잔재 청산 (0521c)
 
 > 세션: 2026-05-21 23:30 ~ (야간)
-> 직전 세션: `20260521b_ingress_srp_rtx_truth_room_done` (ingress.rs 4 파일 분리 + RTX/cache/NackGenerator)
+> 직전 세션: [20260521b_ingress_srp_rtx_truth_room_done](../../202605/20260521b_ingress_srp_rtx_truth_room_done.md) (ingress.rs 4 파일 분리 + RTX/cache/NackGenerator)
 > 분석 대상 = 직전 세션 Phase A 산출물 (`ingress.rs` / `ingress_publish.rs` / `ingress_rtcp.rs`) 의 잔재 정합
 > 본 세션 = **부장 지적 다섯 관점 — Ingress 계층 정합 사전 기록 (코딩 결재 대기)**
 > 진행 모드 = **사전 기록 + 결재 요청**

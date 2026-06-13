@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603n — Cross-SFU Phase 2b: event consumer 복수화 + sfu() 최종 폐기 (완료 보고)
+> 작업 지침 ← [20260603n_cross_sfu_phase2b](../claudecode/202606/20260603n_cross_sfu_phase2b.md)
 
 > 지침: `claudecode/202606/20260603n_cross_sfu_phase2b.md`. 설계 cross_sfu §5/§7.
 > Phase 2a(745edf8) 위. 본 작업으로 cross-sfu **양방향 시그널링**(요청 2a + 이벤트 2b) 완성. **커밋 전** — GO 후 커밋, push 별도.

@@ -1,4 +1,5 @@
 # 작업 지침 — Duplex Activeness Phase 2: full→half 캐싱 (republish 폐기 + 생명주기 기준)
+> 완료 보고 → [20260531b_duplex_caching_phase2_done](../../202605/20260531b_duplex_caching_phase2_done.md)
 
 문서 ID: `20260531b_duplex_caching_phase2.md`
 작성: 김대리 (claude.ai)

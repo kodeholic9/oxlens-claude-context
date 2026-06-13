@@ -1,4 +1,5 @@
 # 작업 지침 — 새 SDK 재작성 Phase 3a: domain 이식 + 수신(subscribe) 배선
+> 완료 보고 → [20260603r_domain_subscribe_wiring_done](../../202606/20260603r_domain_subscribe_wiring_done.md)
 
 > 작성: 김대리 (claude.ai) / 수행: 김과장 (Claude Code) / 결재: 부장님(kodeholic)
 > 토픽: oxlens-home 웹 클라 재작성 — **domain(Room/Endpoint/Pipe) 이식 + Transport 수신 경로 배선**

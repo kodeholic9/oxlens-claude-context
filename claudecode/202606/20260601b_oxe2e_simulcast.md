@@ -1,4 +1,5 @@
 # 작업 지침 — oxe2e simulcast publish 시나리오 추가
+> 완료 보고 → [20260601b_oxe2e_simulcast_done](../../202606/20260601b_oxe2e_simulcast_done.md)
 
 > 김대리(분석/설계) → 김과장(구현). 부장님 GO 후 진행.
 > 토픽: oxe2e 회귀 시험에 simulcast publish 커버 추가. **봇(시뮬레이터) 송출만** 손댄다. 서버 0 변경.

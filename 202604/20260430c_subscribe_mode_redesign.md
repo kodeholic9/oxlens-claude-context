@@ -1,6 +1,6 @@
 # 20260430c — SubscribeMode 재설계 (Phase 1~5a 완료)
 
-> 본 세션 = 직전 fan-out 회귀 진단 (`20260430b_fanout_debug_vssrc_revert`) 의 후속.
+> 본 세션 = 직전 fan-out 회귀 진단 ([20260430b_fanout_debug_vssrc_revert](20260430b_fanout_debug_vssrc_revert.md)) 의 후속.
 >
 > 진단으로 밝혀진 회귀의 **자료구조적 근본 원인**을 김대리(매크로 분석)가 파악, 부장님 결재 후 SubscribeMode enum 도입으로 fix.
 

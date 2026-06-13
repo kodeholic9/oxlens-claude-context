@@ -1,3 +1,5 @@
+> 작업 지침 ← [20260518a_participant_decompose](../claudecode/202605/20260518a_participant_decompose.md)
+
 ## 작업 완료 — F29: participant.rs 해체 (응집도 작업)
 
 > 작성: 2026-05-18 (김과장, Claude Code)

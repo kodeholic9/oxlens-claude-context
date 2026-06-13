@@ -1,4 +1,5 @@
 # Floor Control v2 — 우선순위 + 큐잉 설계
+> 완료 보고 → [20260321_floor_priority_queue_done](20260321_floor_priority_queue_done.md)
 
 > 날짜: 2026-03-21
 > 영역: oxlens-sfu-server (서버 중심, 클라이언트 시그널링 확장)

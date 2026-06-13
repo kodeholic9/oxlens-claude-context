@@ -133,6 +133,9 @@ room.on(RoomEvent.STREAM_SUBSCRIBED, ({ stream, participant, trackId, userId }) 
 });
 room.on(RoomEvent.STREAM_UNSUBSCRIBED, ({ stream, userId }) => stream.detach());
 room.on(RoomEvent.PARTICIPANT_JOINED | PARTICIPANT_LEFT, ...);
+// 서버 mid 재사용(recycle) — 기존 pipe 가 새 정체로 재바인딩. 옛 stream 핸들/참조를 쥔
+// 앱은 이 1이벤트로 갱신(SDK 내부는 자기 갱신: element dataset / 옛 핸들 캐시 evict).
+room.on(RoomEvent.STREAM_RECYCLED, ({ stream, prev, roomId }) => retile(prev.trackId, stream));
 ```
 
 ### RemoteStream
@@ -269,7 +272,7 @@ const { Engine } = await import("/sdk/index.js");
 | 그룹 | 값 |
 |---|---|
 | EngineEvent | connecting / connected / state / disconnected / signal_reconnecting / reconnecting / reconnected / reconnect_failed / active_speakers / token_expiring(자리) |
-| RoomEvent | participant_joined / participant_left / stream_subscribed / stream_unsubscribed / closed |
+| RoomEvent | participant_joined / participant_left / stream_subscribed / stream_unsubscribed / stream_recycled / closed |
 | StreamEvent | muted{cause} / ended / restarted / cpu_constrained / republished(자리) / suspended / resumed |
 | FloorEvent | state / granted / taken / idle / queued / denied{reason} / revoke / released |
 | DeviceEvent | changed / list / disconnected / permission |

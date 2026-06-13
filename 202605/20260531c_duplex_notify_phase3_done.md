@@ -1,4 +1,5 @@
 # _done — Duplex Activeness Phase 3 (서버 마지막): TRACK_STATE_REQ + half→full 복귀 + 통지
+> 작업 지침 ← [20260531c_duplex_notify_phase3](../claudecode/202605/20260531c_duplex_notify_phase3.md)
 
 문서 ID: `20260531c_duplex_notify_phase3_done.md`
 지침: `20260531c_duplex_notify_phase3.md`

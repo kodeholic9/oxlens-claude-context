@@ -1,11 +1,12 @@
 # 작업 지침: ParticipantPhase enum 3계층 분해 (Hook Phase 3 — Suspect/Zombie 분리)
+> 완료 보고 → [20260517d_phase_enum_split_done](../../202605/20260517d_phase_enum_split_done.md)
 
 > Claude Code 작업 지침. 본 파일이 단일 출처. 별도 설계서 없음.
 > 작성: 2026-05-17 (claude.ai 김대리, Hook Phase 2 (`20260517c`) 종결 후 즉시 진입)
 > 검토자: 부장님 (kodeholic)
 > 클라이언트 변경: **0** (서버 내부. 클라이언트로 나가는 wire 메시지 무변경. 어드민 JSON 만 phase 표현 분기)
 
-> **본 작업의 전제**: 직전 `20260517c_stream_phase_hooks` 의 *set_phase 단일 진입점* 통일. 본 작업은 그 *단일 진입점* 의 enum 을 *scope 별 3 enum 으로 분해*. 즉 *set_phase 통일* 위에 *의미 분리* 를 더함.
+> **본 작업의 전제**: 직전 [20260517c_stream_phase_hooks](20260517c_stream_phase_hooks.md) 의 *set_phase 단일 진입점* 통일. 본 작업은 그 *단일 진입점* 의 enum 을 *scope 별 3 enum 으로 분해*. 즉 *set_phase 통일* 위에 *의미 분리* 를 더함.
 
 ---
 

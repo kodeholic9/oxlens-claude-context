@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603e — sfud SIGTERM graceful shutdown 수신 (완료 보고)
+> 작업 지침 ← [20260603e_sfud_sigterm_graceful](../claudecode/202606/20260603e_sfud_sigterm_graceful.md)
 
 > 지침: `claudecode/202606/20260603e_sfud_sigterm_graceful.md` 단일 출처.
 > 정지점 0 — 통합 리뷰로 마감. 커밋 전 상태(검토 대기).

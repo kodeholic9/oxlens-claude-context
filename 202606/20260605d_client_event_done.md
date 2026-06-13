@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 완료보고 20260605d — CLIENT_EVENT 사건 보고 채널 (D 덩어리)
+> 작업 지침 ← [20260605d_client_event](../claudecode/202606/20260605d_client_event.md)
 
 > 지침: `claudecode/202606/20260605d_client_event.md` / 설계: `design/20260605_client_event_design.md`.
 > wire 3곳 동시(클라+서버+카탈로그). 관측 단방향(평면→보고, 제어 아님).

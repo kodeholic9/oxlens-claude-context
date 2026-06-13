@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260604f — setTrackState 단일 게이트 통합 완료 보고 (3c-fix + duplex 흡수)
+> 작업 지침 ← [20260604f_track_state_gate](../claudecode/202606/20260604f_track_state_gate.md)
 
 > 지침: `claudecode/202606/20260604f_track_state_gate.md`. 설계 `20260531_track_state_unification.md` §3·§5.
 > 직전: `20260604e`(3c mute) 커밋 전. 본 교정과 합쳐 **1커밋 권고**(부장님 §9). **커밋 전** — ★정지점 1 완료, 라이브는 부장님 RUN.

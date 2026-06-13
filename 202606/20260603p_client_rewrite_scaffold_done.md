@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603p — 새 SDK 재작성 Phase 1: 골격(scaffold) 완료 보고
+> 작업 지침 ← [20260603p_client_rewrite_scaffold](../claudecode/202606/20260603p_client_rewrite_scaffold.md)
 
 > 지침: `claudecode/202606/20260603p_client_rewrite_scaffold.md`. 설계: `design/20260603_client_rewrite_core_design.md` + `_knowledge.md`.
 > 전략: `oxlens-home/sdk/` 신설. 기존 `core/` 참조용 보존(무수정). **커밋 전** — Phase 끝 통합 리뷰 → 부장님 GO → Phase 2.

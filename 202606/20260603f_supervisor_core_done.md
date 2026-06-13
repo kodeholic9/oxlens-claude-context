@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 20260603f — oxhubd Supervisor 1차 구현 (완료 보고)
+> 작업 지침 ← [20260603f_supervisor_core](../claudecode/202606/20260603f_supervisor_core.md)
 
 > 지침: `claudecode/202606/20260603f_supervisor_core.md` / 설계 단일출처: `design/20260603_oxhubd_supervisor_design.md`.
 > 완료 보고. **커밋 전 상태** — 정지점 2개 통합, 부장님 GO 후 일괄 커밋(한방에).

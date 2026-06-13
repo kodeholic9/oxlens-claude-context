@@ -1,4 +1,5 @@
 # 묶음 3 — 자료구조 일관성 ① 완료 보고
+> 작업 지침 ← [20260518c_data_invariant](../claudecode/202605/20260518c_data_invariant.md)
 
 - 작업자: 김과장 (Claude Code)
 - 일자: 2026-05-17

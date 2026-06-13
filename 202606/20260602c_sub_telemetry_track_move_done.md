@@ -1,4 +1,5 @@
 # 완료 보고 — sub 텔레메트리 트랙 차원 정렬 (SubscribePipelineStats → SubscriberStream, 정공)
+> 작업 지침 ← [20260602c_sub_telemetry_track_move](../claudecode/202606/20260602c_sub_telemetry_track_move.md)
 
 > 지침: `claudecode/202606/20260602c_sub_telemetry_track_move.md`
 > 선행: `20260602b` Phase C(pub) `9abdf43` 위에 적층.

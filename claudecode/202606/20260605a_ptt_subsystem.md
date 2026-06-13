@@ -1,5 +1,6 @@
 // author: kodeholic (powered by Claude)
 # 작업지침 20260605a — PTT 서브시스템 (sdk/ptt/)
+> 완료 보고 → [20260605a_ptt_subsystem_done](../../202606/20260605a_ptt_subsystem_done.md)
 
 > 대상: 김과장(Claude Code). 분업 — 김대리 지침 / 김과장 구현.
 > 설계 단일출처: `context/design/20260605_ptt_subsystem_design.md` + 코어 `20260603_client_rewrite_core_design.md`(§4 세 훅·§6 PTT·§13 domain 위상).

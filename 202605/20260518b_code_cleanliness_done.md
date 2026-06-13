@@ -1,4 +1,5 @@
 # 묶음 2 — 코드 청결성 완료 보고
+> 작업 지침 ← [20260518b_code_cleanliness](../claudecode/202605/20260518b_code_cleanliness.md)
 
 - 작업자: 김과장 (Claude Code)
 - 일자: 2026-05-17

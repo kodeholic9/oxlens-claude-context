@@ -2,7 +2,7 @@
 # 2026-06-12c 클라 미디어 평면 결함 수정 + 장치 정책 하이브리드 + blockedBy 분류
 
 ## 세션 성격
-구현 세션 — 직전 감사(`20260612b_client_media_plane_audit_audiopath`)의 이월 전량 소화.
+구현 세션 — 직전 감사([20260612b_client_media_plane_audit_audiopath](20260612b_client_media_plane_audit_audiopath.md))의 이월 전량 소화.
 대상 레포: oxlens-home (커밋 3: `6d6ba08` 결함수정+정책 / `02d5cbb` tests 일원화 / blockedBy 1건).
 
 ---
