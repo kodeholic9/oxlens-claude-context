@@ -75,12 +75,30 @@ e2e 검은 화면 디버깅·**해결**. 커밋 5: `8233b74` / `3ad5d00` / `b7df
   정합 — 제4조 위반 아님(복수 mic 는 서버 모델 확장 별건). ③ TRACK_STATE_REQ ssrc=0 = 무해
   확정(서버 track_id 우선, ssrc 는 ssrc-only 클라 폴백+echo).
 
+### 7. 후반부 — 문서·운영 체계 (커밋: context aa07f2c·f328867·3af0e6c / home 125ba67 / server 005f3a2)
+- **마스터 3종 현행화**(부장 지시): MASTER 가이드 표 신설(키워드 로드 의무 단일 출처)·wire 표 6곳
+  (auto-select 폐기/G1/per-track mid/pub_select/codec 필수)·마일스톤(신 SDK 재작성 통째 누락 보완)·
+  원칙 갱신 2+신규 4·기각 6 추가. WEB(trackKey/rVFC/하이브리드/TRACKS_READY)·SERVER(S-e~g/게이트
+  클라 의무/묵시 VP8 함정) 동반.
+- **supervisor 고아/crash loop 차단**(서버): common/process.rs 계약 신설 — ① EADDRINUSE → exit 100
+  → maybe_restart 즉시 Blocked(+lsof 안내, Backoff 폭주 차단) ② stdin 생명선(spawn piped + env
+  opt-in — kill -9 에도 fd 정리로 EOF 동반 종료. opt-in = 수동 기동 /dev/null 즉사 방지).
+  부장 검토로 pidfile flock 기각(포트 bind 가 자연 차단 — YAGNI). 라이브 4검증 + 단위 신규 +
+  회귀 PASS. ★재기동 race 가 Blocked 분류를 실전 재현(구 동작이면 또 296회 폭주 자리).
+- **e2e 타임라인 시각 UTC→로컬**: fmtT 의 toISOString(UTC, Z 잘림) → toTimeString(서버 KST 정합).
+  MEDIA_DEBUG §0-4 해소 표기.
+- **WEBSDK_GUIDE_FOR_AI 신설**(부장 결정: 단일 파일/guide 하위/시험 작성용): 외부 평면 전수
+  카테고리 8종 + 시험 도구(§9) + 커버리지 매핑표(§11 — "전 기능 녹음" 검증 장치) + 공개 표면
+  경계 선언(index.js 내부 export 사용 금지). 검증된 샘플만.
+
 ---
 
 ## 결정 사항 (부장)
 - pipes Map = trackKey 키잉 채택 / assembleRoom 분해 / rVFC 게이트 제거(실측 후 재강구).
 - DeviceManager static 전역화 기각(상태 보유자 + bus 폐기 교훈).
 - 검은 화면 디버깅 확인 사항 → **가이드 승격**(MEDIA_DEBUG_GUIDE_FOR_AI.md).
+- 고아 대책: pidfile flock 기각(포트 bind 중복 — 고전 답습 YAGNI) / bind 영구 분류 + stdin 생명선 채택.
+- WEBSDK 가이드: 단일 파일·guide/·FOR_AI 관례·AI 시험 작성용(+부장 독자).
 
 ## 이월 (우선순위 순)
 1. **[서버] codec 미지정 intent 의 묵시 VP8 기본** — offer pt 동적 판별 또는 reject 로 전환
@@ -92,6 +110,7 @@ e2e 검은 화면 디버깅·**해결**. 커밋 5: `8233b74` / `3ad5d00` / `b7df
 5. rVFC 재설계(opacity 마스킹) — 부장 실측 후.
 6. 실기기: 블루투스 분리/연결(②fallback·⑥추종)·iOS Safari·blockedBy 메시지 휴리스틱.
 7. 복수 mic(G7) 실지원 시 — 서버 audio 단수 모델(audio_mid) 확장과 한 묶음.
+8. index.js 공개/내부 2계층 분리 — WEBSDK 가이드 서문이 경계 선언으로 임시 봉합(별건 후보).
 
 ## 검증
 - 글루 19/19 PASS (mp_check 75 체크 + c3 TRACKS_READY 단언).
