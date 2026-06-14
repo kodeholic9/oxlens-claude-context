@@ -239,9 +239,9 @@
 
 ## Phase 24: Simulcast 트랙 속성 전환 (0403~0404)
 
-| 날짜 | 파일 | 영역 | 요약 |
-|------|------|------|------|
-| 0403 | `simulcast_track_attribute` | 서버 | room.simulcast_enabled → Track.simulcast 전환. 7파일 수정, 혼합 시나리오(full+half duplex) 지원 |
+| 날짜   | 파일                              | 영역       | 요약                                                                                    |
+| ---- | ------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| 0403 | `simulcast_track_attribute`     | 서버       | room.simulcast_enabled → Track.simulcast 전환. 7파일 수정, 혼합 시나리오(full+half duplex) 지원     |
 | 0403 | `screenshare_mute_bug_analysis` | 클라이언트+분석 | hasVideo transceiver 기반 수정, 에러 2005 근본 원인=서버 intent 소실(stream_map.clear), 프리셋에서 해결 예정 |
 
 ## Phase 25: RoomMode 완전 제거 + 좀비 2단계 설계 (0403 야간)

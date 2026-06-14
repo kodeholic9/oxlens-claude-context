@@ -2,7 +2,7 @@
 # OxLens — 서버 구조/아키텍처 (oxlens-sfu-server + oxhubd)
 
 > PROJECT_MASTER.md 에서 분리(2026-06-03). 서버 코드 종속 — 소스 구조·미디어 아키텍처·oxhubd·Peer 재설계·scope 자료구조.
-> 현행화 기준: 0606a (cross-sfu Phase 0~2b + supervisor + CLIENT_EVENT 반영). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
+> 현행화 기준: 0613 (oxadmin 운영 CLI + 4평면 admin REST + ADMIN_REAP 0x3004 + ConnectInfo 반영; 그 전 0606a cross-sfu Phase 0~2b + supervisor + CLIENT_EVENT). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
 
 ---
 
@@ -100,14 +100,14 @@ oxlens-sfu-server/
     │           ├── env.rs          — EnvironmentMeta
     │           └── tokio_snapshot.rs
     │
-    └── oxhubd/             ← WS 게이트웨이 + REST + JWT + Extension + SFU supervisor
+    ├── oxhubd/             ← WS 게이트웨이 + REST + JWT + Extension + SFU supervisor
         └── src/
             ├── main.rs / lib.rs
             ├── state.rs        — HubState + **cross-sfu registry**(sfu_registry: DashMap<sfu_id, Arc<SfuNode>> + room_sfu 1:1 DashMap + RoundRobin place 카운터). place_room/assign_room/sfu_for_room/sfu_by_id/all_sfu_clients/bind_room. WsSession+SessionPhase, room_clients 2차 인덱스, admin_clients
             ├── metrics.rs      — HubMetrics (metrics_group! 6카테고리)
             ├── convert.rs      — proto→JSON 변환 (비움 — passthrough 전환)
             ├── grpc/mod.rs     — SfuClient (per-sfud 연결 래퍼, lazy reconnect). 단일 client→**per-node registry**(SfuNode 가 node별 client 보유)
-            ├── rest/           — auth.rs(JWT), rooms.rs, admin.rs, helpers.rs, **supervisor.rs**(supervisor REST), **health.rs**(healthz)
+            ├── rest/           — auth.rs(JWT), rooms.rs, admin.rs(rooms/kick/reconnect/track-dump + **운영 평면 20260613**: sfus·users·snapshot·reap), helpers.rs, **supervisor.rs**(status + stop/kill/load/shutdown), **health.rs**(healthz), telemetry.rs(oxcccd 중계). 인증 = `verify_admin`(localhost loopback bypass + ConnectInfo 배선)
             ├── ws/
             │   ├── mod.rs      — WS 게이트웨이 (select! 4-way + OutboundQueue + 대칭 ACK + Binary 수신). ROOM_CREATE assign/place_room+bind, sfu_for_room 라우팅, ROOM_LIST fan-out 병합
             │   └── dispatch/mod.rs — user_id 주입 + JSON/binary 그대로 gRPC Handle (투명 프록시)
@@ -116,6 +116,9 @@ oxlens-sfu-server/
             ├── moderate/       — Moderated Floor Control (authorization 상태머신, grant/revoke)
             ├── events/mod.rs   — sfud→hub 이벤트 소비 + WS broadcast(per_user/binary 분기) + reconnect loop
             └── shadow/mod.rs   — 이벤트 기반 상태 누적 (복구용)
+    ├── oxcccd/             ← 텔레메트리 수집 데몬 (gRPC, CccTap push 수신)
+    ├── oxe2e/              ← 헤드리스 회귀시험 harness (봇, conf_basic/ptt_rapid 등)
+    └── oxadmin/            ← **운영 CLI** (hub REST 위 supervisor/sfu/user/room 제어·조회, 20260613)
 ```
 
 ---
@@ -356,7 +359,8 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 - **기동 + ready** — spawn 후 ready 신호(healthz 등) 대기 → 등록.
 - **backoff 재기동** — 비정상 종료 시 backoff 정책으로 재기동(intensity 가드 — 폭주 재기동 방지, 0603g).
 - **stop** — graceful 정지(SIGTERM, 0603e sfud 측 graceful 수신 정합).
-- **observability** — supervisor 상태 REST(`rest/supervisor.rs`) + healthz(`rest/health.rs`), 0603i.
+- **운영 제어**(20260613) — `SupervisorCmd` stop/kill/load/shutdown 확장. **`UnitState::Stopped`** = 의도적 정지(watchout 이 `Down` 은 backoff 재기동하지만 `Stopped` 는 무시 → 반복 stop/load 가 intensity 폭주·hub 자폭으로 안 번짐). shutdown = unit 먼저 graceful → hub 나중(IntensityExceeded 경로 재사용).
+- **observability/제어 인터페이스** — supervisor 상태·제어 REST(`rest/supervisor.rs`) + healthz(`rest/health.rs`, 0603i). 운영은 **oxadmin** CLI(`crates/oxadmin`) 경유 = supervisor unit + SFU registry + WS(user) + Room 4평면. 가이드 `guide/RUN_GUIDE_FOR_AI.md`.
 
 ---
 
