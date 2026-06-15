@@ -4,7 +4,7 @@
 > — 이 단어가 나오면 이 가이드를 먼저 로드한다.
 > oxhubd(hub) + oxsfud(sfud) 를 **어떻게 띄우고**(§0~§3) **어떻게 제어·관측하나**(§4 oxadmin). cross-sfu(N sfu) 포함.
 > author: kodeholic (powered by Claude)
-> created: 2026-06-03 · 운영 CLI(oxadmin) 추가: 2026-06-13
+> created: 2026-06-03 · 운영 CLI(oxadmin) 추가: 2026-06-13 · trace 평면(랩 전용) 추가: 2026-06-15
 
 ---
 
@@ -143,8 +143,9 @@ oxadmin [--json] <command> [args]
 | **User**(hub-local) | `users` | 연결 클라(user) 목록 (conn_id/peer_addr/intents/rooms) |
 | | `user-cut <conn_id\|user>` | WS 소켓 강제 close (transport 강제 끊김, 무통보 → 클라 reconnect 유발) |
 | **Room**(sfud 경유) | `rooms` | 전체 방 목록 (room/sfu/user_count) |
-| | `room <room_id>` | 참여자 + recorder + sub_streams (트랙 상세는 `--json`) |
+| | `room <room_id>` | 참여자/recorder 표 + **trace 인자 카탈로그**(USER/DIR/KIND/SSRC — publish ssrc·egress vssrc). 더 깊은 raw 는 `--json` |
 | | `reap <room_id> <user>` | 좀비 퇴장 강제 — 서버 일방 evict, **무통보** |
+| **Trace**(sfud gRPC 직접) | `trace …` | 패킷 단위 in/out 진단 — **랩 빌드 전용**. hub 우회, §4-T 별도 |
 
 > **상태 어휘**: `live`=정상 · `stopped`=의도적 정지(oxadmin stop/kill, watchout 무시) · `down`=비정상 종료(watchout 이 backoff 재기동) · `backoff`=재기동 대기 · `blocked`=영구조건(EADDRINUSE 등 — `load` 로만 복구).
 
@@ -179,6 +180,61 @@ $OX --json sfus | jq '.sfus[] | select(.connected｜not)'   # 끊긴 sfu만
 
 ### show-* 셸 wrapper (커스텀 뷰)
 `crates/oxadmin/examples/show-{units,ws}.sh` — `oxadmin --json … | jq … | column` 으로 정렬/필터한 커스텀 표 예시. 빠른 표는 `oxadmin <cmd>` 로 충분(내장).
+
+---
+
+## §4-T oxadmin trace — 패킷 단위 in/out 진단 ★ 랩 전용 (설계 20260615)
+
+SFU 내부에서 특정 `user+ssrc` 의 RTP/RTCP 가 **ingress → (변환/gate) → egress** 까지 어떻게 흐르고
+**어디서 죽는지**를 평문 전수로 떠내는 디버깅 탭. 다른 4 평면(hub REST)과 달리 **hub 우회 · sfud gRPC 직접 dial**
+(고빈도 패킷이 hub 제어 평면을 오염시키면 안 됨). 서버는 원시(평문/암호문)만 토출 — **코덱·프레임 판별은 AI(김대리)**.
+
+### ⚠️ 보안 — 빌드 경계
+- trace = SRTP 복호 **평문 미디어**를 외부 스트림으로 뽑는 = **합법 도청 탭**. sfud `#[cfg(feature="trace")]` 로 격리.
+- **현재 `oxsfud` default 에 trace 포함**(개발 편의, 2026-06-15) → `cargo build --release` 한 줄로 trace sfud 빌드됨.
+  - **상용 진입 전 반드시** `crates/oxsfud/Cargo.toml` `default = []` 로 되돌릴 것 (deploy 가 `cargo build --release` 사용 → 안 빼면 도청 탭이 상용에 묻어 들어감).
+- feature off sfud 상대로 `trace` 치면 `"trace disabled in this build"` 거부. oxadmin 은 feature 무관(항상 빌드).
+
+### 사용법
+```
+oxadmin trace <user> <ssrc> <dir> [<user> <ssrc> <dir>] [--detail] [--bytes N] [--sfu <id>]
+```
+- `dir` = `--in` | `--out` | `--inout`. `ssrc` = 10진 또는 `0xHEX`. `user` = `'*'`(any — 모든 listener egress 매칭, PTT slot 용).
+- 트리플 **1~2개**(순수 매칭 — "짝/경로" 의미는 도구 밖, 사람·AI 가 출력 보고 부여). 같은 타겟 다구독 OK(broadcast), **다른 타겟 동시 trace 는 reject**(단일 타겟).
+- `--detail` = 원시 RTP/RTCP **hexdump** 동봉(미동봉 = simple 메타 한 줄). `--bytes N` = 원시 절단(0=통째).
+- `--sfu` = multi-sfu 일 때 노드 지정(단일이면 자동). addr 은 oxadmin 이 `sfus` REST 로 획득 후 직접 dial.
+
+### trace 인자 = `oxadmin room <id>` 카탈로그에서 집는다
+`room <id>` 표 아래 **tracks 카탈로그**가 `USER/DIR/KIND/SSRC` 를 그대로 준다 → 복붙.
+```
+tracks (trace 인자 — `oxadmin trace <USER> <SSRC> --<DIR>`):
+USER  DIR  KIND   SSRC        NOTE
+ptt1  in   audio  0xA03E8C3A  half        ← 발화자 publish (--in)
+ptt1  out  audio  0xA5D8C694  ViaSlot     ┐ 둘이 같은 ssrc
+ptt2  out  audio  0xA5D8C694  ViaSlot     ┘ = PTT slot.virtual_ssrc
+```
+
+### 예시
+```bash
+OX=./target/release/oxadmin
+
+# 1) 한 흐름 — 발화자 publish 들여다보기
+$OX trace ptt1 0xA03E8C3A --in --detail
+
+# 2) PTT 양 끝 — 송신 in + 수신 out(전 listener) 동시 (터미널 2개 권장)
+$OX trace ptt1 0xA03E8C3A --in --detail              # 터미널 A
+$OX trace '*' 0xA5D8C694 --out --detail              # 터미널 B (slot vssrc, any user)
+
+# 3) 파일로 떨궈 AI 직독 (유닉스 파이프라인)
+$OX trace ptt1 0xA03E8C3A --inout --detail > pkt.log  # → 김대리에게 붙여 분석
+```
+
+### 출력 — 6 trace point (SRTP 경계, 짝 보존)
+`ingress_rtp`(unprotect 후 평문) · `ingress_rtcp` · `ingress_decrypt_fail`(원시=암호문) ·
+`egress_rtp`(rewrite 후·protect 전, `origin_seq`=rewrite 전 원본 seq 동봉) ·
+`egress_gate_drop`(=`GATE:<reason>`, **video full-track 한정** — PTT/audio 는 이 gate 안 탐) · `egress_rtcp`(SFU RR).
+- simple 라인: `[wall_ts_us] DIR point result origin_seq`. detail = 그 밑에 hexdump.
+- 짝 맞추기: 터미널 A `ingress_rtp` 의 seq(원시 헤더) ↔ 터미널 B `egress_rtp` 의 `origin_seq` 로 join.
 
 ---
 
@@ -223,7 +279,7 @@ api_key/secret 은 `[hub.auth.api_keys]` 의 값(데모 = `ox_k_demo`/`ox_s_demo
 4. **포트 충돌은 grpc_listen + udp_port 만** — 멀티 sfu 시 이 둘만 sfu별로 다르면 됨.
 5. **`[[hub.sfu]]` TOML 위치** — `[sfu]`/`[supervisor]` **앞**(= `[hub.*]` 구간 안)에 둘 것. 뒤에 두면 파싱 깨짐.
 6. **supervisor cmd 는 절대경로** — 자식 cwd 가 hub cwd 라도 cmd 는 절대경로가 안전.
-7. **build** — release 는 `cargo build --release` 선행. 바이너리 = `target/release/{oxhubd,oxsfud,oxadmin}`.
+7. **build** — release 는 `cargo build --release` 선행. 바이너리 = `target/release/{oxhubd,oxsfud,oxadmin}`. (**현재 oxsfud default 에 trace 포함** → release 빌드에 패킷 트레이스 자동 탑재. 상용 전 `Cargo.toml default = []` 로 분리 필수 — §4-T 보안.)
 8. **재기동 위생 — 죽이고 바로 올리면 sfud 가 `blocked`** — hub kill → sfud 는 lifeline 으로 동반 종료하지만 gRPC/UDP 포트(50051/52, 19740/41)를 놓는 데 시간이 걸린다. 곧바로 새 hub 를 띄우면 새 sfud 가 EADDRINUSE → **즉시 Blocked**(0612 backoff 폭주 방어). **포트 free 확인 후 기동**하거나, Blocked 면 `oxadmin load <alias>` 로 복구. (`lsof -nP -iTCP:50051 -iTCP:50052 -iUDP:19740 -iUDP:19741`)
 9. **oxadmin reap/kick 은 localhost 무인증** — admin 포트(1974)가 외부 노출 + 리버스 프록시 뒤면 peer 가 항상 127.0.0.1 로 보여 **무인증 통과**. 운영 노출 시 admin 경로 방화벽 필수(XFF 신뢰 금지).
 
@@ -232,6 +288,7 @@ api_key/secret 은 `[hub.auth.api_keys]` 의 값(데모 = `ox_k_demo`/`ox_s_demo
 ## §7 관련
 
 - 운영 CLI(oxadmin) 설계: `context/design/20260613_oxadmin_design.md`
+- 패킷 트레이스(oxadmin trace, §4-T) 설계: `context/design/20260615_oxadmin_trace_design.md`
 - cross-sfu 서버 설계: `context/design/20260603_cross_sfu_design.md`
 - supervisor 설계: `context/design/20260603_oxhubd_supervisor_design.md`
 - 회귀시험(oxe2e): `context/guide/REGRESSION_GUIDE_FOR_AI.md` (봇 붙여 oxadmin 실데이터 관측에도 활용)

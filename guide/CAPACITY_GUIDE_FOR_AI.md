@@ -132,3 +132,32 @@ lat_avg_us, lat_p95_us, lat_max_us,
 bot_cpu_pct, bot_mem_mb, sfu_cpu_pct, sfu_mem_mb, bot_healthy
 ```
 - `reports/` 는 git ignore(런타임 산출물). knee 분석은 표/CSV 육안 + 그래프.
+
+---
+
+## §7 업계 3인방 대조 (2026-06-13 조사)
+
+> 출처: LiveKit benchmark docs, mediasoup v3 scalability docs, Jattack 논문(Meetecho/IPTComm 2016),
+> CoSMo SFU 벤치 연구(KITE). 수치는 측정 조건(HW/코덱/해상도) 동반 — 환경 다르면 직접 비교 금지.
+
+| 축 | **OxLens `oxlab cap`** | LiveKit `lk load-test` | mediasoup | Janus `Jattack` | CoSMo(실브라우저) |
+|----|----|----|----|----|----|
+| 봇 미디어 | 합성 fake RTP(Opus/VP8) | 합성(녹화 720p 루프+blank audio) | (공식 도구 X, 모델만) | 실 transport+외부 RTP(GStreamer) | 실 Chrome VP8 인코딩 |
+| **수신 복호** | **Count=skip / Full만 복호** ★ | 복호함(RTT/loss seq·ts) | — | 복호함(실 스택) | 복호함(실 브라우저) |
+| DTLS 핸드셰이크 | 함 → setup 천장 | 함 | — | **함(skip 안 함)** | 함 |
+| 생성기 병목 인지 | **active/N + bot_healthy 자동** ★ | ramp(NumPerSecond) | — | **Jattack CPU > SFU CPU** | 분산(client별 VM)로 회피 |
+| 분산 | `cap-dist`/`cap-worker`(ssh) | 다중 프로세스 | 멀티워커(SFU측) | controller+다중봇 | client당 c4.xlarge VM |
+| 단일 노드 공개 수치 | 봇 ~200서 막힘(SFU천장 미도달) | 16core: audio 3000sub / video ~1500~3000sub(논란) / 회의 150 | ~500 consumer/worker(=1코어) | 4core: 1→1000 viewer(~800서 NACK) | 7인방 × N, SFU당 client VM 490 |
+
+**대조 결론 (capacity 측정기 설계 관점):**
+1. **DTLS setup이 부하 생성기의 병목**은 업계 공통 — Janus Jattack 은 DTLS 안 건너뛰어 **생성기가 SFU보다
+   CPU를 더 쓴다**(우리 단일머신 ~200 천장과 동일 현상). 정답은 **분산**(CoSMo = client별 VM). 우리 `cap-dist`/
+   `cap-worker`(ssh) 방향이 업계 정석과 일치.
+2. **복호-skip(Count)** 은 우리만의 추가 절약 — LiveKit 봇도 수신은 복호한다(latency 측정 필요). 우리는 Full
+   소수만 복호 → 측정 도구가 더 가볍다. 단 DTLS 가 먼저 막혀 단일머신선 이득을 다 못 본다(→ 분산 전제).
+3. **봇 vs SFU 병목 분리**: Janus 가 "Jattack CPU > SFU CPU"로 겪은 함정을 우리는 `active/N` + `bot_healthy`
+   로 **자동 표기**(폐기 판정). 업계는 보통 사후 수동 판단.
+4. **합성 RTP의 trade-off**(LiveKit/우리) = 봇당 비용 싸지만 실 파이프라인(디코더/지터버퍼)은 덜 태운다.
+   실 품질 천장은 CoSMo식 실브라우저가 필요 — 우리 measure 는 **라우팅·egress 부하 천장**용이지 디코더 품질용 아님.
+5. **수치 비교는 분산 후**: 단일머신은 봇(~200)이 SFU 천장을 가린다. 멀티머신으로 봇을 늘려야 mediasoup
+   (~500/worker)·LiveKit(3000/16core)·Janus(1000/4core) 급 SFU 수치와 동일 평면에서 비교 가능.

@@ -1,7 +1,8 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-13f — **RECON-2 재수립 검은화면 근본(재구독 키프레임 사이클) Phase 159**(커밋 4: 서버 `99253a1`·`1cb963f` / 홈 `95dbf6d`·`37a5cb1`). 재수립/재구독 시 서버가 구독자 PLI 를 발행자 전역 가드(`keyframe_already_arrived`)로 오차단 → 봇 GOP(~44초)까지 검은화면(framesDecoded=0 인데 pkts 정상 = 전달 OK, 키프레임만 차단). 핵심 = 키프레임 사이클(gate.pause→TRACKS_READY→Governor reset→PLI burst)을 "발행(PUBLISH_TRACKS)"이 아니라 **"구독 생성(collect_subscribe_tracks)"에 반응**(서버 gate.pause, 새 구독만 — peer.has_subscriber_stream_mid 가드로 SYNC 회귀 차단) + 클라 **leave→rejoin**(둘이 짝 — leave+rejoin 단독은 44초 미해결). 라이브 복원 44s→2s·DROP 623→0·봇 선발행 입장도 2s, oxe2e 5/5 PASS. ★회고: 검증 전 단정 반복(영구 검은화면/leave+rejoin 단독해결 철회, framesDecoded=0 을 screenshot 없이 검은화면 단정). 미해결: simulcast 재구독 라이브(봇 sim 발행 수단 없음 — judge_subscriber_pli subscriber-aware + simulcast_basic PASS 로 갈음). 세부: `202606/20260613f_recon2_blackscreen_keyframe_resub.md`.
+> 최종 업데이트: 2026-06-15a — **oxadmin trace 랩 전용 패킷 in/out 진단(Phase 160)**(서버 커밋 `68785bc`). proto `TracePackets(stream TraceEvent)` + oxsfud `trace` feature(`#[cfg(feature="trace")]` 격리·SRTP경계 6 trace point·hub우회 gRPC 직접 dial) + oxadmin `trace` 서브커맨드(sfud 직접 dial·simple/detail hexdump) + `room <id>` **trace 인자 카탈로그**(publish ssrc·egress vssrc). 설계 §5 보정(egress RTP=`subscriber_stream::forward` rewrite후·gate_drop video full한정·origin_seq 짝)·§11 PTT slot 와일드카드(`'*'`) 커버(라이브 실측). **★현 `oxsfud default=["trace"]` 개발편의 — 상용 전 `default=[]` 복귀 필수**(deploy=`cargo build --release`). 검증 빌드 default/clean·단위 green·oxe2e 5/5 PASS. RUN_GUIDE `§4-T` 신설. 세부: `claudecode/202606/20260615a_oxadmin_trace_done.md`.
+> 이전(0613f): **RECON-2 재수립 검은화면 근본(재구독 키프레임 사이클) Phase 159**(커밋 4: 서버 `99253a1`·`1cb963f` / 홈 `95dbf6d`·`37a5cb1`). 재수립/재구독 시 서버가 구독자 PLI 를 발행자 전역 가드(`keyframe_already_arrived`)로 오차단 → 봇 GOP(~44초)까지 검은화면(framesDecoded=0 인데 pkts 정상 = 전달 OK, 키프레임만 차단). 핵심 = 키프레임 사이클(gate.pause→TRACKS_READY→Governor reset→PLI burst)을 "발행(PUBLISH_TRACKS)"이 아니라 **"구독 생성(collect_subscribe_tracks)"에 반응**(서버 gate.pause, 새 구독만 — peer.has_subscriber_stream_mid 가드로 SYNC 회귀 차단) + 클라 **leave→rejoin**(둘이 짝 — leave+rejoin 단독은 44초 미해결). 라이브 복원 44s→2s·DROP 623→0·봇 선발행 입장도 2s, oxe2e 5/5 PASS. ★회고: 검증 전 단정 반복(영구 검은화면/leave+rejoin 단독해결 철회, framesDecoded=0 을 screenshot 없이 검은화면 단정). 미해결: simulcast 재구독 라이브(봇 sim 발행 수단 없음 — judge_subscriber_pli subscriber-aware + simulcast_basic PASS 로 갈음). 세부: `202606/20260613f_recon2_blackscreen_keyframe_resub.md`.
 > 이전(0613e): **웹 E2E 현행화(P0 검은화면 가드+P2 ccc 활용) + preview 라이브 검증 → 실버그 3 노출(Phase 158)**(미커밋 6파일 — 0613f 에서 커밋 완료: 서버 events `1cb963f` / 홈 e2e `37a5cb1` 등). 웹 e2e 점검(framesDecoded 가드 CONF만/ccc 미활용) → P0 가드확장+P2 track-identity E2E 케이스 → **preview 풀스택 라이브**가 회귀 못잡던 실버그 3 노출·수정: ①서버 tap③ is_default 가드(non-default sfu agg-log 누락) ②클라 sendSdpTelemetry 죽은메서드(클라축) ③**migratePublish codec 누락=a51390f reject가 RECON-2 republish 깸**(부장 "어제까지 됐던" 적중). TI-1 2/2·RECON-1 PASS. ★다음세션 핵심: **RECON-2 me 수신 디코딩 복원**(검은화면§2 재수립판) 미해결.
 > 이전(0613d): **ccc 디버깅 신호 검토 + 갭 승격(gate/floor) + track-identity 4축 합성(Phase 157)**(커밋 4: `4cd90c0`·`c5e0130`·`abbb9de`·`bb81386`·`033cf3b`). gate:resume·floor agg-log 승격 + track-identity 4-Point 합성(codec_mismatch 자동감지). METRICS_GUIDE v1.3(§4.5 ccc 영속 수집).
 > 이전(0613c): **oxe2e 회귀 확장: telemetry tap① + RTX 학습(Phase 156)**(커밋 3: `c213cef` ws_port / `622c1fb` 서버 / `8be7c0b` oxe2e). 봇 telemetry/RTX 발신 → oxcccd 수집 → judge REST 교차검증(봇 관측 아닌 첫 REST 판정 축). oxcccd ingest agg_log room 분배 + rtx:learned agg-log 관측점.
@@ -1241,6 +1242,22 @@
 
 ---
 
+## 조사/전략: 스마트 글래스 시장 + BYOD (0614, biz)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0614 | [20260614_smartglass_market_byod_strategy](202606/20260614_smartglass_market_byod_strategy.md) | biz/조사 | 스마트글래스 조사+전략(코드無). **사실**: 시장3+1분할(산업용 RealWear520/Vuzix), 영상송출 원조=Librestream(~2007, 30kbps 자체전송 추정)·글래스WebRTC최초=Ericsson2014, PTT인접 전부 전용앱(Zello SDK/weavix/Teams — 브라우저WebRTC無), 제스처(Neural Band/Mudra/Oura — PTT전용통합은 빈자리), ★**Meta 서드파티 개방 0514**(Wearables Device Access Toolkit: 네이티브SDK+**WebApps URL배포**+Neural Band 제스처, field-service use case 명시, broader개방 2026중)+Android XR GA. **전략**: 민주화(특수→일반)→B2C직접=빅테크영토 함정→곡괭이(SFU+SDK)·BYOD·하드웨어불가지·"제조사아님=약점→자산"재구성·개방=대칭∴경쟁격화·해자는 기술깊이(floor FSM/RTCP Term/크로스SFU)·★**track-level duplex 차별점**(엔진네이티브 vs app레이어 폴링흉내는 빠른전환·다자서 붕괴)+글래스폼팩터가 혼합듀플렉스(field프리셋) 수요 구조화. **미검증1순위=글래스 WebApps WebRTC 풀스택**(getUserMedia/PeerConnection/카메라송출 — 단말검토 결론 가름). 기각: B2C직접·제스처과투자·"어떤글래스든"단정·Librestream초저대역폭·하드웨어제조 |
+
+---
+
+## Phase 160: oxadmin trace — 랩 전용 패킷 in/out 진단 (0615a)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0615a | [20260615a_oxadmin_trace_done](claudecode/202606/20260615a_oxadmin_trace_done.md) | 서버+oxadmin+proto+가이드 | 설계 20260615 구현+커밋(`68785bc`). **proto** `TracePackets(stream TraceEvent)`+`TraceDir`. **oxsfud** `trace` feature(레포 최초·현 `default=["trace"]` 개발편의 — **상용 전 `default=[]` 복귀 필수**: deploy가 `cargo build --release` 사용 → 안 빼면 도청탭 묻어들어감)+trace 모듈(전역 단일세션 broadcast·`user='*'` 와일드카드·dir OR 병합·마지막구독자 자동해제·무매칭 alloc0)+SRTP경계 **6 trace point 전부 `#[cfg(feature="trace")]`**(ingress rtp/rtcp/decrypt_fail·egress rtp/gate_drop/rtcp). 설계 §5 보정: **egress RTP=`subscriber_stream::forward` rewrite후**(egress.rs 아님)·`origin_seq`=rewrite전 원본seq 짝·**gate_drop=video full한정**(PTT/audio 안탐)·PauseReason 실명. gRPC `trace_packets`=off `Status`거부/on per-stream dir필터. **oxadmin** trace 서브커맨드(hub우회 sfud 직접 dial·sfus REST→addr·simple/detail hexdump)+`room <id>`에 **trace 인자 카탈로그**(USER/DIR/KIND/SSRC=publish ssrc·egress vssrc, snapshot 재사용). **§11 1순위 PTT slot 역해석 결론**: explicit+와일드카드로 slot egress 전 listener 커버(라이브 실측 ptt1·ptt2 out audio 동일 `0xA5D8C694`=slot.virtual_ssrc). 검증: 빌드 default/`--no-default-features` 양쪽·단위 green(oxsfud207)·**회귀 oxe2e 5/5 PASS**(내 hot-path 전부 실타격 0회귀). 가이드 RUN_GUIDE `§4-T` 신설. **미반영(의도)**: 역해석 자동 fan-out(보조·§4, 필요시 부장 결정). 메모리 `project_trace_feature_default`(상용 전 복귀 가드) |
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -1250,9 +1267,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 374개
-- **기간**: 2026-03-09 ~ 2026-06-13 (97일)
-- **최종 업데이트**: 2026-06-13 — **Phase 154 발행 트랜잭션+표면 정리+검은 화면 해결**(클라 커밋 5, CONF-2/3 라이브 PASS. 디버깅 가이드 = guide/MEDIA_DEBUG_GUIDE_FOR_AI.md). 이전: Phase 153 미디어 평면 수정+하이브리드+blockedBy / Phase 152 버스 폐기. 잔여: [서버] 묵시 VP8·NEW rtx 반복·recycle·lifecycle.ptt 재바인딩·rVFC 재설계(opacity)·실기기(BT/iOS).
+- **총 세션 파일**: 375개
+- **기간**: 2026-03-09 ~ 2026-06-15 (99일)
+- **최종 업데이트**: 2026-06-15 — **Phase 160 oxadmin trace 랩 전용 패킷 in/out 진단**(서버 커밋 `68785bc`, oxe2e 5/5 PASS. 가이드 RUN_GUIDE §4-T). ★상용 전 `oxsfud Cargo.toml default=[]` 복귀 필수(도청 탭 분리). 이전: Phase 159 RECON-2 재수립 검은화면 근본(0613f) / Phase 158 웹 E2E 현행화·실버그 3(0613e).
 
 ---
 
