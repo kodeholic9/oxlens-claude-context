@@ -342,3 +342,44 @@ GO 받으면 §6 축 위에서 묶어 처리:
 11. freeze → virtual 흡수 (§7-11, 본체 확인 후)
 
 각 묶음은 §6 축에 비춰 정리되므로 두더지 잡기가 아닌 한 판. **GO 전엔 코드 손대지 않음.**
+
+---
+
+## §13 — 표시 바인딩 2계층 + 송신/수신 표시축 대칭 **[확정 방향]**
+> 20260615 라이브 디버깅(슬롯 무음·preview stale·타일 증식·캡션 stale·full→half 잔존)에서 도출.
+> 부장님 통찰: *"매뉴얼+예제로 일반 개발자가 10분 내 만들어야 하는데 그게 안 되면 SDK가 약한 것."* — 맞다.
+
+### 13.1 케이스 누적이 한 뿌리 **[확정]**
+라이브 증상은 서로 다른 버그가 아니라 **같은 구멍이 경로별로 뚫린 것**이다 — *track 생명주기(생성·교체·제거·표시) 통지가 앱에 N이벤트로 분산 + 경로별 누락*.
+
+| 증상 | 누락된 통지 | 단발 수정 |
+|---|---|---|
+| slot 무음 | STREAM_SUBSCRIBED(slot 경로) | §1 (커밋 92914ba) |
+| preview stale(COLD 후 발화) | RESTARTED(_doEnsureHot/_restoreVideoTrack) | 18e327c |
+| preview stale(half→COLD→full) | RESTARTED(_wakePipe) — 5경로 중 누락 | 00e0c91 (케이스1) |
+| 수신 타일 증식(재발행) | STREAM_UNSUBSCRIBED(applyTracksUpdate remove) | 00e0c91 (케이스2) |
+| full→half 개인 타일 잔존 | active:false → 제거 통지 | (B1, 미적용) |
+| 셀프뷰 캡션 full(실제 half) | track:changed(duplex) 미반영 | (lab UI) |
+
+재acquire RESTARTED 경로만 **5개**(restartTrack/_recoverPipe/_doEnsureHot/_restoreVideoTrack/_wakePipe). 경로가 늘면 또 누락 → **단발은 두더지**.
+
+### 13.2 근본 진단 — SDK가 생명주기를 앱에 떠넘긴다 **[확정]**
+좋은 SDK(LiveKit): `track.attach(el)` 한 줄, 교체·제거·재협상은 SDK가 element를 자동 관리.
+OxLens: 앱이 STREAM_SUBSCRIBED/UNSUBSCRIBED/RESTARTED/media:track/track:changed/floor:taken **6개를 수동 조립** → 하나라도 SDK 경로에서 빠지면 깨짐.
+→ 복잡한 건 케이스가 아니라 **SDK가 앱에 N이벤트를 노출하는 것** 자체. 단일 바인딩으로 줄이면 앱·SDK 둘 다 단순.
+
+### 13.3 개편 3층 **[확정 방향]**
+1. **토대 — 생명주기 통지 단일 지점**: pipe 전이(setTrack/swapTrack/release/deactivate/mount/unmount)에서 이벤트 **일관 발행**. 5개 재acquire 경로의 RESTARTED 가 `setTrack` 게이트 1곳으로 수렴. 단발(00e0c91 등)을 이 게이트로 흡수. (§5 stage 축이 그 그릇 — stage 전이=통지 지점.)
+2. **Level 1 — VideoSurface(자동, 대부분 앱)**: `stream.attach(el?)`. **send/recv 공통 코어**(track 바인딩 + 교체 자동 + element 소유) + **정책 분리**:
+   - 수신: floor masking(freeze) + remote-mute → floor:taken 때만 표시
+   - 송신(로컬 프리뷰): **항상 표시 + cold면 placeholder**. floor masking 금지(끼우면 셀프뷰가 발화 따라 깜빡임).
+   - → 로컬 프리뷰도 VideoSurface 로 감싸 송신/수신 표시축 **대칭** 완성(§4 비대칭의 표시 버전).
+3. **Level 2 — raw(고급)**: `stream.track` getter + `stream.on(RESTARTED/ENDED/...)` → 직접 element 제어. **단 Level 2 도 토대(①) 위에서만 안전** — 이벤트가 경로별 누락이면 고급 사용자도 똑같이 깨진다.
+
+### 13.4 lab(앱) 효과 **[확정]**
+현재 lab 의 수동 배선(STREAM_*·RESTARTED·media:track·캡션 갱신·self-view srcObject)이 전부 소멸 → **`attach(el?)` 한 줄**. "10분 뚝딱"의 조건.
+
+### 13.5 순서
+**토대(①) → Level 1(②) → Level 2(③).** 단발 패치(00e0c91 등)는 토대로 흡수하며 폐기. 표시 정책(수신 masking / 송신 항상표시)은 VideoSurface 코어 위 주입으로 분리.
+
+**[미확인]** VideoSurface 현 구현(remote-pipe `_surface`)의 send 재사용 범위 — LocalPipe 에 표시축이 없으므로 코어 추출 필요. 정책 주입 인터페이스(masking on/off, placeholder) 설계 후 착수.
