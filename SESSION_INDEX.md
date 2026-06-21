@@ -1,7 +1,9 @@
 # OxLens 세션 컨텍스트 — 통합 인덱스
 
 > 날짜순 정렬. 접두사로 영역 구분: `sdk_` = Android SDK, `blog_` = 블로그, `oxlabs_` = OxLabs, 없음 = 서버/홈/공통.
-> 최종 업데이트: 2026-06-15b — **PTT 수신 표시 §13(표시 2계층) + 송신 게이트 floor 직결 + 무음/검은화면 근본**(홈 15커밋 `14ea096`~`d8df469`). 근본=수신 slot **mount 트리거 부재**(slot 이 STREAM_SUBSCRIBED 미발 → 앱 attach()=0 → srcObject 없음). 끝점 역추적(§10)으로 규명 — ts_gap·enabled·코덱·서버 rewrite 헛다리. **§13 3층**: 토대①(송신 교체 통지 단일 게이트 `applyRestoredTrack` — 5경로 수렴)·Level1(`LocalPipe.mount`/`LocalStream.attach` self-view, base `_surface` 송수 공통)·Level2(`.track` raw getter) + **§5 stage**(DECLARED→WIRED→ADOPTED→MOUNTED 가시화). 송신 게이트 power FSM→**floor.state 직결**(talk-ahead, resume 트리거 granted→request). 배관 Room 승격(slot 일급 통지). 남은: §7-10/11 결합·§7-4 [미확인]·§7-8 hydrate 통합·**비정상 케이스 일괄**(B1 active:false 제거통지 등). 세부: `202606/20260615b_ptt_recv_display_binding.md`.
+> 최종 업데이트: 2026-06-20b — **SubscriberStream 회수 근본화 + oxadmin 가시화 + 검은화면 디버깅(미해결)**(서버 `82cb214`·`f9980a3` / 홈 `a0582fd`). unpub=`release_subscribe_track`(mid_map+stream+mid_pool 통합회수, full+half) — switch(TRACK_STATE_REQ)만 캐싱 보존(부장 지침 "unpublish 면 stream 제거, mid 만 재활용"). **e94339e(0620a) egress reindex 우회 폐기** — 근본(unpub=stream제거)이 불요화. lab 6단계 SUB_STREAMS 4 유지(누적 0)+oxe2e 5/5. **oxadmin 가시화**: `--out` active`(*)`(per-slot rewriter.speaker+half+self제외)·`speaking:`발화자·PKTS/DROP(누적 in/out/drop)·trace `--secs`. **클라 subscribe mid 재사용**(`_recycleByMid` active제약해제=서버 mid 1:1 권위 stale rebind + sdp dedup) → `Duplicate a=mid` 차단(라이브 미검증). **★검은화면 미해결(다음 1순위)**: half PTT 만 발생(full 무증상). slot egress 3495패킷에 키프레임 28초 1개=결핍. PT/ssrc/forward 정상·서버 TWCC 기록·전송 코드상 정상. 클라 `power.js` COLD→track 재취득=콜드스타트(BWE probe 미발동, 20260405 일치) 의심·미확정. **floor 24h 미커밋**(디버깅, 상용 전 원복). **★trace 삽질교훈 RUN_GUIDE §4-T★ 신설**(sfu노드/ssrc/누적vs실시간/single-target — "trace 0=내가 sfu/ssrc/타이밍 틀린 것"). 세부: `202606/20260620b_substream_cleanup_oxadmin_blackscreen_debug.md`.
+> 이전(0620a): **subscriber egress_ssrc 단일화**(`vssrc→egress_ssrc` 개명 + AtomicU32 producer-push reindex, `e94339e`) + lab 3버그(unpub pid=0 `8f1308a`/전송위반 종료+rate limit폐지 `a1dc6bc`/active_speaker 플래그 `2702aa2`). 미해결 half pub Direct 누적→0620b 근본수정. 세부: `202606/20260620a_subscriber_egress_ssrc.md`.
+> 이전(0615b): **PTT 수신 표시 §13(표시 2계층) + 송신 게이트 floor 직결 + 무음/검은화면 근본**(홈 15커밋 `14ea096`~`d8df469`). 근본=수신 slot **mount 트리거 부재**(slot 이 STREAM_SUBSCRIBED 미발 → 앱 attach()=0 → srcObject 없음). 끝점 역추적(§10)으로 규명 — ts_gap·enabled·코덱·서버 rewrite 헛다리. **§13 3층**: 토대①(송신 교체 통지 단일 게이트 `applyRestoredTrack` — 5경로 수렴)·Level1(`LocalPipe.mount`/`LocalStream.attach` self-view, base `_surface` 송수 공통)·Level2(`.track` raw getter) + **§5 stage**(DECLARED→WIRED→ADOPTED→MOUNTED 가시화). 송신 게이트 power FSM→**floor.state 직결**(talk-ahead, resume 트리거 granted→request). 배관 Room 승격(slot 일급 통지). 남은: §7-10/11 결합·§7-4 [미확인]·§7-8 hydrate 통합·**비정상 케이스 일괄**(B1 active:false 제거통지 등). 세부: `202606/20260615b_ptt_recv_display_binding.md`.
 > 이전(0615a): **oxadmin trace 랩 전용 패킷 in/out 진단(Phase 160)**(서버 커밋 `68785bc`). proto `TracePackets(stream TraceEvent)` + oxsfud `trace` feature(`#[cfg(feature="trace")]` 격리·SRTP경계 6 trace point·hub우회 gRPC 직접 dial) + oxadmin `trace` 서브커맨드(sfud 직접 dial·simple/detail hexdump) + `room <id>` **trace 인자 카탈로그**(publish ssrc·egress vssrc). 설계 §5 보정(egress RTP=`subscriber_stream::forward` rewrite후·gate_drop video full한정·origin_seq 짝)·§11 PTT slot 와일드카드(`'*'`) 커버(라이브 실측). **★현 `oxsfud default=["trace"]` 개발편의 — 상용 전 `default=[]` 복귀 필수**(deploy=`cargo build --release`). 검증 빌드 default/clean·단위 green·oxe2e 5/5 PASS. RUN_GUIDE `§4-T` 신설. 세부: `claudecode/202606/20260615a_oxadmin_trace_done.md`.
 > 이전(0613f): **RECON-2 재수립 검은화면 근본(재구독 키프레임 사이클) Phase 159**(커밋 4: 서버 `99253a1`·`1cb963f` / 홈 `95dbf6d`·`37a5cb1`). 재수립/재구독 시 서버가 구독자 PLI 를 발행자 전역 가드(`keyframe_already_arrived`)로 오차단 → 봇 GOP(~44초)까지 검은화면(framesDecoded=0 인데 pkts 정상 = 전달 OK, 키프레임만 차단). 핵심 = 키프레임 사이클(gate.pause→TRACKS_READY→Governor reset→PLI burst)을 "발행(PUBLISH_TRACKS)"이 아니라 **"구독 생성(collect_subscribe_tracks)"에 반응**(서버 gate.pause, 새 구독만 — peer.has_subscriber_stream_mid 가드로 SYNC 회귀 차단) + 클라 **leave→rejoin**(둘이 짝 — leave+rejoin 단독은 44초 미해결). 라이브 복원 44s→2s·DROP 623→0·봇 선발행 입장도 2s, oxe2e 5/5 PASS. ★회고: 검증 전 단정 반복(영구 검은화면/leave+rejoin 단독해결 철회, framesDecoded=0 을 screenshot 없이 검은화면 단정). 미해결: simulcast 재구독 라이브(봇 sim 발행 수단 없음 — judge_subscriber_pli subscriber-aware + simulcast_basic PASS 로 갈음). 세부: `202606/20260613f_recon2_blackscreen_keyframe_resub.md`.
 > 이전(0613e): **웹 E2E 현행화(P0 검은화면 가드+P2 ccc 활용) + preview 라이브 검증 → 실버그 3 노출(Phase 158)**(미커밋 6파일 — 0613f 에서 커밋 완료: 서버 events `1cb963f` / 홈 e2e `37a5cb1` 등). 웹 e2e 점검(framesDecoded 가드 CONF만/ccc 미활용) → P0 가드확장+P2 track-identity E2E 케이스 → **preview 풀스택 라이브**가 회귀 못잡던 실버그 3 노출·수정: ①서버 tap③ is_default 가드(non-default sfu agg-log 누락) ②클라 sendSdpTelemetry 죽은메서드(클라축) ③**migratePublish codec 누락=a51390f reject가 RECON-2 republish 깸**(부장 "어제까지 됐던" 적중). TI-1 2/2·RECON-1 PASS. ★다음세션 핵심: **RECON-2 me 수신 디코딩 복원**(검은화면§2 재수립판) 미해결.
@@ -1259,6 +1261,46 @@
 
 ---
 
+## SDK sdk/ 결합도 전수 감사 + 대조군 규율 창발 (0616a)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0616a | [20260616a_sdk_full_coupling_audit](202606/20260616a_sdk_full_coupling_audit.md) | 클라(sdk/)+방법론 | **claude.ai 분석세션**(맥북 실파일 직접 조사, e2e 미실행). 선행 8파일 정적분석(빈칸7+26건) → 직전 미본 ptt/·talkgroups·transport 전수 → **빈칸 9개 + 결함 31건(26+5)**. **PTT축 신규5**: V1(PttVirtual→RemotePipe 직접 new=수신 pipe 생성 2경로)·V2(floor→setVisible 직결)·V3(slot 별도 통지경로+출력훅 늦주입 땜빵)·P1(power track.enabled 직접토글=단일게이트 우회)·P2(power→LocalPipeState 내부enum 의존). **대조군 확정**(손대지 말 것=풍파자산): transport/floor/talkgroups/engine 라우팅=제5조 모범. **썩음 응집처**: pipe/remote-pipe/room/virtual/power(부분). 판단=**국소 재작성**(전면 재작성 기각 — 풍파자산 손실로 "core나 sdk나" 반복). freeze.js=존재無(virtual §7-11 흡수, 메모리 stale). **§9 대조군 규율**: 부장님이 깨끗/썩음 정직히 병치 → AI 이상론 과잉을 같은 코드베이스 사실로 묶음(거짓양성 죽임·grep 검증·외부 닻). 발명 아닌 공동발견. 지침후보(★미채택)="결함 주장 시 같은 코드베이스 대조군 명시, 없으면 보류". 코드 0 |
+
+---
+
+## Phase 161: SDK 국소 재작성(빈칸 1~9) + arch_check 헌법 가드 (0616b)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0616b | [20260616b_sdk_local_rewrite_done](202606/20260616b_sdk_local_rewrite_done.md) | 클라(sdk/) | **0616a 감사 → 김과장 구현**(oxlens-home 18커밋 `4ce2dad`~`7db5b56`, 작업지침 `design/20260616_sdk_recv_pipeline_rewrite_guide.md`). **★arch_check.mjs 헌법 가드 신설**(`8da8db8`) — 빈칸1~9 를 **건수 BASELINE**(라인변동 무관)으로 박은 정적 가드(응집처 부분패치 악화 차단=대조군 규율의 코드 실현). 12게이트 PASS/0 FAIL, TODO 27→4. **수신 표시 경로 단일 파이프라인**: 빈칸6(STREAM_SUBSCRIBED `_emitStreamSubscribed` 단일게이트 `_announced` 멱등, 일반/slot 합류)·V3(slot 출력훅 ensure 생성시점 주입=늦주입 폐기)·빈칸7(media:track room emit 死표면 폐기)·빈칸1(VideoSurface element/listener DOM 단일소유)·빈칸2(base _outputMuted 훅, 자식 역참조 제거)·빈칸3(remote-mute/active를 floor게이트서 분리, **freeze reason='floor'→duplex==='half'** 부장 통찰=freeze는 트랙속성)·빈칸4(freeze detach/재attach→VideoSurface reveal/conceal)·빈칸8(track.enabled→LocalPipe `_applyEnabled` 합성, power 직접토글 제거)·빈칸9(power LocalPipeState 직접비교→LocalPipe getter). **빈칸3 잔여**: virtual freeze 3 = **PTT 본질(-9999px masking, 부장 결정 둔다)** `8944d95` 명시. 경계누수(VideoSurface style 제거·UA 단일화·c2/c3/t3d connState 복원·§7-4 slot 식별). **라이브 회귀=다음 세션**(부장님) |
+
+---
+
+## 클라 수신축 정독 확인사살 + 死코드 청소 (0619)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0619 | [20260619_room_slot_cleanup](202606/20260619_room_slot_cleanup.md) | 클라(sdk/) | 부장님 정독 주도 분석세션. 신 sdk/ 수신축 6파일(room/virtual/ptt/remote-endpoint/remote-stream/engine/local-endpoint) 정독 확인사살 → 잔재 14건. **死코드 2청소**: ①`Room.this.floor` 폐기(주입·조회 0, 주석화석 _onTrackStateEvent 가드 부재) ②`RemoteEndpoint.removePipe` 死코드 제거(호출처 0, LocalEndpoint 이미 제거한 死 대칭 — getPipe(trackId)는 유지=trackId가 키). **기각 2(반복차단)**: A=`ensure`/`ensureVirtual` 불일치 "치명" 오해 — ptt.js wrapper 존재+`room._pttVirtual`=Ptt인스턴스(PttVirtual 아님, 이름오도) / B=slot핸들 virtual이관 불가 — RemoteStream provider가 sig·roomId·bus 전부 Room-scope 요구∴Room provider 정당(비대칭=slot엔 ep없음의 귀결). **소유체인**: engine.ptt(Ptt)→ptt.virtual(PttVirtual), Room은 Ptt참조. **demo분리**: voice/video_radio=구core/, conference/app.sdk.js만 신sdk/(死코드판정 근거). **잔존백로그 12(e2e후)**: 6소유이관(Ptt→Room,_byMid/floor잔류)·2 _slotHandles캐시실효·4 roomId 3경로·8/9어휘·11 _safePlay분해·12 sig통일·13 콜백주입_bindTransport·15 _reNegoPublish대칭·10잔상opacity+rVFC·14시험재평가. **순서**: e2e정합 선행→어휘/패턴→소유이관→잔상→시험. 플랫폼: 화면꺼짐 주머니PTT∴웹부적격·Android네이티브확정. 死코드편집 edit_file dryRun검증 후 적용(2파일). 회귀 미실행(死코드 제거라 무영향, 다음 e2e세션 확인) |
+
+---
+
+## Phase 162: subscriber egress_ssrc 단일화 + lab 3버그 (0620a)
+
+| 날짜 | 파일 | 영역 | 요약 |
+|------|------|------|------|
+| 0620a | [20260620a_subscriber_egress_ssrc](202606/20260620a_subscriber_egress_ssrc.md) | 서버 | **egress_ssrc 단일화**: `SubscriberStream.vssrc`(복사본)가 `PublisherStream`(진실)의 cold-path 복사라 republish 시 idempotent(mid recycle)가 갱신 차단 → `vssrc→egress_ssrc` 개명 + AtomicU32 + producer-push reindex(`e94339e`). 선행 lab 3버그: unpub 응답 pid=0→요청pid(`8f1308a`) / 전송위반 3종 연결종료+rate limit 폐지(`a1dc6bc`) / ROOM_CREATE active_speaker 플래그(`2702aa2`). oxe2e 5/5. **미해결**: half pub Direct 누적(→0620b 근본수정) |
+
+---
+
+## Phase 163: SubscriberStream 회수 근본화 + oxadmin 가시화 + 검은화면 디버깅 (0620b)
+
+| 날짜    | 파일                                                                                                                       | 영역    | 요약                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----- | ------------------------------------------------------------------------------------------------------------------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0620b | [20260620b_substream_cleanup_oxadmin_blackscreen_debug](202606/20260620b_substream_cleanup_oxadmin_blackscreen_debug.md) | 서버+클라 | **근본수정(`82cb214`)**: unpub=`release_subscribe_track`(mid_map+stream+mid_pool 통합 회수, full+half) — switch만 캐싱 보존. 부장 지침 "unpublish 면 stream 제거, mid 만 재활용". **e94339e reindex 우회 폐기**(근본으로 대체, reindex 분기/함수 제거). lab 6단계 SUB_STREAMS 4 유지(누적 0)+oxe2e 5/5. **oxadmin 가시화(`f9980a3`)**: `--out` active `(*)`(per-slot rewriter.speaker+half+self제외)·`speaking:` 발화자·PKTS/DROP(누적 in/out/drop)·trace `--secs`. **클라 mid 재사용(`a0582fd`, oxlens-home)**: `_recycleByMid` active 제약 해제(서버 mid 1:1 권위=stale rebind)+sdp dedup → `Duplicate a=mid` 차단(검은화면 원인 1, **라이브 미검증**). **★검은화면 디버깅 미해결**: half PTT 만 발생(full 무증상). slot egress 3495패킷에 키프레임 28초 1개=키프레임 결핍. PT/ssrc/forward 정상. 클라 `power.js` COLD→track 재취득=콜드스타트(BWE probe 미발동, 20260405 일치) 의심·미확정. floor 24h 미커밋(디버깅). **★trace 삽질교훈 RUN_GUIDE §4-T★ 신설**(sfu노드/ssrc/누적vs실시간/single-target — trace 0=내가 틀린 것) |
+
+---
+
 ## 백로그 (다음 세션 진입 거리)
 
 - **백로그 단일 출처**: `context/202605/20260523_session_gap_inventory.md` (53건 진열, TODO 진행. 80 세션 정독 + SFU 서버 소스 cross-check 결과)
@@ -1268,9 +1310,9 @@
 
 ### 통계
 
-- **총 세션 파일**: 375개
-- **기간**: 2026-03-09 ~ 2026-06-15 (99일)
-- **최종 업데이트**: 2026-06-15 — **Phase 160 oxadmin trace 랩 전용 패킷 in/out 진단**(서버 커밋 `68785bc`, oxe2e 5/5 PASS. 가이드 RUN_GUIDE §4-T). ★상용 전 `oxsfud Cargo.toml default=[]` 복귀 필수(도청 탭 분리). 이전: Phase 159 RECON-2 재수립 검은화면 근본(0613f) / Phase 158 웹 E2E 현행화·실버그 3(0613e).
+- **총 세션 파일**: 378개
+- **기간**: 2026-03-09 ~ 2026-06-20 (104일)
+- **최종 업데이트**: 2026-06-20b — **SubscriberStream 회수 근본화 + oxadmin 가시화 + 검은화면 디버깅(미해결)**. 커밋 `82cb214`(unpub=release_subscribe_track, reindex 청산) / `f9980a3`(oxadmin active(*)·발화자·in/out/drop·trace --secs) / `a0582fd`(클라 mid 재사용=Duplicate a=mid, 라이브미검증). config.rs floor 24h 미커밋(디버깅). ★검은화면=half PTT 콜드스타트(키프레임 28초 1개) 미해결, 다음 세션 1순위. ★trace 삽질교훈 RUN_GUIDE §4-T★. 이전: Phase 162 egress_ssrc 단일화(0620a) / Phase 161 SDK 국소재작성(0616b).
 
 ---
 
