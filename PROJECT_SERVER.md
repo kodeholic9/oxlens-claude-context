@@ -144,7 +144,7 @@ oxlens-sfu-server/
 - 프레임 포맷: `[svc(1) + len(2) + payload]` — svc=0x01(MBCP). svc=0x03(Pan-Floor) 폐기 (묶음 1, 2026-05-18)
 - readiness 버퍼링: `dc_unreliable_ready: AtomicBool` + `dc_pending_buf: Mutex<VecDeque>` (MAX=64), DCEP Open 시 drain
 - DcMetrics 19 카운터 (sfu_metrics.rs dc 카테고리)
-- 설계: `context/design/20260414_datachannel_design.md`
+- 설계: `context/architecture/20260414_datachannel_design.md`
 
 ### MBCP Floor Control (DC-only, 3GPP TS 24.380)
 - **TS 24.380 native TLV 포맷** (RTCP APP PT=204 폐기). 헤더 ACK_REQ(1b)+type(4b)+field_count(1B)=2B, 필드 TLV id(1)+len(1)+value
@@ -157,7 +157,7 @@ oxlens-sfu-server/
 - DC 양방향 응답: Granted/Denied/Queued를 같은 SCTP stream에 즉시 write
 - bearer 왕복: 클라→hub(WS binary)→sfud(gRPC binary)→floor→event_tx→hub(bin_event_tx)→클라
 - 큐 위치 갱신 (TS 24.380 §6.3.4.4) 6곳, Granted duration (§8.2.2) FIELD_DURATION(9) u16 BE
-- 설계: `context/design/20260415_mbcp_datachannel_v2_design.md`
+- 설계: `context/architecture/20260415_mbcp_datachannel_v2_design.md`
 
 ### SubscriberGate (mediasoup pause/resume 패턴)
 - 새 publisher video 발견(TRACKS_UPDATE) → subscriber video gate pause(TrackDiscovery, 5s)
@@ -172,7 +172,7 @@ oxlens-sfu-server/
 - **fan-out 단일 본문**: `fanout() → track_type() 분기 → broadcast(subs, prefan)` — Full=`self.subscribers` / Half=방 `Slot.subscribers` 를 **직접 순회**. 두 경로가 broadcast 한 본문에 합류.
 - **vssrc 역탐색 폐기**: 구 `find_subscriber_stream_by_vssrc` 매칭 fan-out 폐기. **vssrc 는 라우팅 키가 아니라 값** — subscribe 등록(cold-path)에서 `SubscriberStream.vssrc` 로 복사돼 egress rewrite hot-path 가 그 복사본 사용.
 - dead Weak 는 attach_subscriber 의 retain 으로 자연 청소 (명시 detach 없음).
-- 설계서: `context/design/20260528_fanout_direction_redesign.md`.
+- 설계서: `context/architecture/20260528_fanout_direction_redesign.md`.
 
 ### PLI Governor (인과관계 기반 PLI 평탄화)
 - PLI를 "요청"이 아닌 "이벤트"로 취급. "PLI 보냈다 → I-Frame 왔는가 → subscriber에게 릴레이됐는가" 관측 사실로 판단
@@ -224,7 +224,7 @@ oxlens-sfu-server/
 - **클라(웹/Android) TRACK_STATE_REQ 발신 · 통지 수신 · 개인grid↔PTT slot UI 패러다임 전환 = 별도 작업** (미착수). 신규 sub add 경로 실행 검증도 멀티봇/클라 단계
 
 ### 식별 계층 (track_id / vssrc / 실 ssrc, 0603 — 서버 A·B 완료)
-설계서 `context/design/20260531_track_state_unification.md`(rev.3). 식별 3평면 분리 — 평면을 가르고 캡슐화.
+설계서 `context/architecture/20260531_track_state_unification.md`(rev.3). 식별 3평면 분리 — 평면을 가르고 캡슐화.
 
 | 평면 | 식별자 | 소유 | 쓰임 |
 |---|---|---|---|
@@ -258,7 +258,7 @@ track = duplex(full/half) + simulcast(on/off) + priority(0~N)
 - 서버가 mid 할당 (per-subscriber `MidPool`, kind별 분리: recycled_audio/recycled_video) — 클라 자체 할당 시 m-line 무한 누적 → video freeze
 - WsBroadcast에 `per_user_payloads` — TRACKS_UPDATE add/remove 전부 per-user 전달
 - 클라이언트 passthrough: `assignMids`는 서버 mid 그대로 사용, mid 기반 inactive pipe 재활용
-- 설계: `context/design/20260412_subscribe_mid_design.md`
+- 설계: `context/architecture/20260412_subscribe_mid_design.md`
 
 ### ParticipantPhase 5단계 (좀비 2단계 확장)
 ```
@@ -273,7 +273,7 @@ Created(0) ──(PUBLISH_TRACKS)──> Intended(1) ──(첫 RTP)──> Acti
 - REAPER_INTERVAL: 5초, SUSPECT_TIMEOUT: 15초, ZOMBIE_TIMEOUT: 20초 (4/25e 단축 — take-over 분기 도입으로 reconnect race 별도 처리)
 - agg-log 3종: `session:suspect`, `session:zombie`, `session:recovered`
 - **Take-over (LiveKit/mediasoup 표준, 4/25e)** — ROOM_JOIN AlreadyInRoom(2003) 시 `helpers.rs::evict_user_from_room()` (handle_room_leave cleanup 7단계 재현: cancel_pli_burst → floor cleanup → rooms.remove_participant → SubscriberIndex detach → peer.leave_room → simulcast purge_subscribe_layers + speaker_tracker.remove → emit_per_user_tracks_update + participant_left broadcast) → 새 peer 재생성 (새 ICE creds) → join_room 재시도. 5초 안에 phase=ready 회복. 단순 zombie 단축으로는 reconnect race 못 막음
-- 설계: `context/design/20260417_server_lifecycle_phase.md`, `20260417_server_participant_phase.md`
+- 설계: `context/architecture/20260417_server_lifecycle_phase.md`, `20260417_server_participant_phase.md`
 
 ### ICE Address Migration
 - ICE restart 불필요 — STUN consent check 자동 갱신(Pion/mediasoup/Janus 공통)
@@ -298,7 +298,7 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
                     └─ROOM_LEAVE─┘  (방 퇴장 시 Identified 복귀, WS 유지)
 ```
 - **WS disconnect → SESSION_DISCONNECT(0xE001) 통보만** — sfud에 LeaveRoom 안 보냄 (종속 해소)
-- 설계: `context/design/20260417_server_lifecycle_phase.md`
+- 설계: `context/architecture/20260417_server_lifecycle_phase.md`
 
 ### WS 흐름제어
 - OutboundQueue: 4단계 우선순위(P0 floor/gate ~ P3 telemetry) + 슬라이딩윈도우(8)
@@ -319,7 +319,7 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 - `role: u8` 참가자 역할 (sfud 저장/릴레이, 의미 해석은 hub/app)
 - `isPtt` 플래그 (`__ptt__` virtual userId 패턴 제거)
 - grant → SDK 자동 audio/video publish (기존 PTT 파이프라인 재사용, sfud 변경 제로)
-- 설계: `context/design/20260409_moderated_floor_design.md`, `20260410_moderated_floor_design_v2.md`
+- 설계: `context/architecture/20260409_moderated_floor_design.md`, `20260410_moderated_floor_design_v2.md`
 
 ### 이벤트 인프라
 - sfud→hub: `emit_to_hub()` 단일화 (per_user_payloads + binary_payload 분기)
