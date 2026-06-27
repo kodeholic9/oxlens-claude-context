@@ -2,7 +2,7 @@
 # OxLens — 서버 구조/아키텍처 (oxlens-sfu-server + oxhubd)
 
 > PROJECT_MASTER.md 에서 분리(2026-06-03). 서버 코드 종속 — 소스 구조·미디어 아키텍처·oxhubd·Peer 재설계·scope 자료구조.
-> 현행화 기준: 0613 (oxadmin 운영 CLI + 4평면 admin REST + ADMIN_REAP 0x3004 + ConnectInfo 반영; 그 전 0606a cross-sfu Phase 0~2b + supervisor + CLIENT_EVENT). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
+> 현행화 기준: 0620 (oxsfud `trace.rs` 랩 패킷 트레이스 + oxhubd `ccc/`·`probe/` 신설·`track_dump/` 폐기 + handler `telemetry.rs` 폐기 + common `process.rs`; 그 전 0613 oxadmin 운영 CLI + 4평면 admin REST + ADMIN_REAP 0x3004 + ConnectInfo). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
 
 ---
 
@@ -24,6 +24,7 @@ oxlens-sfu-server/
     │       ├── auth/       — JWT create_token / verify_token (jsonwebtoken)
     │       ├── ws/         — OutboundQueue (4단계 우선순위 + 슬라이딩윈도우 + 대칭 ACK)
     │       ├── telemetry/  — agg.rs, bus.rs, primitives.rs, registry.rs (Counter/Gauge/TimingStat + metrics_group! 매크로)
+    │       ├── process.rs  — 데몬 프로세스 계약 상수 (supervisor(oxhubd)↔자식(oxsfud) 공유. 0613 고아 sfud 포트 점유 사고 정합)
     │       └── proto       — tonic::include_proto! codegen (build.rs)
     │
     ├── oxsig/              ← 프로토콜/타입 공유 (lib.rs, opcode.rs)
@@ -33,6 +34,7 @@ oxlens-sfu-server/
     ├── oxsfud/             ← SFU 미디어 엔진 (상태 마스터)
     │   └── src/
     │       ├── main.rs / lib.rs / config.rs / error.rs / state.rs
+    │       ├── trace.rs        — 랩 전용 패킷 트레이스 (SRTP 복호 평문 미디어 탭. `#[cfg(feature="trace")]` + 6 emit 호출부, 보안 1급. 설계 20260615_oxadmin_trace_design)
     │       ├── startup.rs      — 환경 초기화, 시나리오 10방 사전 생성
     │       ├── tasks.rs        — floor timer, zombie reaper, active speaker, PLI governor, stalled checker (user 단위)
     │       ├── agg_logger.rs   — agg-log 발행 (track:publish_intent, session:suspect/zombie/recovered, scope:changed 등)
@@ -41,7 +43,7 @@ oxlens-sfu-server/
     │       ├── signaling/
     │       │   ├── opcode.rs   — common re-export
     │       │   ├── message.rs  — 패킷 타입 (common::Packet re-export) + ScopeUpdate/Set/EventPayload
-    │       │   └── handler/    — gRPC dispatch (9파일)
+    │       │   └── handler/    — gRPC dispatch (8파일)
     │       │       ├── mod.rs      — DispatchContext, dispatch, dispatch_binary
     │       │       ├── room_ops.rs — JOIN, LEAVE, SYNC (per-user TRACKS_UPDATE), SESSION_DISCONNECT
     │       │       ├── track_ops.rs— PUBLISH, TRACKS_READY, MUTE, CAMERA, SUBSCRIBE_LAYER, TRACK_STATE_REQ (duplex 전환 단일 경로, 2026-05-31)
@@ -49,8 +51,8 @@ oxlens-sfu-server/
     │       │       ├── scope_ops.rs — SCOPE 단일 op 핸들러 (body 안 `mode=update/set` 분기) + sub primitive (묶음 1 Phase A, Cross-Room rev.2)
     │       │       ├── helpers.rs  — emit_to_hub, emit_per_user_tracks_update, collect_subscribe_tracks(mid 할당), flush_ptt_silence
     │       │       ├── admin.rs    — build_rooms_snapshot + build_users_snapshot (축 분리: 방 뷰 + User 뷰)
-    │       │       ├── telemetry.rs— telemetry passthrough
     │       │       └── client_event.rs — CLIENT_EVENT(0x1304) 사건 보고 → agg-log 녹임 (146, source/event/severity 카운터)
+    │       │       (telemetry.rs 폐기 — 클라 telemetry hub→oxcccd 직행, sfud 왕복 제거. 진단 경로 일원화)
     │       ├── grpc/
     │       │   ├── mod.rs          — tonic Server (SfuService 1개만 등록)
     │       │   └── sfu_service.rs  — Handle(JSON/binary passthrough → dispatch 재사용), Subscribe, SubscribeAdmin
@@ -107,17 +109,18 @@ oxlens-sfu-server/
             ├── metrics.rs      — HubMetrics (metrics_group! 6카테고리)
             ├── convert.rs      — proto→JSON 변환 (비움 — passthrough 전환)
             ├── grpc/mod.rs     — SfuClient (per-sfud 연결 래퍼, lazy reconnect). 단일 client→**per-node registry**(SfuNode 가 node별 client 보유)
-            ├── rest/           — auth.rs(JWT), rooms.rs, admin.rs(rooms/kick/reconnect/track-dump + **운영 평면 20260613**: sfus·users·snapshot·reap), helpers.rs, **supervisor.rs**(status + stop/kill/load/shutdown), **health.rs**(healthz), telemetry.rs(oxcccd 중계). 인증 = `verify_admin`(localhost loopback bypass + ConnectInfo 배선)
+            ├── rest/           — auth.rs(JWT), rooms.rs, admin.rs(rooms/kick/reconnect/reap + `users/:id/probe`[User Probe, track-dump 후신 0620] + **운영 평면 20260613**: sfus·users·snapshot), helpers.rs, **supervisor.rs**(status + stop/kill/load/shutdown), **health.rs**(healthz), telemetry.rs(oxcccd 중계). 인증 = `verify_admin`(localhost loopback bypass + ConnectInfo 배선)
             ├── ws/
             │   ├── mod.rs      — WS 게이트웨이 (select! 4-way + OutboundQueue + 대칭 ACK + Binary 수신). ROOM_CREATE assign/place_room+bind, sfu_for_room 라우팅, ROOM_LIST fan-out 병합
             │   └── dispatch/mod.rs — user_id 주입 + JSON/binary 그대로 gRPC Handle (투명 프록시)
             ├── supervisor/     — **자식 프로세스 supervisor**(oxsfud 기동/감시/backoff 재기동, POSIX. 0603e~i): backoff.rs / component.rs / mod.rs / ready.rs / spec.rs / stop.rs / unit.rs / tests.rs
-            ├── track_dump/mod.rs — Track Dump REPLY 수집 풀 (Hub Extension, 0520)
+            ├── probe/mod.rs    — User Probe (oxadmin user 실시간 진단 unicast 요청-응답 브리지 — track-dump 후신, 0620)
+            ├── ccc/mod.rs      — CccForwarder (텔레메트리 tap → oxcccd push. bounded try_send fire-and-forget, hot-path block 0, 0613)
             ├── moderate/       — Moderated Floor Control (authorization 상태머신, grant/revoke)
             ├── events/mod.rs   — sfud→hub 이벤트 소비 + WS broadcast(per_user/binary 분기) + reconnect loop
             └── shadow/mod.rs   — 이벤트 기반 상태 누적 (복구용)
     ├── oxcccd/             ← 텔레메트리 수집 데몬 (gRPC, CccTap push 수신)
-    ├── oxe2e/              ← 헤드리스 회귀시험 harness (봇, conf_basic/ptt_rapid 등)
+    ├── oxe2e/              ← (구 Rust 회귀 harness — oxe2epy 파이썬으로 대체, 폐기 전제. 현 회귀는 `oxlens-sfu-server/oxe2epy/`. 물리 삭제 미정)
     └── oxadmin/            ← **운영 CLI** (hub REST 위 supervisor/sfu/user/room 제어·조회, 20260613)
 ```
 
@@ -307,11 +310,10 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 - **binary 메시지는 OutboundQueue 우회** (T132 이중화 방지)
 - pid는 per-connection seq
 
-### Track Dump (Hub Extension, 2026-05-20)
-- 방 단위 4-Point 진단 풀 덤프 인프라 — `admin HTTP → hub → TRACK_DUMP_REQ(0x2701) broadcast → 클라 풀 덤프 수집 → TRACK_DUMP_REPLY(0x1702) → hub fan-in 5s timeout → join → HTTP response`
-- row 단위 4-Point JSON (cli_pub / srv_pub / srv_sub / cli_sub) + verdict 자동 산출
-- dump_id 는 hub AtomicU32 자체 발급 (wire pid 와 분리 — broadcast OutboundQueue 재발급으로 매칭 부적합)
-- hot-path 카운팅 추가 금지 — packets/bytes/jitter/loss 는 클라 [1]/[4] `getStats()` 양단 비교만 (canonical source: outbound-rtp / inbound-rtp)
+### User Probe (Hub Extension, 2026-06-20 — track-dump 후신)
+- **특정 user 1명 unicast + 통과(저장 0)** — 구 track-dump(방 broadcast + oxcccd 저장)와 대비. 진단 권위는 oxcccd 단일로 일원화(진단 경로 통합). track_dump 모듈·broadcast·SDK collector 전면 폐기.
+- 흐름: `REST GET /admin/users/:id/probe → ProbeRegistry.start()(req_id + oneshot) → USER_PROBE_REQ(0x2701) 특정 user WS unicast → 클라 wire ACK_OK 즉시 회신 + getStats/device/element 수집(async) → USER_PROBE_REPLY(0x1702) → hub join → HTTP response (3s timeout)`
+- opcode = 구 TRACK_DUMP_REQ/REPLY(0x2701/0x1702) **재활용**(같은 번호, 의미 교체). hot-path 카운팅 추가 금지 — packets/bytes/jitter/loss 는 클라 `getStats()` 양단 비교만 (canonical source: outbound-rtp / inbound-rtp)
 
 ### Moderated Floor Control (Hub Extension)
 - PTT와 별개 도메인 — 진행자 기반 발언 자격 관리

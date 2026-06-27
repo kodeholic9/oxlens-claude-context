@@ -4,7 +4,7 @@
 > 로드 의무: capacity 측정 세션 전 필독 (`REGRESSION_GUIDE_FOR_AI.md`와 동급, 단 **다른 계층**).
 > author: kodeholic (powered by Claude)
 > created: 2026-06-13
-> 구현: `oxlens-sfu-labs` `oxlab cap` (커밋 `8749d9d`). 설계: `context/design/20260613_capacity_test_design.md`.
+> 구현: `oxlens-sfu-labs` `oxlab cap` (커밋 `8749d9d`). 설계: `context/202606/20260613_capacity_test_design.md`.
 
 ---
 
@@ -12,12 +12,12 @@
 
 **시험 3+1 계층**:
 ```
-단위(cargo test) → 회귀(oxe2e) → E2E/smoke(브라우저) → ★capacity(부하 천장)
+단위(cargo test) → 회귀(oxe2epy) → E2E/smoke(브라우저) → ★capacity(부하 천장)
 구조 안 깨졌나     라우팅 빠름      실디코더/UX            N 스윕 → loss/lat/pps 곡선
 ```
 
 - **capacity = 참여자 수 N 을 늘려가며 SFU 천장을 곡선으로 찾는 부하 측정기.** pass/fail 아님(회귀 judge 의 일). 천장(knee)은 **시험이 데이터로 보여준다** — 합격선 미리 안 정함.
-- 회귀(oxe2e)와 **다른 도구**다. oxe2e = "안 깨졌나"(소수 봇·judge), capacity = "몇 명까지 버티나"(N 스윕·곡선).
+- 회귀(oxe2epy)와 **다른 도구**다. oxe2epy = "안 깨졌나"(소수 봇 + 출처분리 검증기), capacity = "몇 명까지 버티나"(N 스윕·곡선).
 - 봇은 oxlab-bot(헤드리스, wire v3). **복호-skip** 으로 측정 도구가 측정 대상(SFU)보다 가볍다.
 
 **3축 시나리오**:

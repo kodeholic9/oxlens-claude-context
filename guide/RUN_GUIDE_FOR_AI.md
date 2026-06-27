@@ -4,7 +4,7 @@
 > — 이 단어가 나오면 이 가이드를 먼저 로드한다.
 > oxhubd(hub) + oxsfud(sfud) 를 **어떻게 띄우고**(§0~§3) **어떻게 제어·관측하나**(§4 oxadmin) **검은화면/무음 격리(§4-D)**. cross-sfu(N sfu) 포함.
 > author: kodeholic (powered by Claude)
-> created: 2026-06-03 · 운영 CLI(oxadmin) 추가: 2026-06-13 · trace 평면(랩 전용) 추가: 2026-06-15 · user 실시간 진단(USER_PROBE) 추가: 2026-06-20 · 검은화면 격리 runbook(§4-D) 추가: 2026-06-20
+> created: 2026-06-03 · 운영 CLI(oxadmin) 추가: 2026-06-13 · trace 평면(랩 전용) 추가: 2026-06-15 · user 실시간 진단(USER_PROBE) 추가: 2026-06-20 · 검은화면 격리 runbook(§4-D) 추가: 2026-06-20 · stat 연속 모니터(입체 분석, §4-S) 추가: 2026-06-23
 
 ---
 
@@ -142,6 +142,7 @@ oxadmin [--json] <command> [args]
 | | `sfu <sfu_id>` | 그 SFU 의 방 목록 (per-sfu ROOM_LIST, 실제 상태) |
 | **User**(hub-local) | `users` | 연결 클라(user) 목록 (conn_id/peer_addr/intents/rooms) |
 | | `user <user_id>` | 특정 user **실시간 진단**(클라 pull, 3s) — 그 순간 브라우저 getStats/device/권한/element 를 송수신 파이프라인 블록으로 (§4-U) |
+| | `stat <user_id> [--interval N]` | **iostat 식 연속 모니터**(클라 pull, N초마다 한 줄 Δ, 기본 2s, Ctrl+C). kind별 활성 스트림 자동선택, TIME(wall-clock)으로 **trace 와 입체 대조** (§4-S) |
 | | `user-cut <conn_id\|user>` | WS 소켓 강제 close (transport 강제 끊김, 무통보 → 클라 reconnect 유발) |
 | **Room**(sfud 경유) | `rooms` | 전체 방 목록 (room/sfu/user_count) |
 | | `room <room_id>` | 참여자/recorder 표 + **trace 인자 카탈로그**(USER/DIR/KIND/SSRC — publish ssrc·egress vssrc). 더 깊은 raw 는 `--json` |
@@ -213,6 +214,84 @@ oxadmin–hub–클라–hub–oxadmin 동기 요청-응답. 서버 스냅샷(`r
 
 > 종합(§4-T★ 와 동일 정신): **user/room 카운터 한 장면으로 단정 금지.** 흐름은 trace, 변화는 시간 간격 delta.
 > 검은화면/멈춤 근본은 `kf(keyFramesDecoded)` 증가 여부 + trace IDR 로 **실증한 뒤** 말할 것 — 추측을 결론으로 포장 = 환각.
+
+---
+
+## §4-S oxadmin stat — iostat 식 연속 모니터 ★ (입체 분석, 20260623)
+
+`oxadmin stat <id>` = `user` 와 같은 USER_PROBE pull 을 **N초마다 반복**, 매 샘플 **한 줄 Δ** 로 흘린다(기본 2s, Ctrl+C 종료).
+`user`(2회 Δ 스냅샷)와 달리 **연속**이라, 증상이 *언제* 시작/회복하는지 시간축에 찍힌다.
+**트랙 선택 불요** — kind별 활성 스트림(직전 구간 pps 최대)을 자동으로 잡고, 화자/슬롯이 바뀌면 따라간다.
+
+### ★ 존재 이유 = trace 와 **동시** = 입체 분석
+- **trace**(§4-T) = SFU 와이어(seq/ts/marker — 송출까지). **stat** = 클라 인코더/디코더/NetEq 내부(getStats). trace 혼자는 디코더 내부를 못 본다.
+- 둘을 동시에 걸고 **TIME(wall-clock)** 으로 정렬 → "**SFU 와이어 ↔ 수신 NetEq**" 를 같은 시각으로 대조.
+```bash
+# 터미널 A — SFU 와이어 (그 방의 sfu 에)
+oxadmin trace '*' '*' --inout --rtpdump /tmp/t.rtp --sfu sfu-1
+# 터미널 B — 수신측 NetEq 3명 한 창에 (동일 TIME + USER 컬럼, 파일 tee)
+oxadmin stat U01,U02,U03 --tee /tmp/stat.log
+```
+> 다중 user = 쉼표 구분. 한 틱에 N행(USER 컬럼)으로 같은 TIME → **한쪽만 jb 폭주(분산)** 즉시 비교.
+> `--tee` = stdout + 파일 동시. 단일 user(`stat U01`)는 USER 컬럼 없이 종전대로.
+> ★ stat 파일옵션은 `--tee`(구 `--out` — trace dir `--out`(egress)과 글자 충돌해 20260624 개명). trace 의 `--out`/`--in`/`--inout` 은 방향 플래그로 정상 사용.
+
+### 컬럼 (Δ=구간증가분, /s=초당율, 순간=그 시점값)
+```
+TIME  rxA(src) pps lost disc jb jbT glch acc dec | rxV(src) fps kbps frz dec kf | txA txV
+```
+| 필드 | 정확히 | 정상 | 경보 |
+|---|---|---|---|
+| **rxA src** | 활성 수신오디오 track_id(자동) | `U02_..`(직접)/`ptt-R01-audio`(슬롯) | 자주 바뀜=화자전환 |
+| **pps** | packetsReceived /s | opus=50 | 0=안받음·정체=끊김 |
+| **lost** | packetsLost Δ | 0 | >0 손실 |
+| **disc** | packetsDiscarded Δ (지터버퍼가 늦게/일찍 와 버린 패킷) | 0 | >0 타이밍미스 |
+| **jb** | jitterBufferDelay 평균 **ms** = 실제 버퍼 깊이 | 40~80 | 급등·지속상승 |
+| **jbT** | jitterBufferTargetDelay 평균 ms = NetEQ 목표 | jb가 추종 | 큼=지연늘림 |
+| **glch** | (concealed−silent) Δ **샘플**, PLC합성(무음/DTX 제외). **48000=1초** | 0(steady) | ~1500≈30ms은폐·지속=가청끊김 |
+| **acc** | removedSamplesForAcceleration Δ — 과적→빨리감기(압축) | 가끔 소량 | 폭증=피치출렁 |
+| **dec** | insertedSamplesForDeceleration Δ — 부족→늘려끼움(신장) | 가끔 소량 | 폭증=느려짐 |
+| **rxV src** | 활성 수신영상 track_id | `U02_..`/`ptt-R01-video` | |
+| **fps** | framesPerSecond (**순간**) | 30 | |
+| **kbps** | 수신 비트레이트(Δbytes×8/1000/s) | 가변 | |
+| **frz** | freezeCount Δ | 0 | 누적=멈춤 |
+| **dec**(영상) | framesDecoded Δ | ≈fps×초 | 정체=검은화면 |
+| **kf** | keyFramesDecoded Δ | 가끔 1+ | |
+| **txA / txV** | pub 오디오 pps / pub 영상 framesEncoded /s (=인코딩fps) | 50 / 30 | 0=송신정지 |
+| **`~`**(예 `47ms~`) | lifetime 평균(구간 Δ 없음=pps0/정지) | — | 값 안 흐름 |
+| **`-`** | 그 kind 활성 스트림 없음 | — | |
+
+### 판독 패턴 (20260623 3인 PTT 실증)
+- **수신 끊김 격리**: rxA glch↑/disc↑ 인데 **같은 시각 trace 슬롯은 깨끗(seq역행0·marker핸드오프)** → **와이어 아닌 디코더/다운링크 층** 확정.
+- **돌림노래(분산)**: 같은 시각 **U01 vs U02 의 jb·glch 가 갈리면**(한쪽만 튐) 수신측 분산. 반대로 **양쪽이 비슷하게 같이 뜨면** 공통 상류 원인.
+- **PTT 콜드스타트**: talk-spurt **시작마다** glch~1500(≈30ms) 반복·양쪽 공통 = 첫 음절 클립(예열 영역, 끊김 아님).
+- **모드전환**: 화상→PTT 순간 직접 오디오 pps→0 + glch~9000(≈190ms) 1회 = 풀듀플렉스 컷오버(예상).
+
+> §4-U/§4-T★ 와 동일 정신: **한 줄로 단정 금지.** 흐름은 trace, 분산은 **여러 수신측 동시 stat 비교**, 첫 음절 글리치는 콜드스타트로 분류. `lastPacketReceivedTimestamp` 는 시계 base 불신(쓰지 말 것) — 끊김 신호는 **pps Δ**.
+
+### 캡처 3종 + 오프라인 NetEQ 재현 (20260624)
+
+테스트 로그는 항상 **`~/repository/testlogs/<YYYYMM>/`**. 라벨(`<HHMM>_<NN>` 또는 시나리오)로 pcap·stat·event log 짝.
+
+| 축 | 도구 | 누가 | 명령/방법 |
+|---|---|---|---|
+| 수신 NetEq jb(실측) | `oxadmin stat` | Claude(백그라운드) | `stat U01,U02,U03 --tee testlogs/<ym>/stat_<lbl>.log` (§4-S) — **getStats = ground truth** |
+| SFU 와이어 송수신 | `tcpdump` | **부장님(sudo)** | `sudo tcpdump -i lo0 -s0 -w testlogs/<ym>/cap_<lbl>.pcap udp port 19740` (lo0=같은맥/en0=별기기, 19740=sfu-1·19741=sfu-2; src=19740 egress·dst=ingress; SRTP라도 RTP헤더 평문) |
+| 수신 탭 실제 도착 | Chrome RTC event log | **부장님(UI)** | `chrome://webrtc-internals/` → "Create diagnostic packet recordings" → **"Enable diagnostic packet and event recording"** 체크 → 저장 base 지정 → 시험 → 체크 해제. PC마다 파일(큰 것=subscribe=수신). **헤더만**(payload 없음) |
+
+**오프라인 NetEQ 재현** (`~/repository/webrtc-checkout/src/out/Default/neteq_rtpplay`, 빌드: `cd ~/repository/webrtc-checkout/src && ~/depot_tools/autoninja -C out/Default neteq_rtpplay`):
+```bash
+python3 -c "import struct,math;open('/tmp/rep.pcm','wb').write(b''.join(struct.pack('<h',int(2000*math.sin(2*math.pi*440*i/48000))) for i in range(480000)))"  # 더미PCM 1회
+neteq_rtpplay --opus 111 --ssrc 0x<vssrc> --replacement_audio_file /tmp/rep.pcm --pythonplot --output_files_base_name=/tmp/ev <evlog_or_pcap> /tmp/ev.pcm
+# /tmp/ev.py 의 target_delay_y / arrival_delay_y 파싱. ssrc=슬롯 vssrc(room snapshot/로그 switch_speaker).
+```
+> ★ **replay 절대값 신뢰 금지** (20260624 실증): 헤더만 로그→DTX 소실 過대예측 + replay 클럭 드리프트(arrival_delay가 단조 감소하면 아티팩트). **상대/메커니즘 가설용**이고, 결론은 **getStats(stat)** 로만. (도구 과신해 반복 오판한 전례.)
+
+### webrtc 오프라인 도구 빌드환경 (neteq_rtpplay + video_replay 공통, 20260624 격리)
+- **체크아웃** = `~/repository/webrtc-checkout/src` (`.gclient` 부모 격리 — 옛 `~/repository/src` 폐기). depot_tools = `~/depot_tools`.
+- **빌드** = `cd ~/repository/webrtc-checkout/src && ~/depot_tools/autoninja -C out/Default <target>` (`neteq_rtpplay` / `video_replay`). 디렉토리 이동·clean 후 ninja 깨지면 `gn gen out/Default` 1회로 회복(재컴파일 아님, 수초).
+- ⚠ **`video_replay --verbose` 패치는 `oxlens-tools` 브랜치(`9f19baf82c`)에만** — 빌드/디버깅은 이 브랜치 체크아웃 상태에서. `main`(upstream 추종)으로 돌아가면 패치 빠짐. push 안 함(로컬 보존).
+- **video_replay** = egress RTP 오프라인 디코딩(검은화면 물증, jb/SR 타이밍은 못 봄). 사용법 상세 = `context/202606/20260622_republish_rewrite_fix_libwebrtc_videoreplay.md` + 메모리 project_libwebrtc.
 
 ---
 
@@ -407,14 +486,18 @@ api_key/secret 은 `[hub.auth.api_keys]` 의 값(데모 = `ox_k_demo`/`ox_s_demo
 
 ## §7 관련
 
-- 운영 CLI(oxadmin) 설계: `context/design/20260613_oxadmin_design.md`
-- 패킷 트레이스(oxadmin trace, §4-T) 설계: `context/design/20260615_oxadmin_trace_design.md`
-- user 실시간 진단(oxadmin user, §4-U) + 디버깅 결함 회고: `context/claudecode/202606/20260620c_user_probe_oxadmin_debug_fail.md`
-- cross-sfu 서버 설계: `context/design/20260603_cross_sfu_design.md`
-- supervisor 설계: `context/design/20260603_oxhubd_supervisor_design.md`
-- 회귀시험(oxe2e): `context/guide/REGRESSION_GUIDE_FOR_AI.md` (봇 붙여 oxadmin 실데이터 관측에도 활용)
+- 운영 CLI(oxadmin) 설계: `context/202606/20260613_oxadmin_design.md`
+- 패킷 트레이스(oxadmin trace, §4-T) 설계: `context/202606/20260615_oxadmin_trace_design.md`
+- user 실시간 진단(oxadmin user, §4-U) + 디버깅 결함 회고: `context/202606/20260620c_user_probe_oxadmin_debug_fail.md`
+- cross-sfu 서버 설계: `context/202606/20260603_cross_sfu_design.md`
+- supervisor 설계: `context/202606/20260603_oxhubd_supervisor_design.md`
+- 회귀시험(oxe2epy): `context/guide/REGRESSION_GUIDE_FOR_AI.md` (봇 붙여 oxadmin 실데이터 관측에도 활용)
 - config 구조체: `crates/common/src/config/system.rs` (SystemConfig/HubConfig/SfuConfig/SfuNodeConfig/SupervisorConfig/RoutingConfig)
 
 ---
 
 *author: kodeholic (powered by Claude)*
+
+
+
+sudo tcpdump -i lo0 -s0 -w ~/repository/testlogs/202606/cap_0624_ptt04.pcap udp port 19740

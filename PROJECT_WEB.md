@@ -4,17 +4,17 @@
 > PROJECT_MASTER.md 에서 분리(2026-06-03). 웹클라 코드 종속 — 소스 구조·평면 아키텍처·프리셋 체계.
 > 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
 > **활성 SDK = `sdk/` (전면 재작성).** 설계 권위: `design/20260603_client_rewrite_core_design.md` + `_knowledge` 짝(§7 = 헌법 5조).
-> `core/` 는 레거시(구 평탄 SDK) — demo 일부가 아직 import 중, 제거 예정. 신규 참조 금지.
+> `__core_deprecated__/`(구 `core/`, 0620 개명) 는 죽은 화석(구 평탄 SDK) — 개명으로 demo 일부의 잔존 `core/` import 가 깨짐(=강제 flush). 신규 참조 금지. lab/·e2e/ 는 sdk/ 직참조.
 
 ---
 
 ## 웹 클라이언트 구조 (실트리 실측 2026-06-13)
 
-> 각 1줄 = 파일 헤더 주석 대조. `[STUB]` = 본체 보류. node mock 글루 검증 = **`sdk/tests/*_check.mjs`** 19종(0613 일원화 — 구 `sdk/**/_*.mjs` 산재 폐기, 브라우저 probe 류는 e2e/ 일원화로 삭제).
+> 각 1줄 = 파일 헤더 주석 대조. `[STUB]` = 본체 보류. node mock 글루 검증 = **`sdk/tests/*_check.mjs`** 20종(0613 일원화 — 구 `sdk/**/_*.mjs` 산재 폐기, 브라우저 probe 류는 e2e/ 일원화로 삭제).
 
 ```
 oxlens-home/
-├── core/        ← 레거시(구 평탄 SDK). demo 일부가 아직 import 중 → 제거 예정. 신규 참조 금지.
+├── __core_deprecated__/  ← 죽은 화석(구 `core/`, 0620 개명). demo 일부 .js 가 옛 `core/` 경로로 import → 개명으로 깨짐(강제 flush). 신규 참조 금지.
 ├── sdk/         ← 활성 SDK (전면 재작성)
 │   ├── engine.js          — 얇은 facade + DI 조립 + join orchestration + **사실 단일 라우터(제5조)** + observe 분배기 + 복구(R1/R2)
 │   ├── index.js           — sdk 골격 조립/export (단방향 의존, 순환 없음)
@@ -24,16 +24,16 @@ oxlens-home/
 │   ├── transport/         — transport.js("나↔하나의 sfu" PC pair/SDP/DC — **onTrackReceived/onPcEvent 콜백 2개**) · transport-set.js(Map<sfuId,Transport> 취합/패스스루) · sdp-builder.js(정책 JSON→fake remote SDP)
 │   ├── domain/            — room.js(수신 논리 컨테이너) · talkgroups.js(**방 관계 권위** — rooms Map 소유 + applyEvent/reconcile) · local-endpoint.js("나" 송신 — LocalPipe 컬렉션, **pipes Map 키 = trackKey 불변** + 발행 트랜잭션 `_publishTracks`(stage→register→startRtp + `_unwindPublish` 단일 청소) + revive/recover(소생·장치상실 복구) + migratePublish) · remote-endpoint.js(상대 참가자) · pipe.js(base) · local-pipe.js(송신 Track Gateway) · remote-pipe.js(수신 — receiver.track 파생 + adoptTrack/setRemoteState/setVisible 게이트) · video-surface.js(표시 평면 — `_hiddenBy` 사유 합성, **동기 즉시 적용** — rVFC reveal 게이트 제거 0613) · local-stream.js/remote-stream.js(외부 핸들 C2/C3)
 │   ├── media/             — media-acquire.js(getUserMedia/getDisplayMedia 중앙 게이트 — gum timeout 이원화/orphan 정리/**blockedBy 안내처 축**(system/user/dismissed)) · device-manager.js(열거/출력/핫플러그 + **입력전환 완료**: switch(명시=고정)/devicechange 하이브리드(미선택=OS default 추종 `_followDefault`)/applyOutput(신규 mount sink 적용)) · adaptive-stream.js(ElementInfo — element 관측→rid 자동)
-│   ├── observability/     — telemetry.js(깊은 시계열 — observe 수신 전용) · lifecycle.js(Phase FSM + status 평면취합 — 통지 emit 없음) · event-reporter.js(CLIENT_EVENT 배치 보고 — report() 직접 호출 단일)
-│   ├── ptt/               — ptt.js(서브시스템 조립 + 공개 API) · floor.js(Floor 5-state FSM, MBCP over ③DC — 자기 emitter) · power.js(half-duplex 전력 FSM HOT/HOT_STANDBY/COLD) · virtual.js(PTT virtual slot — 방별 Map) · freeze.js(taken/idle→setVisible('floor') 얇은 어댑터) · mbcp.js(MBCP TS24.380 wire codec)
-│   └── plugins/           — annotate.js · moderate.js · track-dump.js (③훅 b: WS op 등록제 [STUB 보류])
+│   ├── observability/     — telemetry.js(깊은 시계열 — observe 수신 전용) · lifecycle.js(Phase FSM + status 평면취합 — 통지 emit 없음) · event-reporter.js(CLIENT_EVENT 배치 보고 — report() 직접 호출 단일) · logger.js(로깅 단일 출처) · user-probe-collector.js(USER_PROBE_REQ 수신→getStats/device/element 수집→REPLY. 구 track-dump-collector 후신 0620)
+│   ├── ptt/               — ptt.js(서브시스템 조립 + 공개 API) · floor.js(Floor 5-state FSM, MBCP over ③DC — 자기 emitter) · power.js(half-duplex 전력 FSM HOT/HOT_STANDBY/COLD) · virtual.js(PTT virtual slot — 방별 Map + freeze 마스킹 흡수: taken/idle→setVisible('floor'), 0620 freeze.js 흡수) · mbcp.js(MBCP TS24.380 wire codec)
+│   └── plugins/           — annotate.js · moderate.js (③훅 b: WS op 등록제 [STUB 보류]. track-dump.js 폐기 0620 — User Probe 로 대체)
 ├── e2e/         ← 외부평면 E2E 하니스(브라우저 — 부장님 run). 케이스 14종(CONN/ROOM/CONF/MUTE/CAM/SCR/SW/PTT/TG/RECON) + 합성 봇 + 반복 통계 + 실패 힌트(타임라인/스냅샷) + 육안/음성 타일. **CONF 는 framesDecoded>0 단언(검은 화면 가드)** — STREAM_SUBSCRIBED(SDP 산물)만으론 검은 타일이 PASS 로 샘
 │   ├── runner.js, bot.js, cases.js, e2e.js, index.html
-└── demo/        — 시나리오 6종 + admin (일부 core/ 의존 잔존 — sdk/ 실배선 진행 중. 신규 검증 표면은 e2e/)
+└── demo/        — 시나리오 6종 + admin (일부 .js 가 옛 `core/` import 잔존 → 0620 개명으로 깨짐. sdk/ 실배선분은 `app.sdk.js`. 신규 검증 표면은 e2e/)
     ├── presets.js, index.html
     ├── scenarios/        — conference/voice_radio/video_radio/dispatch/support/moderate
     ├── components/       — shared.js, video-grid.js, ptt-panel.js
-    └── admin/            — 어드민 대시보드 (SFU + Hub Gateway + DC + Track Dump 탭)
+    └── admin/            — 어드민 대시보드 (SFU + Hub Gateway + DC + Snapshot/Timeline 탭. Track Dump 탭 폐기 0620)
 ```
 
 ---
@@ -88,7 +88,7 @@ oxlens-home/
 
 ### 확장 접점 (코어 `if(ptt)` = 0, 의존 단방향)
 
-- **② 미디어 파이프라인** — 송신 게이트(LocalPipe) / 수신 게이트(RemotePipe.adoptTrack) / 표시(VideoSurface.setVisible — freeze 는 'floor' 사유 어댑터).
+- **② 미디어 파이프라인** — 송신 게이트(LocalPipe) / 수신 게이트(RemotePipe.adoptTrack) / 표시(VideoSurface.setVisible — PTT freeze 마스킹은 virtual.js 가 'floor' 사유로 호출, 0620 freeze.js 흡수).
 - **③ 메시지 채널** — DC svc 등록제(transport.onChannelMessage: MBCP=floor, SPEAKERS=engine) + WS op 등록제(OpRegistry — plugins).
 - (구 ① 생명주기 이벤트(EventBus) 는 제5조로 대체 — 콜백/observe/로컬 emitter.)
 

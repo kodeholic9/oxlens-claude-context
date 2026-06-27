@@ -263,7 +263,7 @@ const { Engine } = await import("/sdk/index.js");
 - **브라우저 케이스 러너**: `e2e/index.html` (14케이스 + 타일 + 반복 통계). 케이스 추가 = `e2e/cases.js`
   defineCase 1개. ctx 표면: mkEngine/mkBot/check/until/waitFor/tile/sleep/log.
 - **node 글루**: `sdk/tests/*_check.mjs` — 실 webrtc 없는 배선 검증(런타임 다름 주의).
-- 서버 전제·기동: RUN_GUIDE. 회귀(oxe2e)는 별 계층: REGRESSION_GUIDE.
+- 서버 전제·기동: RUN_GUIDE. 회귀(oxe2epy)는 별 계층: REGRESSION_GUIDE.
 
 ---
 
