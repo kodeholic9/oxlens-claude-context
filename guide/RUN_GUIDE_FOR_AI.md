@@ -500,4 +500,4 @@ api_key/secret 은 `[hub.auth.api_keys]` 의 값(데모 = `ox_k_demo`/`ox_s_demo
 
 
 
-sudo tcpdump -i lo0 -s0 -w ~/repository/testlogs/202606/cap_0624_ptt04.pcap udp port 19740
+sudo tcpdump -i lo0 -s0 -w ~/repository/testlogs/202606/cap_0627_sim01.pcap udp port 19740
