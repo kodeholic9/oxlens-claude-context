@@ -3,7 +3,7 @@
 > **invoke 키워드: `회귀시험`** — 이 단어가 나오면 이 가이드를 먼저 로드한다.
 > 로드 의무: 회귀시험 세션 전 필독 (`QA_GUIDE_FOR_AI.md` / `METRICS_GUIDE_FOR_AI.md`와 동급).
 > author: kodeholic (powered by Claude)
-> created: 2026-05-30 / 재작성: 2026-06-27 (Rust→파이썬 백지) / **현행화: 2026-06-27r (불변식 대장 + 봇 악조건 확장 반영 — 13등식 7시나리오 → 25등식 17시나리오)**
+> created: 2026-05-30 / 재작성: 2026-06-27 (Rust→파이썬 백지) / 현행화: 2026-06-27r (불변식 대장 + 봇 악조건 확장 — 25등식 17시나리오) / **현행화: 2026-06-28d (publisher 메타 단일소유 + simulcast repub·forward layer fallback·track_id 정체성 불변 — 26등식 23시나리오)**
 
 ---
 
@@ -34,20 +34,21 @@ pip install pandas        # 인과 타임라인(verifier/timeline.py) — ※ py
 # 서버(hub 1974 + sfud) 기동 상태에서(서버 기동 = 부장님 몫):
 python -m oxe2epy run <scenario>             # 예: python -m oxe2epy run conf_audio
 python -m oxe2epy run conf_audio_fault --seed 42   # 결함주입 시드 재현(결정성)
+python -m oxe2epy run-all                     # 정규 스위트 일괄(별 격리 adv_resource 제외) + 종합 집계(회귀 1줄 판정)
 ```
 - 결과 = **3-class 리포트**: `✓ PASS — 회귀 0` / `✗ FAIL — 회귀 N` + 위반 등식·detail + 격리(노랑)·XPASS·known-gap 건수. exit code 는 **회귀(빨강)만** 반영.
-- 단위 시험(검증기 로직 자체): `python -m pytest tests/` — 등식마다 음성 픽스처(failability 보장, 현재 78 passed).
+- 단위 시험(검증기 로직 자체): `python -m pytest tests/` — 등식마다 음성 픽스처(failability 보장, 현재 80 passed).
 - **별 격리 시나리오**(`adv_resource`, S4): 서버 자살 위험으로 정상 일괄 회귀에서 제외 — 수동 단독 실행.
 
 ---
 
-## §2 시나리오 (실측 `oxe2epy/scenarios/*.yaml`, 17종)
+## §2 시나리오 (실측 `oxe2epy/scenarios/*.yaml`, 23종)
 
 | 시나리오 | 축 | 커버 |
 |---|---|---|
 | `conf_audio` / `conf_audio_n3` | C1 | 2봇 audio / 3봇 fan-out 1:2(self-echo·under-fanout) |
 | `conf_video` | C1 | VP8 video + video gate(TRACKS_READY→첫 수신) |
-| `conf_simulcast` / `conf_simulcast_seq` | C3 | simulcast h/l(vssrc). **track_id 격리 2(SRV-0625)** / 순차 join collect |
+| `conf_simulcast` / `conf_simulcast_seq` | C3 | simulcast h/l(vssrc). **track_id SRV-0625 격리해제(정규 등식)** / 순차 join collect |
 | `conf_duplex` | C3·L3 | ⑧ full→half 전이(active:false 통지) |
 | `conf_crossroom` | 위상 S1 | 다방 청취 격리 — listen 안 한 방 발화 안 샘(crossroom_isolation) |
 | `conf_audio_fault` | failability | 결함주입(`fault:drop`) — **FAIL 이 정상**(라이브 failability) |
@@ -59,19 +60,22 @@ python -m oxe2epy run conf_audio_fault --seed 42   # 결함주입 시드 재현(
 | `adv_loss` | **L4** | NACK→RTX(PT=97) 복구 발화 |
 | `adv_floor_failover` | **L1** | holder 급사(DC 끊김)→ping_timeout 회수→다음 화자 |
 | `adv_resource` | **S4** | 과다 publish(300 tracks) — ★서버 결함(별 격리) |
+| `conf_simulcast_repub` / `_lfirst` / `_hdelay` | C3 | unpub→repub. mid_pool release / l-first 통지+forward / h 지각(BWE drop)→forward fallback l→h promote |
+| `conf_simulcast_repub_multi` / `_honly` | C3 | repub 3회 반복(mid 누증 0) / h-only repub→remove track_id 둔갑 가드(subscriber 누적 0) |
+| `conf_sentinel_band` | C3 | 실 ssrc 0xF8 대역(구 placeholder sentinel 1/16 오판=검은화면) 회귀 가드 |
 
 > 구 Rust 가이드의 `conf_basic`/`ptt_rapid`(TOML)는 폐기. 스키마는 YAML(§6).
 
 ---
 
-## §3 판정 모델 = 등식 레지스트리 (25)
+## §3 판정 모델 = 등식 레지스트리 (26)
 
 봇이 dump → 검증기 `loader` 가 `Parsed` 로 파싱 → 등식 채점. 대장(S/L/C×위상) 좌표:
 
 - **정합성 C** (출력==입력): `seq_completeness`·`ts_monotonic`·`count_eq`(꼬리, gating skip)·`codec_match`·`send_honest`(약속==실송신)·`track_id_returned`·`leak_zero`(약속 밖 수신)·`fanout_complete`(N≥3 fan-out: self-echo/under-fanout)·`causal_priming`(timeline 시각 인과)
 - **안전성 S** (절대 안 됨): `authz_denied`(S2 무권 op)·`isolation_baseline`(S1 악조건 송신)·`crossroom_isolation`(위상 S1 다방격리)·`rtcp_terminate`(S3 RR 종단+SR translate)·`rtcp_present`
 - **생명성 L** (결국 됨): `gating_correct`(PTT 화자 구간)·`floor_seam`(손바뀜 전환갭/slot연속/제3자누수)·`floor_convergence`(L1 경합 1 grant)·`floor_failover`(L1 급사 회수)·`recovery_signal`(L4 NACK→RTX)·`identity_5point`(L2 5점 ssrc-join: client_pub→send_raw→server_pub→server_sub→client_sub)
-- **전이/simulcast**: `duplex_transition`(⑧)·`simulcast_entry_ssrc_zero`(가드1)·`simulcast_track_id_match`(SRV-0625 격리)·`simulcast_rid_only`(가드2)
+- **전이/simulcast**: `duplex_transition`(⑧)·`simulcast_entry_ssrc_zero`(가드1)·`simulcast_track_id_match`(SRV-0625 격리해제, add 방향 resp⊆add)·`simulcast_remove_track_id_match`(remove 둔갑 가드: remove track_id∈add — vssrc→ssrc 위조 차단, I3 정체성 불변)·`simulcast_rid_only`(가드2)
 - 등식 추가 = `@equation` 함수 1개 + **음성 픽스처 짝**(`tests/`) 의무 — 안 깨지는 등식은 죽은 게이트. 악조건 ssrc(unauth/adversary/rtx/flood)는 정합 등식서 제외(authz_denied/isolation_baseline/recovery_signal 가 덮음).
 
 ---
@@ -140,4 +144,4 @@ fault: {type: drop, rate: 0.1}          # 결함주입(--seed 로 결정적)
 
 ---
 
-> **이력**: 2026-05-30 구 Rust `crates/oxe2e`(TOML·봇 자동판정) → 본구현-4(2026-06-27) 전체 파이썬 `oxe2epy`(aiortc ORTC + 출처분리 검증기) 백지 재작성 → **0627k~r 불변식 대장(S/L/C×위상) + 봇 악조건 확장**(13등식 7시나리오 → 25등식 17시나리오, 안전성 S1·S2·S3 + 생명성 L1·L4 채움). 루트 `oxlens-sfu-server/oxe2epy/`.
+> **이력**: 2026-05-30 구 Rust `crates/oxe2e`(TOML·봇 자동판정) → 본구현-4(2026-06-27) 전체 파이썬 `oxe2epy`(aiortc ORTC + 출처분리 검증기) 백지 재작성 → **0627k~r 불변식 대장(S/L/C×위상) + 봇 악조건 확장**(13등식 7시나리오 → 25등식 17시나리오, 안전성 S1·S2·S3 + 생명성 L1·L4 채움) → **0628d publisher 메타 단일소유**(simulcast repub·forward layer fallback·track_id 정체성 불변 I3 — 26등식 23시나리오). 루트 `oxlens-sfu-server/oxe2epy/`.

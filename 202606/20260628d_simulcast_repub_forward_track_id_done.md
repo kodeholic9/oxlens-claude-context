@@ -47,7 +47,7 @@ non-sim 은 Stream.track_id=first_track_ssrc=fallback ssrc **동일→무영향*
 
 - 봇: `unpublish_video` + `SimulcastSender(order, h_delay_frames)` + orchestrator `republish_timeline`
 - 시나리오: `conf_simulcast_repub{,_lfirst,_hdelay,_multi,_honly}` (repub 변형 5종) + `conf_sentinel_band`(0xF8 가드)
-- 검증기: `simulcast_track_id_match` 집합대조(republish 거짓양성 수정) + SRV-0625 격리해제
+- 검증기: `simulcast_track_id_match` 집합대조(add 방향, republish 거짓양성 수정) + **`simulcast_remove_track_id_match` 신설(remove track_id ∈ add — 둔갑 가드, 667a267)** + SRV-0625 격리해제. loader `tracks_update_remove` 적재. pytest 80(78+2)
 - **2층으로 서버/클라 가름**: 봇 `REMOVE:MATCH mid_hit=Some(3)`(재활용) vs 3층 `None`(둔갑) → 서버 정상·클라 누적 입증 후, track_id 둔갑이 진짜 근인임을 dump(add==remove)로 확정.
 
 ## 교훈 / 사고
