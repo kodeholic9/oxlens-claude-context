@@ -12,6 +12,28 @@
 
 ---
 
+> ⚠️ **sdk0.2 v0.2 전환 (2026-07-01)**: 아래 §0~§11 의 API 샘플은 **v0.6 `sdk/`(JS) 기준(레거시)**. 활성 SDK 는 `sdk0.2/`(배포 TS) — 공개표면이 바뀌었다.
+> **sdk0.2 정본 = `oxlens-home/sdk0.2/DESIGN.md`(공개 API 시그니처) + `oxlens-home/qa/qa.js`(실동작 v0.2 어댑터, `window.qa`)**. 3층 시험(`qa/live`)은 sdk0.2 대상.
+>
+> **v0.6 → v0.2 핵심 매핑** (본문 시그니처는 이걸로 치환):
+>
+> | v0.6 (본문 예시) | v0.2 (sdk0.2) |
+> |---|---|
+> | `engine.joinRoom(id)` | `engine.join(id)`(단일방) / `engine.talkgroups.affiliate·join·select`(다방) |
+> | `engine.publish([item])` · `engine.source.mic()` | `engine.localEndpoint.enableMicrophone·enableCamera·enableScreenShare` → **LocalPipe 반환** |
+> | `engine.disableMic/Camera` | `engine.localEndpoint.disableMicrophone/Camera/ScreenShare` |
+> | `LocalStream` / `RemoteStream` 핸들 | **LocalPipe / RemotePipe 직접** (`pipe.attach(el)`/`setQuality`/`setEnabled` — Stream 래퍼 폐기) |
+> | `engine.ptt.request/release` | `engine.talkgroups.talk.request/release` |
+> | `room.on(RoomEvent.STREAM_SUBSCRIBED, {stream, participant})` | `room.on('trackSubscribed', (pipe, endpoint))` |
+> | enum 상수(EngineEvent/RoomEvent/FloorEvent…) | **문자열 이벤트** (`'connected'`/`'trackSubscribed'`/`'granted'`…) |
+> | `engine.device` · source `'mic'` | `engine.devices` · source `'microphone'` |
+> | `engine.setMuted/setDuplex` | `engine.localEndpoint.setMuted/setTrackState` |
+> | 내부 모듈 노출 | wire/transport/sdp/mbcp → `internal/` **봉인**(개발자 미노출) |
+>
+> **여전히 유효**(SDK 버전 무관): §9-2 수신 단언(track 도착 ≠ 영상, framesDecoded/packetsReceived Δ), §11 커버리지 개념, 3권위 교차. API 시그니처만 위 표로 치환해 읽는다.
+
+---
+
 ## §0. 60초 빠른 시작
 
 ```js
