@@ -85,6 +85,31 @@ await engine.talkgroups.talk.request()      // 발화권 (옵트인)
 
 wire v3 프레임(8B 헤더 BE) / publish 3단계 트랜잭션(stage→register→startRtp, 실패 단일 unwind) / **TRACKS_READY 송신**(sfu당 1회, 미송신=검은화면) / **codec 명시 전파**(H264 폴백, 어긋나면 VP8 오등록→검은화면) / subscribe SDP 규율(mid 오름차순·inactive port=7·sdes:mid extmap 제거) / MBCP·DC frame 바이트(서버 대칭) / **floor talk-ahead**(REQUESTING resume, 첫 음절 보존) / 복구 **R1**(구독 보존 재동기)·**R2**(rejoin 재수립) / 표시(`display:none` 금지, `visibility:hidden`+offscreen, `_hiddenBy` 사유 합성) / server-authoritative(낙관 0) / 송신 단일소유.
 
+### hyb 1PC 모드 (pcMode, 2026-07-09)
+
+- **`EngineOptions.pcMode: '1pc'|'2pc'`(기본 '2pc')** — '1pc'는 sfu 당 단일 PC(STUN/DTLS
+  keepalive 절반). ROOM_JOIN body 에 `pc_mode:"1pc"` 명시 송신('2pc'는 미지정 = wire 하위호환).
+- **Transport.pcMode 불변** — '1pc'는 `subPc` getter 가 pubPc 반환(단일 PC), ontrack 은 pubPc
+  바인딩. **단일 협상 큐** `_negoQueue`(구 _subQueue 승격): '1pc'는 publish/subscribe 사이클
+  전부 직렬(한 PC=한 signalingState), '2pc'는 현행 분리 유지.
+- **mirror-offer** = `buildUnifiedRemoteOffer(serverConfig, pubLocalSdp, tracks)` — mirror 원천은
+  pubPc.localDescription **원문 에코**(별도 캡처 자료구조 없음): pub m-line 은 서버 시점
+  recvonly + PT/extmap **원본 ID 에코 강제**(재발급 = 서버 extmap atomic 어긋남 → rid/mid/twcc
+  전멸) + rid/simulcast send→recv 반전. sub m-line 은 서버 할당 mid(base 32+) + ice=**publish 쌍**.
+- **★sub ssrc 분리형 전용**(`splitMsid`): `a=ssrc cname` + 미디어레벨 `a=msid` — 결합형
+  `a=ssrc … msid:` 는 같은 PC simulcast sender encodings 증발(Chromium 149 실측, §7 지뢰).
+  2PC 는 결합형 유지(분리 subPc 라 무해 — 경로 무변경).
+- **C-offer 사이클의 sub 응답** = `buildPublishRemoteAnswer(..., subRegistry)` — 클라 재-offer 의
+  sub m-line(recvonly)을 sendonly+ssrc 로 응답(recvonly↔recvonly = Incompatible send direction).
+- **pub video PT 파서는 recvonly(pub) 섹션 한정**(`_remotePubVideoSection`) — 1PC 는 slot sub
+  m-line 이 pub video 보다 먼저라 "첫 m=video" 파서가 slot VP8 pt 를 오등록(96=H264 PT 충돌 →
+  전 구독자 setRemote 사망). split 은 전 `m=` 경계로.
+- **자동 폴백 1회(hyb 보험)**: 1pc 협상 throw(setRemote/setLocal/re-nego)·ICE failed →
+  diagnostics `onepc:fallback` + 모드 플립 + sfu 별 `_rebuildTransport`(R2 재사용) → 재-JOIN
+  (pc_mode 미지정) → 서버 모드 take-over 로 2PC 재수립. 서비스는 무조건 동작.
+- 3층: `qa/live/tests/onepc.spec.ts` 5종(CONF/SIM/DUPLEX/PTT/FALLBACK) + qa.js `pcmode`/
+  `corrupt1pc` 노브 + `qa.pcState()`.
+
 ### cross-sfu PTT slot 라우팅 (GAP 해소 20260701)
 
 - slot 수신 = **일반 트랙과 동일 경로**: `engine._onTrackReceived`가 sfuId 라우팅 후 `room.matchPipeByMid(mid)` / `virtual.slotByMid(roomId, mid)`.

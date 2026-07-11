@@ -35,7 +35,7 @@ oxlens-sfu-server/
     │   └── src/
     │       ├── main.rs / lib.rs / config.rs / error.rs / state.rs
     │       ├── trace.rs        — 랩 전용 패킷 트레이스 (SRTP 복호 평문 미디어 탭. `#[cfg(feature="trace")]` + 6 emit 호출부, 보안 1급. 설계 20260615_oxadmin_trace_design)
-    │       ├── startup.rs      — 환경 초기화, 시나리오 10방 사전 생성
+    │       ├── startup.rs      — 환경 초기화 (시나리오 10방 사전 생성은 0603l 폐기 — 첫 참가자 ROOM_CREATE 멱등)
     │       ├── tasks.rs        — floor timer, zombie reaper, active speaker, PLI governor, stalled checker (user 단위)
     │       ├── agg_logger.rs   — agg-log 발행 (track:publish_intent, session:suspect/zombie/recovered, scope:changed 등)
     │       ├── event_bus.rs    — WsBroadcast(per_user_payloads + binary_payload) + broadcast 채널 (hub 전달용)
@@ -74,7 +74,7 @@ oxlens-sfu-server/
     │       │   ├── floor_broadcast.rs — Floor 액션 → DC/WS 브로드캐스트 (SubscriberIndex user 단위, speaker_rooms/via_room TLV)
     │       │   ├── floor_routing.rs — FloorRouteDeny 등 floor 라우팅 (peer.rs 에서 분리, pub use re-export)
     │       │   ├── ptt_rewriter.rs — PTT SSRC/seq/ts 오프셋 리라이팅 (RtpRewriter wrapper) + translate_rtp_ts
-    │       │   ├── rtp_rewriter.rs — 공통 토대 RtpRewriter (uint64 seq/ts + SnRangeMap + PLI 자가치유)
+    │       │   ├── rtp_rewriter.rs — 공통 토대 RtpRewriter (uint64 seq/ts 단일 스칼라 offset + PLI 자가치유. SnRangeMap 폐기 20260622 — 재도입 금지)
     │       │   ├── speaker_tracker.rs — Active speaker 추적 (RFC 6464)
     │       │   ├── subscriber_gate.rs — SubscriberGate (lock-free atomic, PauseReason)
     │       │   └── pli_governor.rs — PLI Governor (Layer + Pli{Publisher,Subscriber}State)
@@ -117,8 +117,8 @@ oxlens-sfu-server/
             ├── probe/mod.rs    — User Probe (oxadmin user 실시간 진단 unicast 요청-응답 브리지 — track-dump 후신, 0620)
             ├── ccc/mod.rs      — CccForwarder (텔레메트리 tap → oxcccd push. bounded try_send fire-and-forget, hot-path block 0, 0613)
             ├── moderate/       — Moderated Floor Control (authorization 상태머신, grant/revoke)
-            ├── events/mod.rs   — sfud→hub 이벤트 소비 + WS broadcast(per_user/binary 분기) + reconnect loop
-            └── shadow/mod.rs   — 이벤트 기반 상태 누적 (복구용)
+            └── events/mod.rs   — sfud→hub 이벤트 소비 + WS broadcast + reconnect loop
+            (shadow/ 철거 20260705 — 복구 read 미구현 write-only. 복구 = 클라 R1/R2 + 상태 마스터 sfud)
     ├── oxcccd/             ← 텔레메트리 수집 데몬 (gRPC, CccTap push 수신)
     ├── oxe2e/              ← (구 Rust 회귀 harness — oxe2epy 파이썬으로 대체, 폐기 전제. 현 회귀는 `oxlens-sfu-server/oxe2epy/`. 물리 삭제 미정)
     └── oxadmin/            ← **운영 CLI** (hub REST 위 supervisor/sfu/user/room 제어·조회, 20260613)
@@ -128,7 +128,31 @@ oxlens-sfu-server/
 
 ## 미디어 아키텍처
 
-### 2PC (Two PeerConnection) 구조
+### Hyb 연결 모드 — ConnMode 1PC/2PC 선택형 (2026-07-09)
+- **`ConnMode{TwoPc,OnePc}`**(domain/types.rs) — Peer 불변 필드. 선언 = 최초 ROOM_JOIN body
+  `pc_mode:"1pc"|"2pc"`(미지정="2pc" 완전 하위호환, 미지값 reject). 모드 불일치 재-JOIN =
+  전 방 evict + Peer 재생성(take-over 경로 재사용). 폴백은 **클라 주도**(서버는 수용만).
+- **1PC = publish 쌍만 사용** — server_config 는 현행 ufrag 2쌍 그대로(wire 변경 = optional
+  필드 1개). sub ufrag 미사용 등록(무해), subscribe.media 는 미사용 방치(**통합·삭제 금지** —
+  2PC 무손상 원칙). DC/DTLS = 단일 핸드셰이크.
+- **egress 단일 진입 = `Peer::egress_session()`** — TwoPc→subscribe.media / OnePc→publish.media.
+  치환 자리 = run_egress_task(addr/outbound_srtp) + `RoomMember::is_subscribe_ready`(fanout/SR
+  relay/floor broadcast 게이트 단일 본문). subscribe PC "자체"(ufrag 등록/정리·admin 표시·2PC
+  복호)는 비대상 — 목적(egress vs PC 관리) 판별 후 사용.
+- **1PC RTCP 라우터**(ingress_rtcp.rs `route_onepc_rtcp`) — 단일 5-tuple 로 SR(송신자)과
+  RR/NACK/PLI(수신자)가 섞여 옴 → publish.media 단일 복호 후 패킷 단위 분해:
+  SR(sender∈by_ssrc)→publish 평문 처리부 / RR(block∈by_vssrc)·NACK(fmt1)·PLI(by_vssrc→
+  stream_for_pli_target 3단)·REMB→subscribe 평문 처리부 / SDES·BYE·APP·TWCC 무시 /
+  미해소 drop+`rtcp.onepc_unrouted`(조용한 drop 금지). RR 종단·SR translation 불변.
+  선행 절개 = handle_subscribe_rtcp/process_publish_rtcp 복호↔처리 분리(평문 진입점).
+- **egress spawn**: OnePc 는 **Publish** DTLS Ready 가 트리거(udp/mod.rs — Subscribe DTLS 가
+  영영 없음). TwoPc 불변.
+- **1PC sub mid 네임스페이스** = `MidPool::with_base(ONEPC_SUB_MID_BASE=32)` — 클라 pub
+  mid(0..P)와 같은 BUNDLE 공유 → base 오프셋 분할(예약 m-line 0개, 동적 할당 유지 —
+  기각된 "고정 슬롯 예약" 아님).
+- 클라 측(pcMode/단일 협상 큐/mirror-offer/자동 폴백) = [PROJECT_WEB.md](PROJECT_WEB.md).
+
+### 2PC (Two PeerConnection) 구조 (기본 모드)
 - Publish PC: 클라이언트 → 서버 (RTP 송신), track-less 생성 지원 (DC를 위해)
 - Subscribe PC: 서버 → 클라이언트 (RTP 수신)
 - SDP-Free 시그널링: server_config 기반 로컬 SDP 조립
@@ -191,7 +215,7 @@ oxlens-sfu-server/
 
 ### SR Translation
 - Conference/Simulcast: SSRC/RTP ts 원본 유지, packet_count/octet_count만 egress SrStats 기준
-- PTT: SSRC→virtual, RTP ts→오프셋 변환 (`PttRewriter.translate_rtp_ts`). **PTT 모드에서는 SR 릴레이 중단** (NTP↔RTP drift 방지)
+- PTT: SSRC→virtual, RTP ts→오프셋 변환 (`PttRewriter.translate_rtp_ts`). 구 "SR 릴레이 전면 중단"은 0621 개정 — **현행은 slot rewriter 동일 offset 으로 번역 릴레이** (RTP/SR 자동 정합, NTP 원본 유지)
 - NTP timestamp은 항상 원본 유지 (lip sync 기준점, 변조 금지)
 
 ### Stats 트랙 차원 정렬 (0602b~c)
@@ -306,8 +330,9 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 ### WS 흐름제어
 - OutboundQueue: 4단계 우선순위(P0 floor/gate ~ P3 telemetry) + 슬라이딩윈도우(8)
 - 대칭 ACK: 모든 메시지에 `ok` 필드 기반 (양방향 동일)
-- 채널 분리: event_tx(bounded) + reply_tx(unbounded) + **bin_event_tx(bounded, binary)**
-- **binary 메시지는 OutboundQueue 우회** (T132 이중화 방지)
+- 채널 분리: event_tx(bounded) + reply_tx(unbounded)
+- binary(MBCP) 이벤트도 event_tx → OutboundQueue 경유 — 구 "bin_event 큐 우회(T132 이중화 방지)"
+  계약은 송신자 0 인 미구현 인프라였고 철거(20260705, 감사 20260703b H3)
 - pid는 per-connection seq
 
 ### User Probe (Hub Extension, 2026-06-20 — track-dump 후신)
@@ -435,7 +460,7 @@ Peer {
 
 - **방/트랙은 scope 모른다** — Room.members / FloorFsm / 트랙 속성은 기존 경로로 동작. Scope 는 Peer / SubscriberIndex / FLOOR 전달 / admin User 뷰에만 존재
 - **Server-authoritative** — SDK 낙관적 업데이트 금지. partial success 경로에서 어긋남
-- **(폐기) set_id 모델** — RoomSetId(`sub-{user_id}`) 폐기(0602e). hub shadow(oxhubd ShadowState)는 ROOM_EVENT join/left 만 누적·SCOPE/set_id 미참조 → 폐기 영향 클라 한정(서버 hub 무영향, 검증 완료)
+- **(폐기) set_id 모델** — RoomSetId(`sub-{user_id}`) 폐기(0602e). 폐기 영향 클라 한정(서버 hub 무영향, 검증 완료. hub shadow 자체도 20260705 철거)
 - **`pub_room ⊆ sub_rooms` 자명** — Phase A 이후 1방 발언이라 pub_room 은 항상 sub_rooms 의 한 원소 (join auto-select 가 sub_rooms 에도 R 추가). CCTV/드론 송출 전용 시나리오는 향후 별 토픽
 - **SDK = `engine.scope.*` 네임스페이스 그룹** — flat 접미사 API(`engine.affiliateScope` 등) 기각. Engine 비대 + `select` 단어 자동완성 혼동 방지
 
