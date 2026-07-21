@@ -94,7 +94,7 @@ publisher PUBLISH_TRACKS
   ```
   [TRACK:REG]     ssrc/pt/track_id 등록 — pt 값을 여기서 확보
   [TRACK:NOTIFY]  구독자 통지(이때 gate pause)
-  "TRACKS_READY gate resume subscriber=X → publisher=Y"
+  "TRACKS_READY gate resume sub=X → pub=Y"   (구 표기 subscriber=/publisher= — 20260715 sub=/pub= 통일)
   [GATE:PLI] / [DBG:PLI] sent → user=Y    PLI 가 publisher 주소로 나감
   ```
 - PLI 1회 후 무반응이어도 서버는 재시도 안 함 — **재PLI 는 수신자(브라우저)가 RTCP 로 보내는 것을

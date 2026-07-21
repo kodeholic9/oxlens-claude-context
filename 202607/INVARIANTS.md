@@ -87,8 +87,8 @@
 - **내용**: PTT slot 가상 SSRC 는 `Room::new` 의 `alloc_ptt_vssrc()` per-room random 이어야 한다. universal 고정 상수 금지.
 - **사고 이력**: cross-room affiliate 시 여러 방 slot 이 **같은 vssrc → 같은 NetEQ 로 합류**(Axiom 2 위반).
 - **근거**: `domain/slot.rs:70-71` "가상 SSRC = alloc_ptt_vssrc() per-room random alloc. universal 상수(config::PTT_AUDIO_SSRC/PTT_VIDEO_SSRC) 폐기".
-- **⚠ 잔재(★3 선결1 확정)**: `config.rs:242-248` 에 `PTT_AUDIO_SSRC`/`PTT_VIDEO_SSRC`/RTX 4상수가 정의돼 있으나 **실 코드 참조 0**(rg 주석·정의 제외 = 빈 결과). slot 생성은 `Room::new`(room.rs:75-78)가 `alloc_ptt_vssrc()` per-room 사용 — 이주 **완료**. config 4상수는 **dead 상수 = 삭제 대상 🟢(K-01)**. Phase ①.5b 회귀 아님(call site 미변환 없음). 재도입 시 TABOO-02 위반.
-- **검사법**: `rg 'PTT_AUDIO_SSRC|PTT_VIDEO_SSRC' src/ | grep -v '//' | grep -v 'pub const'` → 실참조 0 유지 확인.
+- **잔재 처리(★3 선결1 + K-01 집행 2026-07-14)**: universal 상수 `PTT_AUDIO_SSRC`/`PTT_VIDEO_SSRC` = **삭제 완료**(실참조 0 확인, cargo check 통과). slot 은 `Room::new`(room.rs:75-78) `alloc_ptt_vssrc()` per-room 사용 — 이주 완료. `PTT_AUDIO_RTX_SSRC`/`PTT_VIDEO_RTX_SSRC` 2개는 **U2(오디오 NACK 완성 vs 폐기) 처분 대기**로 보존(선점 방지).
+- **검사법**: `rg 'PTT_AUDIO_SSRC|PTT_VIDEO_SSRC' src/ | grep -v '//'` → 재도입 감시(0 유지). RTX 상수는 U2 결정 시 함께 처분.
 
 ### TABOO-03 | auto-select 금지 (scope 변경은 명시 select)
 - **내용**: JOIN 은 presence+sub(청취)만. 발언방(pub) 지정은 **명시 select** 만(publish.select). join 내부 암묵 auto-select 금지.
@@ -103,6 +103,12 @@
 - **근거**: `transport/udp/rtcp_terminator.rs:322` `#[cfg(test)] build_sender_report` (프로덕션 물리 봉인), :365 "프로덕션 미사용". 기각 접근법을 타입(cfg(test))으로 강제.
 - **준수**: 컴파일러가 강제(프로덕션에서 호출 불가).
 - **검사법**: `build_sender_report`/`wallclock_to_ntp` 의 `#[cfg(test)]` 게이트 유지 확인.
+
+### TABOO-06 | admin JSON 키를 값만 죽었다고 삭제 금지 (wire 계약)
+- **내용**: sfu_metrics flush JSON 의 카운터 키는 admin telemetry **wire 계약**이다. 카운터 값이 죽어도(inc 0) **키 자체는 소비자 계약** — 삭제하려면 web/oxadmin 소비자 전수 후 동반 수정.
+- **사고 이력**: 2026-07-14 죽은 카운터 5종(encrypt_fail·rr_relayed·sr_generated·pt_normalized·dc_error) 삭제 시도 → web 대시보드(oxlens-home/demo/admin render-panels.js:158·168 `m.rtcp?.rr_relayed` 등)가 참조 발견 → **원복**. `|| 0` 방어 없는 참조는 undefined 렌더.
+- **근거**: metrics_group! flush(common/telemetry/mod.rs) → admin JSON. 소비: render-panels.js·app.js·snapshot.js.
+- **검사법**: 카운터 삭제 전 `rg '<필드명>' oxlens-home/ oxlens-sfu-server/crates/oxadmin/` 전수. [[feedback_wire_contract_consumers]] 정합.
 
 ### TABOO-05 | 이동과 수정을 한 커밋에 섞지 말 것 (P0 착수 시)
 - **내용**: 순수 이동(로직 0 변경)과 로직 수정을 **절대 한 커밋에 섞지 않는다**. `.git-blame-ignore-revs` 로 이동 커밋 무시, 수정 커밋만 blame 에 남긴다.

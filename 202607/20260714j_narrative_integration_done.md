@@ -116,6 +116,19 @@
 - **egress 즉시 송출**: latch_address(peer.rs:186)→egress_session().get_address()(egress.rs:210)→send_to(egress.rs:275).
 - 위조 STUN 으로 남의 egress 를 공격자 주소로 탈취. UDP 외부 노출, on-path 공격. **별도 보안 세션 확정.**
 
+## A-01 2PC 영향 검사 (C1 게이트, SOP §5 파이프라인)
+
+**소스 실측:**
+- release_stale_mids / release_subscribe_track / add_subscriber_stream — **conn_mode(1PC/2PC) 분기 없음**(순수 mid_map/mid_pool/streams 조작).
+- SubscribeContext(peer.rs:395) = **1PC/2PC 공통 struct**. 유일 차이 `mid_base`(2PC=0, 1PC=ONEPC_SUB_MID_BASE=32, peer.rs:548) — pool 시작 오프셋만. 정리 로직 완전 공통.
+- zombie reaper conn_mode 무관.
+
+**판정: 2PC 영향 있음 (1PC/2PC 공통 경로).**
+- 순서 정정(①③②→①②③)은 2PC mid_base 동작 불변이나, 2PC subscribe 가 타는 경로 코드 변경.
+- **C1(2PC 수정 금지) + C5(하이브리드 작업 중 분석만) → SOP §5 파이프라인 "기록만, 변경 금지".**
+- **A-01 P0 유효 · 수정 보류**: 재현 테스트 + teardown 단일진입점 설계는 **하이브리드(1PC) 종료 후 또는 별도 예외 결재** 시 착수. 본 세션 코드 변경 0 유지.
+- teardown 병소(§6)도 subscribe/floor 공통 경로 → 동일 게이트(기록만).
+
 ---
 
 ## 다음 행동 (부장님 결재 대상)

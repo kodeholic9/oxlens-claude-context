@@ -28,6 +28,7 @@ oxlens-sfu-server/
     │       └── proto       — tonic::include_proto! codegen (build.rs)
     │
     ├── oxsig/              ← 프로토콜/타입 공유 (lib.rs, opcode.rs, header.rs — 8B WireHeader, code.rs — AckCode)
+    │   └── src/message/    ← **wire body 타입 단일 권위**(2단계 이관 20260721 — 8파일 도메인 nibble 축). 요청 `XxxReq`/응답 `XxxRes`/이벤트 `XxxEvent`. session/room/media/scope/data/ext/admin + ack(AckFail 2계 어휘). Value 잔존 = 정당한 곳만(ANNOTATE relay·진단 자유중첩·getStats 통째 spread)
     │
     ├── oxrtc/              ← WebRTC transport 라이브러리 (ICE/DTLS/SRTP/NACK/PLI/RR/WS)
     │
@@ -42,8 +43,7 @@ oxlens-sfu-server/
     │       ├── telemetry_bus.rs— telemetry 수집/전달 버스
     │       ├── signaling/
     │       │   ├── opcode.rs   — common re-export
-    │       │   ├── message.rs  — 패킷 타입 (common::Packet re-export) + ScopeUpdate/Set/EventPayload
-    │       │   └── handler/    — gRPC dispatch (8파일)
+    │       │   └── handler/    — gRPC dispatch (8파일). Packet=`common::signaling::Packet`, body 타입=`oxsig::message` 직접 참조 (**message.rs 삭제 20260721 2단계** — 구 요청 15종·ScopeEventPayload·RoomEventPayload 소멸, body 계약 oxsig 단일 권위)
     │       │       ├── mod.rs      — DispatchContext, dispatch, dispatch_binary
     │       │       ├── room_ops.rs — JOIN, LEAVE, SYNC (per-user TRACKS_UPDATE), SESSION_DISCONNECT
     │       │       ├── track_ops.rs— PUBLISH, TRACKS_READY, MUTE, CAMERA, SUBSCRIBE_LAYER, TRACK_STATE_REQ (duplex 전환 단일 경로, 2026-05-31)

@@ -88,7 +88,7 @@ description: |
 헤더 byte 배치: `[ver(1)=0x01, flags(1)=ACK_STATE(bit0-1, 나머지 예약), op(2 BE), pid(4 BE)]` + payload(JSON or binary). priority 는 flags 가 아니라 op nibble 파생.
 외부 호환 Packet v2 (`{op,pid,ok,d}`) 보존 — handler 호출처 마이그 부담 거의 0.
 ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 요청/응답 구분.
-단일 진실: `crates/oxsig/src/opcode.rs` (설계서·카탈로그 문서 폐기, 20260623)
+단일 진실: `crates/oxsig/src/opcode.rs` (설계서·카탈로그 문서 폐기, 20260623). **body 타입 단일 권위 = `crates/oxsig/src/message/`** (2단계 이관 20260721 — 요청 `XxxReq`/응답 `XxxRes`/이벤트 `XxxEvent`, hub/sfud/oxrtc/oxadmin 공유. 구 `oxsfud/signaling/message.rs` 소멸)
 
 ### opcode 카테고리 (상위 nibble)
 

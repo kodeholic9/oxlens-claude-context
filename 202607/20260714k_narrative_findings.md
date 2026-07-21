@@ -122,7 +122,7 @@
 | F-04 | T132 ACK msg_type-only 매칭 | mod.rs:312 |
 | F-05 | REJECT code 100 사장 + cause 뭉갬 | mbcp_native.rs:46 |
 | F-06 | SVC_SPEAKERS 수신 유령 카운터 | mod.rs:295·301 |
-| G-02 | 죽은 카운터 5종 | sfu_metrics.rs (encrypt_fail·rr_relayed·sr_generated·pt_normalized·dc_error) |
+| G-02 | 죽은 카운터 5종 — **삭제 불가(2026-07-14 시도→원복)**: 값은 죽었으나 admin JSON 키는 wire 계약. web 대시보드(oxlens-home/demo/admin render-panels.js:158·168 등)가 `m.rtcp?.rr_relayed`·`m.codec?.pt_normalized` 참조. 처리 = 키 유지 or web 동반. | sfu_metrics.rs (encrypt_fail·rr_relayed·sr_generated·pt_normalized·dc_error) |
 | G-03 | 죽은 "ptt" 가드 | tasks.rs:161 vs track_ops.rs:752 |
 | G-04 | on_floor_event 죽은 코드 | floor.rs:35-41 |
 | H-03 | STUN FINGERPRINT 수신 무검증 | stun.rs:186 |
@@ -132,7 +132,7 @@
 | I-02 | 코드 3003 이중 의미 (MissingPid vs track_ops 리터럴) | error.rs:42,76 vs track_ops.rs:89,95 |
 | I-03 | 죽은 LightError variant 6종 | error.rs |
 | I-05 | config AUTO_LAYER_MODE 초기값 V2 | config.rs:92-93 |
-| K-01 | config PTT universal SSRC 4상수 dead (실참조 0, ★선결1) — TABOO-02 잔재. slot은 alloc_ptt_vssrc per-room(room.rs:75-78) 사용, config.rs:242-248 상수 미제거. 삭제 대상 | config.rs:242-248 |
+| K-01 | config PTT universal SSRC dead (실참조 0, ★선결1) — TABOO-02 잔재. **집행 완료(2026-07-14)**: PTT_AUDIO_SSRC/PTT_VIDEO_SSRC 삭제(cargo check 통과), RTX 2개는 U2 처분 대기 보존 | config.rs:236-248 |
 
 ---
 
