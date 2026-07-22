@@ -1,6 +1,6 @@
 # 20260720b — oxsig body 타입 신설 (1단계: 파일 채우기)
 
-상태: 완료 (Phase A~H, commit 대기)
+상태: 완료 (Phase A~H + Phase I). 커밋 cdcc9d5(A~H) + dd146dc(I). origin/main 반영(2단계 5e880b5 포함). <!-- [20260722 정정] 구 "commit 대기" → 실커밋 반영. 총 타입 106종(구 "108" 오기)·69 PASS(구 산수 오기, 하단 Phase I 참조) -->
 
 본 파일은 지침 + 실행 기록 통합 파일이다. 아래 §0~§10 지침 영역은 김과장 수정 금지. 이견·판단은 하단 "실행 기록"에 적는다.
 
@@ -142,7 +142,7 @@ derive:
 * 검증: `cargo check -p oxsig` 통과 · `cargo test -p oxsig` 57 PASS (기존 54 + ack 신규 3). 경고 7건 = 빈 스텁의 glob 재-export unused — Phase B~H가 채우면 자연 소멸.
 * 판단한 것 (시그니처 선조치 후 보고):
   1. **스텁 7파일을 Phase A에서 생성** — §4 Phase A가 "mod.rs 8모듈 선언 + cargo check 통과"를 동시에 요구하므로, 선언 대상 모듈 파일이 실존해야 check가 통과. 헤더 주석만 담은 빈 파일로 생성 (§2 "9파일 생성" 범위 내).
-  2. **ack 타입명 = `AckFail`** — 접미사 3종(Req/Res/Est)은 op 귀속 타입용. ACK_FAIL은 전 op 공용 채널 + ERROR(0xF001) 공유 어휘라 접미사 없이 명명. 기존 `oxsig::code::AckFailBody`(hub 계열 전용)와 이름 충돌 회피 겸함 — AckFailBody 처리(흡수/잔존)는 2단계 소관.
+  2. **ack 타입명 = `AckFail`** — 접미사 3종(Req/Res/Event)은 op 귀속 타입용. <!-- [20260722 정정] 구 "Est" 오기 → Event --> ACK_FAIL은 전 op 공용 채널 + ERROR(0xF001) 공유 어휘라 접미사 없이 명명. 기존 `oxsig::code::AckFailBody`(hub 계열 전용)와 이름 충돌 회피 겸함 — AckFailBody 처리(흡수/잔존)는 2단계 소관.
   3. **`code: String`** — 2계 어휘(숫자 문자열/enum 문자열)를 판단 없이 둘 다 담는 초집합 표현. `AckCode` enum을 쓰면 sfud 계열("3002")의 deserialize가 깨져 현행 wire 보존 원칙 위반.
   4. **derive 패턴(이후 7파일의 본)**: `#[derive(Debug, Clone, Serialize, Deserialize)]` 순서 고정, 요청=Deserialize·응답/이벤트=Serialize·양측 공용=둘 다, 전부 Debug. serde attr는 기존 message.rs 관례 답습(`skip_serializing_if`/`default`). 타입 doc에 op(0x..)·방향·실코드 좌표·화석 표기.
 * ACK_FAIL 2계 어휘 병기 (§4 Phase A 요구):
@@ -252,7 +252,8 @@ derive:
 | CLIENT_EVENT 0x1304 | sdk/observability/event-reporter.js:47 | sfud agg-log(3) + oxcccd(5) |
 | USER_PROBE_REPLY 0x1702 | sdk/observability/user-probe-collector.js + engine.js:175 | oxadmin(46+ 필드 렌더) |
 
-### 추가 생성 타입 (data.rs +18, ext.rs +19 = +37종)
+### 추가 생성 타입 (data.rs +16, ext.rs +19 = +35종)
+<!-- [20260722 정정] 구 "+18/+37" 오기 → data.rs 6→22(+16), ext.rs 6→25(+19), 계 +35. 총 71→106(구 "108" 오기). 실측: git grep 'pub struct' @cdcc9d5=71 @dd146dc=106 -->
 
 - **data.rs**: ClientEventItem 에 `ts`/`detail` 추가(결함 수정 — 5필드). TELEMETRY 2형: TelemetryStatsReq(section=stats), TelemetrySdpReq(section=sdp) + MlineSummary, PublishStats/OutboundStat/QldDelta/NetworkPub, SubscribeStats/InboundStat/NetworkSub, CodecStat, PttDiagnostics/PowerStats/PowerBucket/PowerAudio/PowerVideo.
 - **ext.rs**: UserProbeReplyReq 확장(정상형+에러형 합집합) + ProbePubTrack/ProbeMediaSource/ProbeRemoteInbound/ProbeTrackInfo/ProbeTransceiverInfo/ProbePipeInfo/ProbeSelfView/ProbeSubTrack/ProbeElement/ProbeBounding/ProbeAudioExtras/ProbeEnv/ProbeConnection/ProbeScreen/ProbeDevice/ProbePermissions/ProbeState/ProbeNetwork/ProbeCandidatePair.
@@ -270,7 +271,8 @@ derive:
 - 상위 래퍼(section/room_id/pub_local_sdp/hot_standby) snake → rename 없음.
 
 ### 검증
-`cargo check -p oxsig` 무경고 · `cargo test -p oxsig` **69 PASS**(63 + 신규 6: client_event 5필드 왕복, OutboundStat camelCase+avgQP, PowerVideo kf, UserProbeReply 에러형, ProbePubTrack snake/camelCase 혼재+self_view) · `cargo check --workspace` 통과.
+`cargo check -p oxsig` 무경고 · `cargo test -p oxsig` **69 PASS**(64 + 신규 5: client_event 5필드 왕복, OutboundStat camelCase+avgQP, PowerVideo kf, UserProbeReply 에러형, ProbePubTrack snake/camelCase 혼재+self_view) · `cargo check --workspace` 통과.
+<!-- [20260722 정정] 구 "63 + 6" 오기: 기준선은 직전 Phase B~H 의 64, 신규는 열거된 5건. 실측 git show dd146dc = +5 #[test]/−0(삭제 없음). 64+5=69 일관 -->
 
 ### 발견_사항 (보고만)
 1. **`ClientEventItem` ts/detail 누락은 Phase B~H 의 실제 결함이었다** — "서버 파싱부에서만" 규칙을 wire 계약보다 앞세운 탓. oxcccd 통째 저장 경로에서 재직렬화 시 소실됐을 것. 본 Phase 에서 수정.
