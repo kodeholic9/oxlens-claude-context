@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# context 기록 규칙 검사기 — PROJECT_MASTER.md §기록 규칙(R1~R7) 을 기계로 강제한다.
+# context 기록 규약 검사기 (ctxlint — doclint(내용 갭 감사)와 별개 개념) — PROJECT_MASTER.md §기록 규칙(R1~R7) 을 기계로 강제한다.
 # 규칙을 문서에만 적어두면 계속 샌다(2026-06 인덱스 규칙이 실증). 세션 종료 전 반드시 통과시킨다.
 #
-#   ./doclint.sh            기준일(2026-08-02) 이후 신규 파일만 검사
-#   ./doclint.sh --since 20260901
-#   ./doclint.sh --all      과거 포함 전수 (참고용 — R7 상 과거는 개명하지 않으므로 실패가 정상)
+#   ./ctxlint.sh            기준일(2026-08-02) 이후 신규 파일만 검사
+#   ./ctxlint.sh --since 20260901
+#   ./ctxlint.sh --all      과거 포함 전수 (참고용 — R7 상 과거는 개명하지 않으므로 실패가 정상)
 #
 # author: kodeholic (powered by Claude)
 
@@ -35,7 +35,7 @@ while IFS= read -r f; do
   [ "$d" -ge "$SINCE" ] && targets+=("$f")
 done < <(find 2[0-9][0-9][0-9][0-9][0-9] -name '*.md' 2>/dev/null | sort)
 
-echo "== context doclint (기준일 $SINCE, 대상 ${#targets[@]}건) =="
+echo "== context ctxlint (기준일 $SINCE, 대상 ${#targets[@]}건) =="
 
 # ---- R1: 종류별 디렉토리 신설 금지 ----------------------------------------
 allowed_dirs='guide biz blog lesson qa'
@@ -114,11 +114,11 @@ for m in PROJECT_MASTER.md PROJECT_SERVER.md PROJECT_WEB.md; do
   grep -oE '`context/[0-9]{6}/[A-Za-z0-9._-]+\.md`' "$m" | tr -d '`' | sort -u | while read -r ref; do
     [ -e "${ref#context/}" ] || echo "DANGLING $m → $ref"
   done
-done > /tmp/doclint_dangling.$$
-if [ -s /tmp/doclint_dangling.$$ ]; then
-  while IFS= read -r l; do bad "R6 참조 경로 부재: ${l#DANGLING }"; done < /tmp/doclint_dangling.$$
+done > /tmp/ctxlint_dangling.$$
+if [ -s /tmp/ctxlint_dangling.$$ ]; then
+  while IFS= read -r l; do bad "R6 참조 경로 부재: ${l#DANGLING }"; done < /tmp/ctxlint_dangling.$$
 fi
-rm -f /tmp/doclint_dangling.$$
+rm -f /tmp/ctxlint_dangling.$$
 
 # ---- 결과 ------------------------------------------------------------------
 echo

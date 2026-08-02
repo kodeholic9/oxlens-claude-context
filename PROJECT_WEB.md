@@ -175,6 +175,6 @@ engine.talkgroups.talk.on('granted'|'denied'|'taken'|'idle'|'released'|'revoke'|
 
 - **관측 계층**(telemetry / event-reporter / user-probe) — 현재 `diagnostics` 훅만. v0.3.
 - `GAP-simulcast-layerswitch` 미확인 / 청취 N방 영상 마스킹(virtual freeze 발언방 단수만) 미확인.
-- origin `main` push 미실행 / CJS named+default export 경고(tsup).
+- CJS named+default export 경고(tsup). (구 "origin main push 미실행"은 해소 — 20260802 실측 미push 0건.)
 
 ---

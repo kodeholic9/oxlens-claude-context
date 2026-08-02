@@ -27,7 +27,8 @@ description: |
 | **[PROJECT_WEB.md](PROJECT_WEB.md)** | 웹클라 소스 구조·활성 SDK(sdk0.2, v0.2 배포 TS) 아키텍처·프리셋 체계 |
 
 > Android SDK(`oxlens-sdk-core`)는 **휴면** — 별도 파일 없음(아래 "SDK 코어" 참조).
-> **doclint**: 마스터 문서↔소스 정합 감사·현행화 기록은 `context/YYYYMM/YYYYMMDD_doclint_*.md` — 파일명 `doclint` grep 으로 마지막 정합 시점을 확인한다(최근: 20260711, 서버 축 전수).
+> **doclint**(= 마스터 문서↔소스 **내용 갭 감사**): 기록은 `context/YYYYMM/YYYYMMDD<접미>_*_analysis.md` — `doclint`/`resync` grep 으로 마지막 정합 시점을 확인한다. **최근: 20260802 전수**(서버 HEAD `857594e`, `202608/20260802c_master_docs_resync_task.md`. 직전 20260711 `2e477dd`).
+> ※ `ctxlint.sh` 는 **별개** — 기록 파일의 **규약**(§기록 규칙 R1~R7) 검사기다. doclint=내용, ctxlint=형식.
 
 ### 가이드 (키워드 로드 의무 — 해당 작업 시작 전 반드시 읽는다)
 
@@ -124,7 +125,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 | 0x1003 | ROOM_JOIN | 방 입장 → server_config + scope 스냅샷 동봉. `select` 플래그(기본 true=발언방 지정, `select:false`=청취 affiliate) — **auto-select 폐기(S-e, 0610)**, 명시 select 만 |
 | 0x1004 | ROOM_LEAVE | 방 퇴장 |
 | 0x1005 | ROOM_SYNC | 참여자+트랙+floor 전체 동기화 (폴링) |
-| 0x1101 | PUBLISH_TRACKS | 트랙 의도 (duplex/simulcast 명시, 증분 add/remove, **per-track tracks[].mid** 0611). PublishContext atomic store + PublisherStream/placeholder 등록. ⚠ **tracks[].codec 사실상 필수** — 미지정 시 서버 묵시 VP8 등록 → 실 인코딩(H264)과 어긋나 구독자 디코딩 0(0613 검은 화면 근본 원인. 서버 offer-pt 판별 전환은 이월) |
+| 0x1101 | PUBLISH_TRACKS | 트랙 의도 (duplex/simulcast 명시, 증분 add/remove, **per-track tracks[].mid** 0611). PublishContext atomic store + PublisherStream 등록. **자원 유계 가드**(20260712c): 요청당 8 트랙 / user 활성 16 스트림 상한, 초과 시 **부분 수용 없이 전체 Denied(3003)**. ⚠ **tracks[].codec 사실상 필수** — 미지정 시 서버 묵시 VP8 등록 → 실 인코딩(H264)과 어긋나 구독자 디코딩 0(0613 검은 화면 근본 원인. 서버 offer-pt 판별 전환은 이월) |
 | 0x1102 | TRACKS_READY | subscribe SDP renego 완료 후 발행 (구 TRACKS_ACK 개명 — wire ACK 와 application READY 분리, SMS submit/status-report 패턴). SubscriberGate resume + GATE:PLI 트리거 |
 | ~~0x1103~~ | ~~MUTE_UPDATE~~ | **철거 20260722** — 전 소비자 실측 0(sdk0.2 미발신·v0.6 G1 폐기·봇/oxrtc/labs 0·Android v2 세대 불통). "하위호환 잔존" 명분이 실체 없이 대물림된 것. mute 는 TRACK_STATE_REQ(0x1106) body `{muted?}` 분기 단일. 카탈로그 42→41 |
 | 0x1104 | CAMERA_READY | 카메라 웜업 완료 → PLI 트리거 |
@@ -203,7 +204,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - ✅ **Rewriter 일반화 Phase ①** (2026-04-30) — `RtpRewriter` 공통 토대 + `Ptt`/`Simulcast` wrapper 마이그 + `SubscribeMode` enum 단일 출처 + PT 정적 매핑 + vssrc 분류 cleanup + Step C `advance_phase(Active)` 보강 (`publisher_stream.rs::fanout` L444, RTP 단일 진입점). 252 tests PASS. 잔여 0.
 - ✅ **Phase ①.5 Cross-room PTT slot 일반화** (2026-05-02) — universal PTT vssrc/track_id/mid 상수 폐기. `Slot.virtual_ssrc` per-room random alloc + `ptt-{room_id}-audio/video` 경로별 track_id + `MidPool::with_reserved_start` 폐기 + `collect_subscribe_tracks` sub_rooms 순회 + `build_remove_tracks` room_id 인자 + cross-room leave 시 leaver SDP 정리 emit. 7 파일 ~200L. 252 tests PASS. Axiom 2 한계 해소. 한방 git commit 박음 (Track Lifecycle rev.3 + Rewriter ① + ①.5 누적) + push 완료.
 - ✅ **Phase ①.5b inner SSRC 정합 보강** (2026-05-09) — 5/2 한방 commit 의 부분 적용 영역 (`PttRewriter::new_audio/new_video` 가 universal `PTT_AUDIO_SSRC` default 호출) 보강. 부장님 grep 한 번이 잡음. `Slot.virtual_ssrc` (per-room) ≠ `Slot.rewriter.inner.virtual_ssrc` (universal) 불일치 → wire-level RTP SSRC 가 universal 그대로 였던 회귀 fix. 3 파일 ~12L 코드 + ~10L 주석 (ptt_rewriter.rs 시그너처 변경 + slot.rs 인자 전달 + 주석 3건). 252 tests PASS. 일반 commit + push 완료.
-- ⏳ **Phase ①.5 웹 클라 정합** (2026-05-02 commit + 2026-05-03 단일방 검증 통과) — 서버 per-room 자료구조와 정합. constants.js (PTT 상수 6개 폐지 + regex 매칭) + engine.js (`_pttPipes` Map<roomId,{audio,video}> 전환 + 메서드 5개 재작성) + room.js (호출처 roomId 전달 + remove PTT 분기 신설). 3 파일 ~150L. 단일방 6/6 스모크 통과 (test_phase15_smoke.html 자동 실행 페이지). cross-room 시험 보류.
+- ❌ **Phase ①.5 웹 클라 정합** (2026-05-02~03) — **대상 소스 소멸로 종결**. 아래가 고친 `constants.js`/`engine.js`/`room.js` 는 v0.6 `sdk/` 자산이고, 활성 SDK 는 20260701 백지 재작성한 `sdk0.2/`(TS) 다. cross-sfu PTT slot 정합은 sdk0.2 에서 별도 해소(`slotByMid`). 아래는 당시 이력 —  constants.js (PTT 상수 6개 폐지 + regex 매칭) + engine.js (`_pttPipes` Map<roomId,{audio,video}> 전환 + 메서드 5개 재작성) + room.js (호출처 roomId 전달 + remove PTT 분기 신설). 3 파일 ~150L. 단일방 6/6 스모크 통과 (test_phase15_smoke.html 자동 실행 페이지). cross-room 시험 보류.
 - ✅ **묶음 1 모델 단순화** (2026-05-17, `bfeb987`) — Pan-Floor 모듈 + Cross-Room publish (pub_set scope) 폐기. 208 PASS.
 - ✅ **묶음 2 코드/주석 청결성** (2026-05-17, `bfeb987`) — dead_code attribute / 이주 묘비 / Pan TLV 청산. 18 파일 -777줄 net. 195 PASS.
 - ✅ **묶음 3 자료구조 일관성 ① — pub_room 단수 정합** (2026-05-17, `4a5b7f3`) — `pub_rooms: ArcSwap<RoomSet>` → `pub_room: ArcSwap<Option<RoomId>>` (1방 발언 타입 강제). Peer mutation 일원화 (register_publisher_stream / remove_subscriber_streams_by_mids). SubscriberGate HashMap → AtomicBool 단순화. TrackSnapshot → PublisherStreamSnapshot rename. 189 PASS.
@@ -215,7 +216,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - ✅ **F28 race 해소 + F29-a 모듈 doc 정합** (2026-05-18, 2 commits) — `serial_test` dev-dependency + `#[serial]` 매크로 2자리. participant.rs / peer.rs 모듈 doc 갱신 (F29 정책 반영 + `pub use re-export` 예외 명시). production 코드 변경 0, 194 PASS × 10회.
 - ✅ **oxlens-home v3 마이그 Phase 1** (2026-05-18, 0518e) — 클라 측 Signaling v3 진입. wire.js 신규 + constants.js v3 16진 opcode 카테고리 전환 + signaling.js binary frame 재작성 + Pan-Floor (svc=0x03) 전체 폐기 (datachannel.js TLV 4건 + floor-fsm.js FSM 영역 + scope.js panRequest/panRelease wrapper + sdp-negotiator.js svc=0x03 분기). 5 commits 누적 +341/-767, sdp-builder 82/82 + wire round-trip 5/5 PASS.
 - ✅ **wire 헤더 byte 배치 정정 + Track Dump 인프라** (2026-05-20, 0520b) — 클라 잠복 결함 `[op,pid,flags,ver]` → 서버/설계서 정합 `[ver,flags,op,pid]` / `VER_V3=0x01` 통일. Track Dump 인프라 신규 (Phase 1 서버 oxsig 2 op + oxhubd track_dump ~340줄 + REST handler + WS REPLY 분기 / Phase 2 SDK track-dump-collector ~280줄 / Phase 3 어드민 render-track-dump ~230줄). 279 PASS.
-- ⏳ **Track Dump v2.2 재설계** (2026-05-20~21, 0520c~d, **미완료**) — v1 결함 5건 짚음 → v2/v2.1/v2.2 정정. canonical source = `getStats() outbound-rtp/inbound-rtp` 확정 (RTCRtpSender.getParameters ssrc 미노출 — W3C webrtc-pc #1174). `collectIdentityFromStats(stats,mid,role)` 신규 + simulcast layer 다중 자료 mid 매칭. 단위 시험 33 PASS. 어드민 매트릭스 cli-pub null (track_id ID 체계 불일치), 자료구조 거짓말 잔재 노출 → Phase 111 정정 진입 신호.
+- ❌ **Track Dump v2.2 재설계** (2026-05-20~21, 0520c~d) — **미완료가 아니라 폐기**. 2026-06-20 진단 경로 일원화로 track-dump 체계(방 broadcast + oxcccd 저장 + SDK collector) 전면 철거, **User Probe**(특정 user unicast + 통과)가 후신. opcode 0x2701/0x1702 는 번호 재활용. 아래는 폐기 시점까지의 이력 —  v1 결함 5건 짚음 → v2/v2.1/v2.2 정정. canonical source = `getStats() outbound-rtp/inbound-rtp` 확정 (RTCRtpSender.getParameters ssrc 미노출 — W3C webrtc-pc #1174). `collectIdentityFromStats(stats,mid,role)` 신규 + simulcast layer 다중 자료 mid 매칭. 단위 시험 33 PASS. 어드민 매트릭스 cli-pub null (track_id ID 체계 불일치), 자료구조 거짓말 잔재 노출 → Phase 111 정정 진입 신호.
 - ✅ **재입장 영상 미노출 100% 재연 버그 정정** (2026-05-21, 0521a, `fe5bd04` + `afb0ab5`) — 본질 = `mid_map`/`mid_pool`/`SubscriberStreamIndex` 비대칭. evict/zombie reaper/handle_room_leave 세 정리 흐름이 mid_map+mid_pool 만 정리, Index 정리 누락 → 재입장 idempotent 분기가 옛 publisher_ref 잔재 반환. 3곳 정정 (helpers.rs:603 Take-over / tasks.rs:524 zombie / room_ops.rs:437 정상 LEAVE) + 클라 `TRACKS_READY` opcode 정정 + 어드민 매트릭스 8 보강. 서버 279 / 클라 176 PASS.
 - ✅ **ingress.rs SRP + RTX 통합 청산** (2026-05-21, 0521b) — 설계 v1→v4 4차 정정 (업계 3장 조사). Phase A 4파일 분리 (`ingress.rs` 946→211 / `ingress_publish.rs` 신규 475 / `ingress_rtcp.rs` 신규 236). Phase B 의사결정 헬퍼 2 (`decide_rid_promotion` / `evaluate_publisher_floor`). Phase E NackGenerator 본 토대 (publisher 측 손실 감지 + bwe_timer 합류). Phase D enum 4 신설 + `Room::lookup_publisher_for_ssrc` 통합 lookup. Phase C `process_rtx_packet` (RFC 4588 디캡슐 + cache 512→1024 + audio cache). Phase F 단위 시험 18. 194 → 212 PASS.
 - ✅ **ingress 계층구조 정합 + 진단 로그 청산** (2026-05-21~23, 0521c, `30b546c` + `94ff5c5`) — Phase 1 `Peer::pub_room` → `PublishContext::pub_room` 이전 + `Peer::publish_room()` 단일 진입 헬퍼 (publish 자료 home 일원화). Phase 2 `first_room_hint` 함수 폐기. Phase 3 RoomMember → Peer 시그너처 축소 5함수. Phase 4 `[DBG:RTP]` 진단 로그 청산 (`is_detail`/`seq_num` 인자 7 함수 + `dbg_rtp_count` 필드 폐기 + `update_speaker_tracker` / `detect_video_rtp_gap` 헬퍼 분리). §10 후속 (0523): `pub_stats` 이전 + RoomMember 위임 메서드 5 폐기. 31 files / +270 / −388 / 118줄 순감소. 212 PASS 일관.
@@ -286,12 +287,12 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - **2층 회귀시험 — oxe2epy (파이썬 백지 재설계, 2026-06-27)**: 단위(cargo test) ↔ 브라우저 E2E(3층) 중간의 헤드리스 회귀 gate. **aiortc ORTC 저수준 봇(무가공 속기사, 판정 0)** + **별도 검증기(봇 코드 import 안 함 = 출처 분리)**. 등식 플러그형(`@equation`) + 트랙 아이덴티티 5점(client_pub→send_raw→server_pub→server_sub→client_sub) + 인과 타임라인(pandas, 시각 ±ms) + known-defect **격리(quarantine)** / known-gap 명시. 봇 = audio/video/simulcast/PTT(MBCP floor·gating)/(twcc 잔여). 결함주입 + 시드 재현(결정성). 루트 `oxlens-sfu-server/oxe2epy/`, 실행 `python -m oxe2epy run <scenario>`.
   - **사정거리(본구현-4 §7)** — 잡는 것: 정적 정합(seq/ts/codec/누수/꼬리)·신원 5점·simulcast·PTT floor/gating·시각 인과·결정성·전이(⑦화자전환/⑧full→half). 넘기는 것: 디코딩/NetEQ/jb(3층 불변)·봇 SR/twcc·⑨half→full/⑥레이어(봇 확장 후)·0625 simulcast track_id(격리, 서버 수정 시 XPASS).
   - **격리 원칙(박제 금지)**: 서버 결함을 영구 FAIL 로 박고 회피 = 시험 아님. known-defect 격리(좁게 + 수명 + 서버 수정 시 XPASS 자동해제) / 조용한 skip 금지(known-gap 으로 명시).
-- **구 oxe2e (Rust)**: oxe2epy(파이썬)로 대체 — **물리 삭제 완료(`202f692`)**. 개념 자산(등식·음성 픽스처·식별 축)은 oxe2epy 로 이식됨. 가이드 `context/guide/REGRESSION_GUIDE_FOR_AI.md` 도 oxe2epy 기준으로 재작성 완료(0627 재작성, 최종 현행화 0705 — 27등식 26시나리오).
+- **구 oxe2e (Rust)**: oxe2epy(파이썬)로 대체 — **물리 삭제 완료(`202f692`)**. 개념 자산(등식·음성 픽스처·식별 축)은 oxe2epy 로 이식됨. 가이드 `context/guide/REGRESSION_GUIDE_FOR_AI.md` 도 oxe2epy 기준으로 재작성 완료(0627 재작성, 0705 현행화). **실측 20260802 = 등식 34종 · 시나리오 42종**(구 표기 27등식 26시나리오는 0705 시점 값). 정식 게이트 = `python -m oxe2epy run-all`.
 - **성능(capacity) 시험 (oxlab cap, 2026-06-13 신설)**: 회귀(안 깨졌나)와 **다른 축** — 참여자 수 N 을 스윕해 SFU 천장을 곡선으로 찾는 부하 측정기(pass/fail 아님). 3축(방송/무전/회의) + 복호-skip. 가이드 `context/guide/CAPACITY_GUIDE_FOR_AI.md` (invoke "성능시험"/"capacity"/"부하시험").
 - **정의**: 본 프로젝트에서 "E2E 테스트"와 "Smoke 테스트"는 **동일한 행위**를 가리킨다. 두 용어는 상호 교환 가능 — 별도 체계를 만들지 않는다.
 - **단일 출처**: `context/guide/QA_GUIDE_FOR_AI.md` — 환경/도구/절차/오진 방지/불변식 체크 전부 이 문서가 단일 기준.
 - **로드 의무**: 시험 세션 시작 전 반드시 QA_GUIDE 를 먼저 읽는다 (METRICS_GUIDE 와 같은 의무 규칙). 로드 없이 실행 금지.
-- **3층 라이브 회귀 (oxlens-home/qa/live, Playwright, 20260630 신설 · 대상 = sdk0.2)**: 실브라우저 × 트랙단위 3권위 교차(`qa.tracks` / `qa.trackStats` / `oxadmin room`). 시나리오 **14 spec**(conf 6종 video/simulcast/republish/duplex/multiroom/processor + onepc + removal 5종 + sim 2종 auto_layer/bwe — 0711 기준). `window.qa`(page.evaluate) 제어 — 단일 page=단일 user. `qa/qa.js` = v0.2 어댑터(window.qa 표면 v0.1 계약 보존 → spec 무변경). http-server(5599) 자체기동(★Live Server 금지). 실행 `cd qa/live && npm test`. 상세 = `qa/live/tests/` spec 자체(구 qa/README.md 는 부재). (구 `__qa__` controller/iframe UI 폐기.)
+- **3층 라이브 회귀 (oxlens-home/qa/live, Playwright, 20260630 신설 · 대상 = sdk0.2)**: 실브라우저 × 트랙단위 3권위 교차(`qa.tracks` / `qa.trackStats` / `oxadmin room`). 시나리오 **15 파일**(20260802 실측 — conf 6종 video/simulcast/republish/duplex/multiroom/processor + onepc + removal 5종 + sim 2종 auto_layer/bwe + 진단용 `_diag_0712c`). 정규 회귀는 진단 spec 제외 14종. `window.qa`(page.evaluate) 제어 — 단일 page=단일 user. `qa/qa.js` = v0.2 어댑터(window.qa 표면 v0.1 계약 보존 → spec 무변경). http-server(5599) 자체기동(★Live Server 금지). 실행 `cd qa/live && npm test`. 상세 = `qa/live/tests/` spec 자체(구 qa/README.md 는 부재). (구 `__qa__` controller/iframe UI 폐기.)
 - **핵심 원칙 3**:
   1. 서버 사실로 교차검증 — client `getStats` 숫자만으로 원인 추정 금지. 항상 `oxadmin room/user` 로 교차.
   2. localhost 에서 물리 유실은 불가능 — `packetsLost` 는 seq 갭 해석. 원인은 논리(rewrite / self-skip / transition)에서 찾는다.
@@ -367,7 +368,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - **앞단 완성 후 뒷단 고민 의미** — 분리 가능한 설계에서 뒷단을 미리 상세화하면 대부분 폐기된다. 앞단이 서면 뒷단의 제약이 드러나 자동으로 구체화됨 (Peer 재설계의 "one-shot" 원칙과 자매 — Peer 는 쪼갤 수 없어서 one-shot, Cross-SFU 는 분리 가능해서 순차)
 - **byte-level wire 검증 = 서버/클라 대칭 보증의 유일 방법** — 각 언어 상수 조회만으론 불충분. 실제 `buildMsg()` 출력 바이트를 `assertEq(v[2], 13)` 식 직접 확인. 상수 일치와 wire 일치는 다른 문제
 - **helper 추출로 분산 검증 재사용** — 같은 도메인 검증이 여러 전송 경로에 걸치면 helper 가 기본. `Peer::resolve_floor_target` 가 이 패턴(구 DC+WS bearer 이원 시절 확립 — WS 철거 20260722 후에도 DC 경로 검증 helper 로 유지)
-- **hook 분류 = 횡단 관심사 fire-and-forget 만. 주 흐름은 자기 도메인 모듈** (묶음 5 분류 오류 정합) — MBCP (3GPP TS 24.380) Granted/Taken/Idle/Revoke broadcast 같은 *PTT 표준 규격 = 주 흐름* 을 hook 으로 빼면 실패 격리 불가. hook 은 외부 webhook / OpenTelemetry / 분산 로깅 자리만
+- **hook 분류 = 횡단 관심사 fire-and-forget 만. 주 흐름은 자기 도메인 모듈** (묶음 5 분류 오류 정합) — MBCP (3GPP TS 24.380) Granted/Taken/Idle/Revoke broadcast 같은 *PTT 표준 규격 = 주 흐름* 을 hook 으로 빼면 실패 격리 불가. hook 은 외부 webhook / OpenTelemetry / 분산 로깅 자리만 (구 `hooks/floor.rs` 빈 틀은 20260715 `f2b6063` 로 삭제 — 빈 자리를 유지하는 것 자체가 YAGNI 위반이었다)
 - **표현 정확도 — 폐기/이주/마이그/통합 동사 검증** (묶음 2 반성 정합) — commit 메시지 / doc 주석에서 "함수 9자리 폐기" 같은 표현은 실제 *함수 6 + 필드 3* 혼합 자리 였음. 동사가 자료 범위를 정확히 표현하는지 검증 의무
 - **mechanical refactor 함정 — 옛 별칭/순서의 *의도* 점검 의무** (0524 반성 정합) — 별칭 폐기 시 *게으름 가명 vs 명료성 가명* 판정 누락이 반복 함정. 공통 함수 흡수 시 옛 코드 순서 *답습 vs 자료 의미 차원 정공* 판정. `release_subscribe_track` 본문 순서 (mid_map → SubscriberStreamIndex → mid_pool) 가 자료 의미 정공 사례 — mid_pool.release 가 다음 add 의 시작 신호이므로 Index 먼저 깨끗해야 idempotent 분기 잔재 차단
 - **추상적 분리 작업 금지 — 진짜 가치 발현 시점까지 보류 (YAGNI)** (2026-05-18 부장님 결정) — 현재 면적으로는 분리 가치 없을 때 *미리 모듈 신설* 금지. 분리 트리거 (자료 추가 / 메서드 추가 / 면적 증가) 발생 시 자연 진입. 동일 원칙 — 묶음 5 분류 오류 원복 + 묶음 7 흔적 제거 + F30① peer_scope.rs / 9b last_seen 이주 기각 사례 정합
@@ -376,7 +377,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - **track 도착 단언 ≠ 영상 시험** (0613 실증) — STREAM_SUBSCRIBED/ontrack 은 SDP 산물. 영상 시험은 framesDecoded>0 까지(e2e CONF 검은 화면 가드). getStats 4축 분해(packetsReceived/framesDecoded/pliCount/codec mime)는 MEDIA_DEBUG_GUIDE
 - **디버깅 전 환경 정합 0순위** (0613 실증) — 실행 중 프로세스 기동시각 vs 소스 HEAD, supervisor crash loop(고아 포트 점유), 클라 ES 모듈 캐시(포트 변경 우회), 클라 UTC vs 서버 KST. 오염 환경 위 디버깅은 전부 헛수고
 
-> Peer 재설계 관련 원칙(Scope 타입 표현, PC pair = 1쌍, PC 종류 ≠ packet 방향, 편의 프록시 금지)은 위 "Peer 재설계 (완료)" 섹션에 단일 출처로 기술. 세부 원칙은 코드 주석 + `context/architecture/` 문서에 기록.
+> Peer 재설계 관련 원칙(Scope 타입 표현, PC pair = 1쌍, PC 종류 ≠ packet 방향, 편의 프록시 금지)은 위 "Peer 재설계 (완료)" 섹션에 단일 출처로 기술. 세부 원칙은 코드 주석 + `context/YYYYMM/` 설계 기록에 있다(구 `context/architecture/` 는 20260802 폐지 — §기록 규칙 R1).
 
 ### 기각된 접근법 (반복 유혹이 높은 것만)
 
@@ -428,7 +429,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - **SESSION_INDEX 만 보고 완료 판단** — 세션 압축 요약은 긍정 사례(완료) 누락 경향이 체계적. 완료 여부 의심 시 `context/YYYYMM/` 파일 직접 확인을 SESSION_INDEX 조회보다 우선
 - **`Option<layer_entry>` 의 Some/None 으로 simulcast 여부 표현** — 첫 RTP 시점의 lazy create 결과가 영구화 → 시점 race. SubscribeMode enum 등록 시점 1회 결정이 정답
 - **카운터로 race 검출 (scoped_nonsim_for_sim 등 추적 카운터)** — 자료구조 본질 fix 가 정답. 카운터는 race 가 일어나는 자료구조 위 임시 진단일 뿐, 디버깅 카운터 추가 루프는 안티패턴
-- **MBCP 주 흐름을 hook 으로 이주 — 분류 오류** (묶음 5 원복) — PTT 표준 규격 broadcast 는 *주 흐름 자체*. hook = fire-and-forget 패턴 (실패 격리) 와 충돌. `hooks/floor.rs` 는 *진짜 횡단 관심사* 자리만 (외부 webhook / OpenTelemetry / 분산 로깅)
+- **MBCP 주 흐름을 hook 으로 이주 — 분류 오류** (묶음 5 원복) — PTT 표준 규격 broadcast 는 *주 흐름 자체*. hook = fire-and-forget 패턴 (실패 격리) 와 충돌. hook 은 *진짜 횡단 관심사* 자리만 (외부 webhook / OpenTelemetry / 분산 로깅). `hooks/floor.rs` 파일 자체는 20260715 삭제 — FLOOR_TAKEN 은 `hooks::stream::on_tracks_ready_room` 방 단위 훅으로 이주
 - **미리 만들어둔 빈 placeholder + TODO — YAGNI 위반** (묶음 7) — `handle_scope_announce_for_room` 같은 빈 본문 + TODO 마킹은 분류 오류 반복 위험. 진짜 다채널 수신 처리 진입 시 자연 발굴
 - **on_peer_phase 본문에 agg-log 이주 — metadata 손실 vs 시그니처 확장 trade-off** (묶음 6) — hook 시그니처 `&'static str cause` 만으로는 reaper 안의 `last_seen_ago_ms` / `suspect_duration_ms` / rooms 목록 전달 불가. 시그니처 확장 면적 vs metadata 손실 trade-off 에서 *reaper 인라인 발행 유지* 우위
 - **MediaIntent 완전 폐기 (extmap까지 제거)** (2026-05-29, catch 2) — simulcast RTP-first + audio_mid race 안전망이 잔존 강제. **축소 잔존** (struct 폐기 / extmap·audio_mid 는 PublishContext 잔존) 이 정답. PC pair 협상 메타는 SDP 결과라 PC pair-scope 유지 필요
@@ -489,9 +490,14 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 
 ### 작업 지침 파일 자리
 
-- **작업 지침**: `~/repository/context/YYYYMM/YYYYMMDD<suffix>_<topic>.md`
-- **작업 완료 보고**: `~/repository/context/YYYYMM/YYYYMMDD<suffix>_<topic>_done.md`
-- **둘 다 같은 `YYYYMM/` 디렉토리** — `claudecode/` 는 신설 안 함(화석). 지침 vs `_done` suffix 로 구분(옛 "두 자리 혼동 금지"는 통합으로 폐기).
+→ **§세션 컨텍스트 §기록 규칙 R1~R3 단일 출처.** 지침과 완료는 **한 파일**(`..._task.md`)에 append 한다.
+**구 규정(지침 파일 + `_done.md` 별도 파일)은 2026-08-02 폐기** — 한 작업의 맥락이 두 파일로 찢어져 추적이 깨졌다(폐기 시점 실측 `_done` 154개).
+
+### 커밋 주체 (2026-08-02 변경)
+
+- **커밋 = 김과장** — 세션 기록(context 레포)이든 소스든 김과장이 커밋한다. 구 "context 레포는 부장님이 직접 commit" 규칙 **폐기**(그 규칙 때문에 문서 변경이 커밋되지 못하고 적체됐다 — 20260802 실측 미커밋 6건 + 미추적 4건).
+- **push = 부장님** — 종전대로 별도 결재. 김과장은 커밋까지만 하고 보고한다.
+- 무관한 변경은 한 커밋에 섞지 않는다.
 
 ### 운영 룰 4종
 
@@ -533,7 +539,8 @@ context/
 ├── blog/            ← 블로그 초안
 ├── lesson/          ← 부장님 학습 문서
 ├── qa/              ← QA 하니스/산출물
-├── doclint.sh       ← 기록 규칙 검사기 (아래 규칙을 기계로 강제)
+├── ctxlint.sh       ← 기록 **규약** 검사기 (R1~R7 을 기계로 강제)
+│                     ※ `doclint` 는 별개 개념 — 마스터 문서↔소스 **내용 갭 감사**(20260711)
 ├── PROJECT_MASTER.md · PROJECT_SERVER.md · PROJECT_WEB.md  ← 마스터 3종 (2026-06-03 분리)
 └── SESSION_INDEX_YYYYMM.md  ← 세션 인덱스 (월별, 루트 유지)
 ```
@@ -575,14 +582,14 @@ refs: [관련 기록 파일명]
 
 **R4. 상태는 파일명이 아니라 frontmatter `status`.** `_done` 접미가 하던 일을 이 필드가 대신한다.
 
-**R5. `SESSION_INDEX_YYYYMM.md` 는 인덱스다.** 한 줄 요약(20~40자) + 파일명 + status. 세부는 세션 파일에. **기존 항목이 길다고 관성으로 따라 쓰지 말 것** — 이 규칙은 2026-06 부터 적혀 있었고 계속 어겨졌다(202607 행이 본문 수준). 위반 시 `doclint.sh` 가 잡는다.
+**R5. `SESSION_INDEX_YYYYMM.md` 는 인덱스다.** 한 줄 요약(20~40자) + 파일명 + status. 세부는 세션 파일에. **기존 항목이 길다고 관성으로 따라 쓰지 말 것** — 이 규칙은 2026-06 부터 적혀 있었고 계속 어겨졌다(202607 행이 본문 수준). 위반 시 `ctxlint.sh` 가 잡는다.
 
 **R6. 현행 설계의 자리는 마스터 문서다.** `YYYYMM/` 기록은 그 시점에 박제된다. "지금의 진실"은 `PROJECT_SERVER.md`/`PROJECT_WEB.md`/`PROJECT_MASTER.md` 가 서술하고, 근거 기록을 `context/YYYYMM/...` 경로로 **참조**한다. 기록을 사후에 고쳐 현행을 맞추지 않는다.
 
-**R7. 과거 파일은 개명하지 않는다.** 712개 기록의 상호참조가 깨진다. R1~R5 는 **신규부터** 적용. `doclint.sh` 도 기준일 이후 파일만 검사한다.
+**R7. 과거 파일은 개명하지 않는다.** 712개 기록의 상호참조가 깨진다. R1~R5 는 **신규부터** 적용. `ctxlint.sh` 도 기준일 이후 파일만 검사한다.
 
 - 새 세션 시작 시 `SESSION_INDEX_YYYYMM.md`(월별) → 최신 컨텍스트 파일 순으로 읽기
-- 세션 종료 시 해당 월 디렉토리에 새 파일 생성 + `SESSION_INDEX_YYYYMM.md` 업데이트 + `./doclint.sh` 통과 확인
+- 세션 종료 시 해당 월 디렉토리에 새 파일 생성 + `SESSION_INDEX_YYYYMM.md` 업데이트 + `./ctxlint.sh` 통과 확인
 - **세션 컨텍스트에 "오늘의 기각 후보" 및 "오늘의 지침 후보"를 반드시 포함할 것**
 
 ### 프로젝트 문서 관리

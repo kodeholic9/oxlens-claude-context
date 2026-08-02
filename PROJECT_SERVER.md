@@ -2,7 +2,7 @@
 # OxLens — 서버 구조/아키텍처 (oxlens-sfu-server + oxhubd)
 
 > PROJECT_MASTER.md 에서 분리(2026-06-03). 서버 코드 종속 — 소스 구조·미디어 아키텍처·oxhubd·Peer 재설계·scope 자료구조.
-> **현행화 기준: 20260711 doclint** — 소스 HEAD `2e477dd` 대비 전문 전수 대조(갭 감사·집행 기록 = `202607/20260711_doclint_gap_audit.md`) **+ 20260722 시그널링 테마 종결 반영**(FLOOR_MBCP/ACTIVE_SPEAKERS 철거·floor DC 단일·op 42·body 권위 oxsig::message — `202607/20260722_signaling_theme_closure_task.md`). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
+> **현행화 기준: 20260802 전수 대조** — 소스 HEAD `857594e`(2026-07-27). 직전 기준 `2e477dd`(20260711 doclint, `202607/20260711_doclint_gap_audit.md`) 이후 **28 커밋 전수 대조 완료**(`202608/20260802c_master_docs_resync_task.md`). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
 
 ---
 
@@ -35,7 +35,8 @@ oxlens-sfu-server/
     ├── oxsfud/             ← SFU 미디어 엔진 (상태 마스터)
     │   └── src/
     │       ├── main.rs / lib.rs / config.rs / error.rs / state.rs
-    │       ├── trace.rs        — 랩 전용 패킷 트레이스 (SRTP 복호 평문 미디어 탭. `#[cfg(feature="trace")]` + emit 호출부 9곳(0711 실측 — ingress 2/ingress_rtcp 4/egress 1/subscriber_stream 2), 보안 1급. 설계 20260615_oxadmin_trace_design)
+    │       ├── trace.rs        — 랩 전용 패킷 트레이스 (SRTP 복호 평문 미디어 탭. `#[cfg(feature="trace")]` + emit 호출부 9곳(0711 실측 — ingress 2/ingress_rtcp 4/egress 1/subscriber_stream 2), 보안 1급. 설계 `202606/20260615_oxadmin_trace_design.md`)
+    │       │                     ★ **`oxsfud/Cargo.toml` `default = ["trace"]` — 기본 빌드에 켜져 있다**(20260802 실측). 개발 편의용이며 **상용 출하 전 `default = []` 필수**. 켜진 빌드는 평문 미디어 탭 + `TracePackets` gRPC 가 열린다(무인증 — grpc_listen 이 127.0.0.1 바인딩인 것만이 방어선). 20260714 서사분석 BS6 적발 항목
     │       ├── startup.rs      — 환경 초기화 (시나리오 10방 사전 생성은 0603l 폐기 — 첫 참가자 ROOM_CREATE 멱등)
     │       ├── tasks.rs        — floor timer, zombie reaper, active speaker, stalled checker (user 단위. PLI governor sweep 태스크는 0621 폐기)
     │       ├── agg_logger.rs   — agg-log 발행 (track:publish_intent, session:suspect/zombie/recovered, scope:changed 등)
@@ -81,9 +82,9 @@ oxlens-sfu-server/
     │       │   ├── downlink.rs     — DownlinkController (auto layer 판단 — 수집 atomic + policy_tick 순수함수, SubscribeContext 직속. 20260709 신설)
     │       │   ├── bwe.rs          — DownlinkBwe (v2 TWCC send-side — SendRecord 링버퍼 + FB latch + signal_bps. 20260710 신설)
     │       │   └── gcc.rs          — GccEstimator (trendline/overuse 적응임계/AIMD/손실항/ALR 동결 — libwebrtc 이식, 순수함수. 20260710 신설)
-    │       ├── hooks/         ← phase 천이 hook → agg-log (묶음 6, 2026-05-17)
-    │       │   ├── stream.rs       — on_publisher_phase / on_subscriber_phase (track:publish_active / subscribe:active)
-    │       │   ├── floor.rs / media.rs — 미래 횡단 관심사 빈 틀
+    │       ├── hooks/         ← phase 천이 hook → agg-log (묶음 6, 2026-05-17). 실측 3파일(mod/stream/media)
+    │       │   ├── stream.rs       — on_publisher_phase / on_subscriber_phase (track:publish_active / subscribe:active) + `on_tracks_ready_room`(방 단위 dedup 20260715)
+    │       │   ├── media.rs        — 미래 횡단 관심사 빈 틀. (**floor.rs 삭제 20260715 `f2b6063`** — on_floor_event dead code. FLOOR_TAKEN 은 stream.rs 방 단위 훅으로 이주)
     │       ├── transport/
     │       │   ├── mod.rs / ice.rs / stun.rs / dtls.rs / srtp.rs
     │       │   ├── demux.rs / demux_conn.rs (peer_addr: Arc<RwLock> — ICE migration 지원)
@@ -169,6 +170,11 @@ oxlens-sfu-server/
 - resolve_stream_kind 판별 순서: 기존 ssrc(by_ssrc fast-path) → RTX(by_rtx_ssrc) → rid → repaired-rid → actual_rtx_pt → MID(audio 는 audio_mid 경로로 해소 — PT 선판별 분기 없음). **extmap ID 는 PublishContext atomic load**(rid/repair_rid/mid/audio_level/twcc). **MID↔kind 매핑 = PublisherTrack.mid + PublishContext.audio_mid** (race 안전망). **핫패스 stream_map lock = 0건** (stream_map.rs 폐기, enum 은 types.rs)
 - RTX 는 PublisherTrack.actual_rtx_pt 매칭 또는 `repaired-rtp-stream-id` extension
 
+### PUBLISH_TRACKS 자원 유계 가드 (GAP-S4 수리 20260712c, `6073e7d`)
+- **요청당 상한** `PUBLISH_MAX_TRACKS_PER_REQ = 8` · **user 활성 누적 상한** `PUBLISH_MAX_ACTIVE_STREAMS_PER_USER = 16` (`oxsfud/src/config.rs`)
+- **add 한정 · 부분 수용 없음** — 하나라도 넘으면 요청 **전체 Denied(3003)**. 반복 호출 우회도 누적 상한이 봉쇄(8+8=16 수용 후 1개 추가 = 3003, 활성 16 유지)
+- 무제한 발행으로 서버 자원이 열려 있던 자리(GAP-S4). 단위 시험 동반
+
 ### DataChannel (SCTP over DTLS)
 - **sctp-proto 0.9.0** (Sans-I/O, str0m 3년+ 검증). Pub PC 단독 (양방향), Subscribe PC에 DC 없음
 - DCEP(RFC 8832) DATA_CHANNEL_OPEN/ACK. `unreliable` 채널(maxRetransmits=0) — MBCP Floor 전용. reliable 채널은 Phase 2
@@ -194,6 +200,8 @@ oxlens-sfu-server/
 - 새 publisher video 발견(TRACKS_UPDATE) → subscriber video gate pause(TrackDiscovery, 5s)
 - subscriber SDP re-nego 완료(TRACKS_READY, 구 TRACKS_ACK) → gate resume + GATE:PLI(키프레임 요청)
 - video fan-out hot path에서 `gate.is_allowed()` O(1) 체크, 5초 타임아웃 안전장치
+- **PauseReason 2종** — `TrackDiscovery` / `LayerSwitch`. 타임아웃 자동 해제는 `timeout_released` **원샷 latch** 로 기록 → 호출처가 `take_timeout_release()` 로 꺼내 로깅(gate 는 sub/pub/ssrc 식별자를 모른다). 정상 resume(TRACKS_READY 경유)은 latch 에 안 걸린다 — 타임아웃 경로 전용 관측점 (20260715 `1352af2`)
+- **TRACKS_READY 후속(PLI / FLOOR_TAKEN)은 방 단위 1회** — 구 스트림당 발동은 과발동이었다. 훅 입력이 `(subscriber, room)` 뿐이라 방 1회가 효과 동등 → `hooks::stream::on_tracks_ready_room` (20260715 `852a4db`). gate resume 자체는 스트림 단위 그대로
 - ⚠ **클라 TRACKS_READY 송신 의무** (0613 실증) — 미송신이면 5s 타임아웃으로 gate 는 풀려도
   그 경로엔 PLI 가 없어 키프레임 부재 → 수신 video 영구 블랙(audio 는 gate 비대상이라 멀쩡).
   resume 은 peer 전체 스트림 순회 — 클라는 sfu 당 1회면 충분. 디버깅 = `guide/MEDIA_DEBUG_GUIDE_FOR_AI.md`
@@ -213,7 +221,7 @@ oxlens-sfu-server/
 ### Simulcast 자동 레이어 전환 (v1+v2 완결 20260711)
 - 운영 모드 `policy.toml [media] auto_layer = "off"|"v1"|"v2"` — **fallback off(명시 opt-in)**, 재기동 반영. off = 핫패스 바이트 동일
 - **판단 = DownlinkController**(SubscribeContext 직속 — transport 단위 소유) — 비대칭 히스테리시스: demote 4사유(remb/loss/nack/drop) 2연속 tick(~2s), promote 는 clean 창 backoff(15s 초기 → 재-demote 시 2배 → 60s cap). promote 직후 **REMB grace 10s**(remb 사유만 억제 — loss/nack/drop 은 유지)
-- **신호원 교체 구조**(판단·집행 공용, 신호만 교체): v1 = 수신자 REMB + RR worst loss / v2 = **TWCC send-side BWE**(egress 스탬핑 `ensure_twcc_seq` — 발행자 원본 twcc 값교체로 시계오염 차단 + GccEstimator + FB 자기실증 latch) + **RTX 패딩 프로브**(promote 를 화면 무접촉 사전 검증 — 20ms paced, Overusing/큐포화 시 즉시 중단). v2 신호 불신선(1s) 시 v1 자동 폴백
+- **신호원 교체 구조**(판단·집행 공용, 신호만 교체): v1 = 수신자 REMB + RR worst loss / v2 = **TWCC send-side BWE**(egress 스탬핑 `ensure_twcc_seq` — 발행자 원본 twcc 값교체로 시계오염 차단 + GccEstimator + FB 자기실증 latch) + **RTX 패딩 프로브**(promote 를 화면 무접촉 사전 검증 — 20ms paced, Overusing/큐포화 시 즉시 중단. **측정 창 최대 500ms** — 구 짧은 창은 media 트래픽에 프로브가 희석돼 3회 왕복해야 수렴했다. 20260712 `aa7717c` 로 1회 수렴 실증). v2 신호 불신선(1s) 시 v1 자동 폴백
 - **집행 = Forwarder.target + target-rid PLI**(h PLI 만으론 l 키프레임 안 옴 — 실브라우저 실측) → 키프레임 도착 시 무단절 스위치. 전환 중(target 有) tick 무개입 — F4 in-band demote 와의 race 를 규칙으로 해소
 - 주입 훅 = ADMIN_DOWNLINK_INJECT(0x3005, off 모드는 거부 — 조용한 no-op 금지). 단일출처: `202607/20260711_auto_layer_final_report.md` + 설계 20260709/20260710
 
@@ -252,7 +260,7 @@ oxlens-sfu-server/
 - 5초 주기 체크: delta==0이면 STALLED (정당사유 제외)
 - 정당사유: PTT floor 없음, 트랙 muted, SubscriberGate paused, Simulcast pause, Publisher 퇴장, PTT kf_pending
 - TRACK_STALLED(0x2105) → 클라이언트 ROOM_SYNC 1회 + 토스트. 30초 쿨다운
-- ⚠ **결함 발견(20260711 doclint, 수리 결재 대기)**: 체커 진입 가드 `peer.phase < 2 continue`(tasks.rs:142)는 구 ParticipantPhase 5단계(Active=2) 기준 — 0517 3벌 분해 후 phase=PeerState(Alive=0/Suspect=1/Zombie=2)라 **의미가 뒤집혀 정상 peer 전원 skip = STALLED 감지 사실상 전멸**. 계약(미디어 미전송 단계 skip)이 옳고 코드가 위반
+- ⚠ **결함 발견(20260711 doclint, 수리 결재 대기)**: 체커 진입 가드 `peer.phase < 2 continue`(tasks.rs:141 — 20260802 실측, 미수리)는 구 ParticipantPhase 5단계(Active=2) 기준 — 0517 3벌 분해 후 phase=PeerState(Alive=0/Suspect=1/Zombie=2)라 **의미가 뒤집혀 정상 peer 전원 skip = STALLED 감지 사실상 전멸**. 계약(미디어 미전송 단계 skip)이 옳고 코드가 위반
 
 ### Duplex 전환 (TRACK_STATE_REQ 단일 경로 + full→half 캐싱, 2026-05-31)
 - **전환 신호 = `TRACK_STATE_REQ`(0x1106) 단일 경로** — PUBLISH_TRACKS hot-swap 에서 분리 (이중화 금지, 결정 D). PUBLISH_TRACKS 는 최초 등록 전용
@@ -374,7 +382,7 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 - **system.toml = hub 전용 파일** — `[hub]`/`[routing]`/`[supervisor]`/`[[unit]]`/`[ccc]`/`[dirs]`. 유닛(oxsfud·oxcccd)은 **읽지 않는다**.
 - **policy.toml = hub·유닛 공통** — logging / media / floor / hub (유령 그룹 삭제 20260705). **부팅 1회 로드** — 런타임 교체 기계(update_policy/reload_policy)는 호출자 전무로 삭제(20260705), 반영은 재기동
 - **유닛 인스턴스 설정 = CLI 인자** — oxsfud `--id/--grpc-listen/--udp-port/--udp-workers/--public-ip/--log-dir`, oxcccd `--grpc-listen/--log-dir`. 우선순위 인자 > 코드 기본값(파일 경유 없음). `--config-dir` 은 policy.toml 위치 지정용으로 유지.
-- **`[[unit]]` = hub 가 아는 자식 목록(단일 권위, 종류 무관 동일 모양)** — `role`(sfu/ccc/other)·`id`(=alias)·`addr`(dial=ready)·`cmd`·`args`(hub 미해석, 그대로 전달). hub 가 읽는 건 role·id·addr 뿐. `sfu_registry()`=role="sfu" (id,addr), `ccc_endpoint()`=role="ccc" addr(없으면 `[ccc].endpoint`=secondary 원격). `--log-dir` 만 `[dirs].log` 에서 덧붙임. role="sfu" 없으면 코드 기본값 폴백. **N 변경 = 항목 추가/삭제 하나.**
+- **`[[unit]]` = hub 가 아는 자식 목록(단일 권위, 종류 무관 동일 모양)** — `role`(sfu/ccc/other)·`id`(=alias)·`addr`(dial=ready)·`cmd`·`args`(hub 미해석, 그대로 전달)·**`enabled`(기본 true)**. hub 가 읽는 건 role·id·addr·enabled 뿐. **`enabled=false` = spawn 제외 + registry 제외 양쪽 모두**(20260727 `c248386` — 구 반쪽 적용은 spawn 만 걸러 registry 에는 남던 것). 항목을 지우지 않고 잠시 빼둘 때 쓴다. `sfu_registry()`=role="sfu" (id,addr), `ccc_endpoint()`=role="ccc" addr(없으면 `[ccc].endpoint`=secondary 원격). `--log-dir` 만 `[dirs].log` 에서 덧붙임. role="sfu" 없으면 코드 기본값 폴백. **N 변경 = 항목 추가/삭제 하나.**
   - **로컬 vs 원격 = `cmd` 유무**: cmd 있음=hub 가 supervisor 로 spawn(로컬), **cmd 없음=원격 타 장비**(그 장비가 띄우고 hub 는 addr 로 dial 만 — registry/이벤트/방배치엔 오르고 spawn 제외). sfu 분산 배치는 원격 노드를 `role+id+addr` 로 기재. ★ self-register/discovery 미도입(hub→sfu dial 구조) — 노드 추가 시 hub config 갱신 필요(별도 설계 이월).
 - 구 `[sfu]`(단수)·`[[hub.sfu]]`·`[supervisor.sfu]`·`[[supervisor.units]]` (toml 파싱) **폐기** — sfu 만 목록·ccc 만 손기재로 갈렸던 두 체계를 `[[unit]]` 하나로 통일. `[recording]`(소비자 0, oxtapd 부재)도 삭제.
 - **로그 파일 = 인스턴스별** — sfud `oxsfud.log.<id>.<날짜>`, hub `oxhubd.log.<날짜>`, oxcccd `oxcccd.log.<날짜>`(20260726 신설 — 종전 파일 로깅 부재로 hub 콘솔에 섞임). 구 형상은 sfud N개가 한 파일을 O_APPEND 공유해 사후 분리 불가였다.
