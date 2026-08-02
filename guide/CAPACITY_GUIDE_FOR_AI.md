@@ -121,7 +121,7 @@ N  active/N  out_pps  out_mbps  loss%  lat_p95  bot_cpu  sfu_cpu  sfu_mem  healt
 | 측정 중 fan-out 끊김, out 급락 | **서버 reaper**(봇 idle → suspect 20s/zombie 35s) | 봇 STUN consent 주기 전송(구현됨). ready-sync 대기 길어도 안전 |
 | 봇 setup hang / 로그 멈춤 | 동시 DTLS storm | Semaphore(32) + setup timeout(구현됨) |
 | `active << N` | 단일 머신 DTLS 천장 | 정상 한계 — 멀티머신(§4) |
-| sfud 로그 | `oxlens-sfu-server/oxsfud.log.<날짜>` (봇 트래픽/REAPER/STREAM:NOTIFY 확인) | `tail -f` |
+| sfud 로그 | `oxlens-sfu-server/oxsfud.log.<id>.<날짜>` (노드별 파일 — 봇 트래픽/REAPER/STREAM:NOTIFY 확인) | `tail -f` |
 
 ---
 

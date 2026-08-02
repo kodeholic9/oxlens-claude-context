@@ -32,23 +32,30 @@
 
 ## §1 config 위치 / 로드 규칙
 
-- config = **`system.toml`(static) + `policy.toml`(dynamic)**. (`.env` 폐기됨)
+- config = **`system.toml`(hub 전용) + `policy.toml`(hub·유닛 공통)**. (`.env` 폐기됨)
 - 로드 디렉토리 = `--config-dir <dir>` 인자, **없으면 현재 작업 디렉토리(`.`)**.
 - 즉 `cd ~/repository/oxlens-sfu-server && ./target/release/oxhubd` → `./system.toml` 읽음.
-- **supervisor 가 spawn 한 sfud 자식은 hub 의 cwd 를 상속** → 같은 `./system.toml` 읽음(sfud 별 차이는 args override 로만).
+- ★ **유닛(oxsfud/oxcccd)은 `system.toml` 을 읽지 않는다** (20260726 인자 통일). 인스턴스 설정 권위 = **CLI 인자**. 자식이 cwd 를 상속해 읽는 파일은 `policy.toml`(노드 무관 동작 정책) 뿐.
 - `system.toml` 직접 수정은 운영 행위 — 작업 지침/보고 맥락에선 **copy-paste 블록으로 제공, 적용은 부장님**. 부장님이 직접 "맞춰라" 지시 시에만 파일 편집.
-- 미지 섹션(`[recording]` 등 oxtapd용)은 hub/sfud 가 **무시**(serde) — 무해.
+- 미지 섹션은 hub 가 **무시**(serde) — 무해. (`[recording]`/oxtapd 는 20260726 삭제 — 소비자 0.)
 
 ---
 
-## §2 config 두 계층 키 (헷갈리기 쉬운 핵심)
+## §2 설정 권위 — 인자 vs 파일 (헷갈리기 쉬운 핵심)
+
+> **판별 기준: 프로세스가 2개 떴을 때 값이 서로 달라져야 하면 인자, 같아야 하면 파일.**
+> 파생: 파일 = 그 머신/배포의 것(1개) · 인자 = 그 프로세스의 것(N개). hub 는 머신당 1개라 파일 권위.
 
 | 키 | 누가 읽나 | 뜻 |
 |---|---|---|
-| `[sfu]` (단수) | **sfud self** | sfud 자기 기동값(udp/ws/public_ip/grpc_listen). 멀티 시 = **sfud1 기준값** |
-| `[[hub.sfu]]` (복수, array) | **hub registry** | hub 가 dial 할 노드 목록. **미설정 시 `[sfu]` 1-element("sfu-1") 폴백** = 단일 sfu |
-| `[supervisor]` + `[[supervisor.units]]` | hub | hub 가 자식 프로세스(sfud 등) 자동 spawn/감시/재시작 |
-| `[routing]` `placement` | hub | 방 배치 정책(default `round_robin`) |
+| **`[[unit]]`** (array) | **hub** | ★ **hub 가 띄우는 자식 유닛 목록 — 종류 무관 같은 모양.** `role`(sfu/ccc/other) · `id`(=alias) · `addr`(dial=ready 주소) · `cmd` · `args`(hub 미해석, 그대로 전달) · `restart`/`timeout_stop_sec`/… hub 가 읽는 건 role·id·addr 뿐. role="sfu" 없으면 코드 기본값 "sfu-1"(50051) 폴백 |
+| `[supervisor]` `enabled` | hub | 자식 관리 on/off. unit 정의는 `[[unit]]` 에만(구 `[[supervisor.units]]` toml 파싱 폐기) |
+| `[routing]` `placement` | hub | 방 배치 정책(default `round_robin`). RoundRobin 순서 = `[[unit]]` role="sfu" 기재 순서 |
+| `[ccc]` `endpoint`/`enabled` | hub | 텔레메트리 push 대상 — **secondary hub 전용**(원격 수집기). owner 는 role="ccc" 유닛 addr 파생이라 불요. `enabled=false` = 수집 끔 |
+| `policy.toml` `[media]`·`[floor]`·`[logging]` | hub·sfud | 노드 무관 동작 정책 — 유닛이 읽는 유일한 파일 |
+
+> **인자 통일 원칙**: hub 는 유닛 내부 사정(`--udp-port` 등)을 모른다 — `args` 를 해석 없이 그대로 자식에게 넘긴다. `--log-dir` 만 `[dirs].log`(공통값)에서 hub 가 덧붙인다. `addr` 은 dial·ready 두 쓰임에 한 번만 적어 중복이 없다.
+> 구 `[sfu]`(단수)·`[[hub.sfu]]`·`[supervisor.sfu]` 템플릿·`[[supervisor.units]]` 는 모두 **폐기**(20260726). sfu 만 목록·ccc 만 손기재로 갈렸던 두 체계를 `[[unit]]` 하나로 통일했다.
 
 > 1방 1sfu(room_id 전역 유일) 전제 — 모든 방은 ROOM_CREATE(멱등) 경유. default rooms 사전생성은 폐기(2026-06-03).
 
@@ -56,60 +63,79 @@
 
 ## §3 실행 패턴
 
-### 패턴 A — 단일 sfu (가장 단순)
-`[[hub.sfu]]`/`[supervisor]` 없이 `[sfu]`만. hub 는 폴백 "sfu-1" 로 `[sfu].grpc_listen` 1개 dial.
+### 패턴 A — 수동 기동 (가장 단순)
+`[[unit]]`/`[supervisor]` 없이. hub 는 코드 기본값 폴백 "sfu-1"(50051) 1개 dial.
 ```bash
 cd ~/repository/oxlens-sfu-server
-./target/release/oxsfud        # 터미널 1 (50051/19740 bind)
+./target/release/oxsfud        # 터미널 1 (무인자 = 50051/19740 bind, 콘솔 로그)
 ./target/release/oxhubd        # 터미널 2 (1974, sfu-1=50051 dial)
 ```
-순서 무관(hub lazy reconnect). hub 가 sfud 를 자동 기동하려면 `[supervisor]` 1 unit 추가(패턴 B 축소판).
+순서 무관(hub lazy reconnect). sfud 무인자 기본값 = `--id sfu-1 --grpc-listen 127.0.0.1:50051 --udp-port 19740 --udp-workers 0`, 로그는 콘솔(`--log-dir` 미지정).
 
-### 패턴 B — 2 sfu (supervisor 자동 기동) ★ 표준
-`oxhubd` **하나만** 실행 → supervisor 가 sfud 2개 spawn→ready→관리. cross-sfu 검증된 구성.
+### 패턴 B — N sfu (supervisor 자동 기동) ★ 표준
+`oxhubd` **하나만** 실행 → supervisor 가 `[[unit]]` 목록대로 자식을 spawn→ready→관리.
 
-`system.toml` 에 추가할 블록 (`[hub.auth]` 뒤, `[sfu]` 앞에 `[[hub.sfu]]`; 끝에 `[supervisor]`):
+★ **1개를 띄우든 2개를 띄우든 손잡이는 `[[unit]]` 하나** — 항목을 추가/삭제하면 끝이다. sfu·ccc 가 같은 모양으로 적히고, ready 주소(`addr`)도 dial 과 한 곳에서 나오므로 어긋날 수 없다.
+
 ```toml
-# [hub.auth] 다음 — TOML 상 [[hub.sfu]] 는 [sfu]/[supervisor] 보다 앞에 와야 함
-[[hub.sfu]]
-id = "sfu-1"
-grpc_listen = "127.0.0.1:50051"
-
-[[hub.sfu]]
-id = "sfu-2"
-grpc_listen = "127.0.0.1:50052"
-# (public_ip/udp_port/ws_port 는 Phase 3 클라 server_config 자리 — 지금 불요)
-
-# ── 파일 끝 ──
 [supervisor]
 enabled = true
 
-[[supervisor.units]]
-alias = "sfud1"
-enabled = true
-execution = { type = "spawn", cmd = "<절대경로>/target/release/oxsfud", args = [] }
-ready = { type = "grpc_connect", addr = "127.0.0.1:50051", timeout_sec = 30 }
+# hub 가 띄우는 자식 = 종류 무관 같은 모양. hub 는 role·id·addr 만 읽고 args 는 그대로 전달.
+[[unit]]
+role = "sfu"
+id   = "sfu-1"
+addr = "127.0.0.1:50051"                          # hub dial = ready 주소
+cmd  = "<절대경로>/target/release/oxsfud"
+args = ["--id","sfu-1","--grpc-listen","127.0.0.1:50051",
+        "--udp-port","19740","--public-ip","192.168.0.25","--udp-workers","0"]
 restart = "on-failure"
 timeout_stop_sec = 10
 
-[[supervisor.units]]
-alias = "sfud2"
-enabled = true
-# ★ grpc + udp 만 override (ws_port 는 sfud 가 bind 안 함 → 불요)
-execution = { type = "spawn", cmd = "<절대경로>/target/release/oxsfud", args = ["--grpc-listen", "127.0.0.1:50052", "--udp-port", "19741"] }
-ready = { type = "grpc_connect", addr = "127.0.0.1:50052", timeout_sec = 30 }
+[[unit]]
+role = "sfu"
+id   = "sfu-2"
+addr = "127.0.0.1:50052"
+cmd  = "<절대경로>/target/release/oxsfud"
+args = ["--id","sfu-2","--grpc-listen","127.0.0.1:50052",
+        "--udp-port","19741","--public-ip","192.168.0.25","--udp-workers","0"]
+restart = "on-failure"
+timeout_stop_sec = 10
+
+# ccc 도 같은 모양 — 다른 건 role 과 args 내용뿐. 이 유닛 존재 = owner hub(여기로 push).
+[[unit]]
+role = "ccc"
+id   = "ccc-1"
+addr = "127.0.0.1:50060"
+cmd  = "<절대경로>/target/release/oxcccd"
+args = ["--grpc-listen","127.0.0.1:50060"]
 restart = "on-failure"
 timeout_stop_sec = 10
 ```
-- `[sfu]` 는 sfud1 기준(grpc 50051/udp 19740) 그대로 둔다. sfud2 는 args 로 포트만 갈림.
+- **hub 는 args 를 해석하지 않는다** — 유닛 항목에 적은 그대로 자식에게 넘긴다. `--log-dir` 만 `[dirs].log` 에서 hub 가 덧붙인다(이미 적혀 있으면 그쪽 존중).
+- **unit alias = `id`** (`sfu-1`) — `oxadmin unit show` 표와 `/admin/sfus` 가 같은 이름을 쓴다.
 - 실행: `cd ~/repository/oxlens-sfu-server && ./target/release/oxhubd`
-- **Ctrl+C / `kill -TERM`** → hub 가 sfud 들에 SIGTERM → drain → 둘 다 graceful exit(좀비 0).
+- **Ctrl+C / `kill -TERM`** → hub 가 자식들에 SIGTERM → drain → 전부 graceful exit(좀비 0).
 
-### sfud CLI override (cross-sfu Phase 0)
-`--ws-port`(불요) / `--udp-port`(u16) / `--grpc-listen`(host:port) / `--public-ip`(str). 우선순위 **arg > system.toml > 자동감지**. 미지정 항목은 `[sfu]` 값.
+### 유닛 CLI 인자 (20260726 — 인스턴스 설정 권위)
+- **oxsfud**: `--id`(str, 기본 `sfu-1`) / `--grpc-listen`(host:port, 기본 `127.0.0.1:50051`) / `--udp-port`(u16, 기본 19740) / `--udp-workers`(usize, 기본 0=auto) / `--public-ip`(str, 미지정=자동감지) / `--log-dir`(path, 미지정=콘솔) / `--config-dir`(policy.toml 위치)
+- **oxcccd**: `--grpc-listen`(기본 `127.0.0.1:50060`) / `--log-dir`(미지정=콘솔)
+- 우선순위: **인자 > 코드 기본값**. system.toml 경유 없음.
 
 ### N(≥3) sfu
-`[[hub.sfu]]` + `[[supervisor.units]]` 를 sfu 수만큼. 각 unit args = `--grpc-listen 127.0.0.1:5005N --udp-port 1974N`. (포트만 안 겹치게)
+`[[unit]]` role="sfu" 를 sfu 수만큼. 각 항목 addr·args 의 포트만 안 겹치게(`5005N`/`1974N`).
+
+### 원격(타 장비) sfu — 분산 배치
+`cmd` 유무가 로컬/원격을 가른다. **`cmd` 없음 = 원격** — hub 는 spawn 안 하고 `addr` 로 dial(+이벤트 구독+방 배치)만. 그 장비(라즈베리/미니PC)가 자기 sfu 를 자기 systemd/직접 실행으로 띄운다.
+```toml
+[[unit]]
+role = "sfu"
+id   = "sfu-3"
+addr = "192.168.0.12:50051"   # 그 장비의 grpc 주소. cmd/args 없음 = dial-only
+```
+- 원격 노드 sfud 는 그 장비에서 인자로 직접 기동: `oxsfud --id sfu-3 --grpc-listen 0.0.0.0:50051 --udp-port 19740 --public-ip 192.168.0.12`.
+- hub 로그에 `'sfu-3' 원격(dial-only) — spawn 생략` 으로 뜬다(경고 아님).
+- ★ 범위: self-register/discovery 는 미도입 — hub 가 `addr` 로 dial 하는 현 구조. 노드 추가 = hub `[[unit]]` 에 항목 추가(hub config 갱신 필요).
 
 ---
 
@@ -472,11 +498,13 @@ api_key/secret 은 `[hub.auth.api_keys]` 의 값(데모 = `ox_k_demo`/`ox_s_demo
 
 ## §6 함정 / 자주 틀리는 것
 
-1. **로그가 파일로 빠진다** — `[dirs] log = "./"` → hub `./oxhubd.log.<날짜>` + sfud `./oxsfud.log.<날짜>`(supervisor 자식은 stdout 도 hub 콘솔로 상속). **콘솔로 한 터미널에서 다 보려면 `log = ""`**.
+1. **로그가 파일로 빠진다** — `[dirs] log = "./"` → hub `./oxhubd.log.<날짜>` · sfud **`./oxsfud.log.<id>.<날짜>`**(노드마다 별도 파일, 20260726) · oxcccd `./oxcccd.log.<날짜>`. **콘솔로 한 터미널에서 다 보려면 `log = ""`**(hub 가 자식에 `--log-dir` 을 안 넘겨 자식도 콘솔로 나온다).
+   - `dirs.log` 는 **값은 공통(파일), 전달은 인자**(`--log-dir`). 유닛은 system.toml 을 읽지 않는다.
+   - 구 형상은 sfud N개가 `oxsfud.log.<날짜>` **한 파일을 공유**해 라인에 pid/id 가 없어 사후 분리가 불가능했다(20260722 실증). id 분리로 해소.
 2. **`public_ip` 하드코딩** — 클라가 받을 미디어 IP. 다른 네트워크면 클라가 미디어 못 받음 → 실제 IP 또는 `""`(자동감지). 멀티 sfu 가 같은 머신이면 동일 public_ip 공유 OK.
 3. **`ws_port` override 불필요** — sfud 는 WS 안 띄움(WS=hub). 충돌 안 나니 안 건드린다.
-4. **포트 충돌은 grpc_listen + udp_port 만** — 멀티 sfu 시 이 둘만 sfu별로 다르면 됨.
-5. **`[[hub.sfu]]` TOML 위치** — `[sfu]`/`[supervisor]` **앞**(= `[hub.*]` 구간 안)에 둘 것. 뒤에 두면 파싱 깨짐.
+4. **포트 충돌은 addr(grpc) + args 의 udp_port 만** — 멀티 sfu 시 이 둘만 유닛별로 다르면 됨. `[[unit]]` 항목 하나가 dial·bind·ready 를 함께 정한다.
+5. **`addr` 과 `args` 의 `--grpc-listen` 을 같은 값으로** — `addr` = hub 가 dial/ready 할 목적지, `args`의 `--grpc-listen` = sfud 가 bind 할 주소. 소유자가 다른 두 값이라 둘 다 필요하다(중복 아님). hub 는 `args` 를 해석하지 않아 일치를 자동 대조하지 못하니, 사람이 같은 값으로 적어야 한다(어긋나면 hub 가 엉뚱한 데 dial).
 6. **supervisor cmd 는 절대경로** — 자식 cwd 가 hub cwd 라도 cmd 는 절대경로가 안전.
 7. **build** — release 는 `cargo build --release` 선행. 바이너리 = `target/release/{oxhubd,oxsfud,oxadmin}`. (**현재 oxsfud default 에 trace 포함** → release 빌드에 패킷 트레이스 자동 탑재. 상용 전 `Cargo.toml default = []` 로 분리 필수 — §4-T 보안.)
 8. **재기동 위생 — 죽이고 바로 올리면 sfud 가 `blocked`** — hub kill → sfud 는 lifeline 으로 동반 종료하지만 gRPC/UDP 포트(50051/52, 19740/41)를 놓는 데 시간이 걸린다. 곧바로 새 hub 를 띄우면 새 sfud 가 EADDRINUSE → **즉시 Blocked**(0612 backoff 폭주 방어). **포트 free 확인 후 기동**하거나, Blocked 면 `oxadmin load <alias>` 로 복구. (`lsof -nP -iTCP:50051 -iTCP:50052 -iUDP:19740 -iUDP:19741`)
@@ -492,7 +520,7 @@ api_key/secret 은 `[hub.auth.api_keys]` 의 값(데모 = `ox_k_demo`/`ox_s_demo
 - cross-sfu 서버 설계: `context/202606/20260603_cross_sfu_design.md`
 - supervisor 설계: `context/202606/20260603_oxhubd_supervisor_design.md`
 - 회귀시험(oxe2epy): `context/guide/REGRESSION_GUIDE_FOR_AI.md` (봇 붙여 oxadmin 실데이터 관측에도 활용)
-- config 구조체: `crates/common/src/config/system.rs` (SystemConfig/HubConfig/SfuConfig/SfuNodeConfig/SupervisorConfig/RoutingConfig)
+- config 구조체: `crates/common/src/config/system.rs` (SystemConfig/HubConfig/UnitEntry/UnitRole/SupervisorConfig/RoutingConfig). `[[unit]]`→UnitConfig 변환 = `oxhubd/src/main.rs::unit_configs_from_entries`
 
 ---
 

@@ -276,9 +276,15 @@ cargo check --workspace + 단위(oxsig/common/oxsfud/oxhubd) + **2층 run-all �
   - opcode.rs 헤더 `설계서: context/design/20260516_signaling_v3.md §5` → **"단일 진실=본 파일, 설계서·wire 카탈로그 문서 폐기(20260623), body 권위=oxsig::message + PROJECT_MASTER op 표"**.
   - catalog_size 주석 `변경 시 설계서 + wire_v3_catalog 동시 갱신` → **"변경 시 PROJECT_MASTER op 표 갱신(구 문서 폐기 20260623)"**.
 
-### E-2. 마스터 문서 현행화 **초안** (★ PROJECT_MASTER 직접 수정 금지 — 부장님 위치·형식 지정 대기)
+### E-2. 마스터 문서 현행화 — **반영 완료** (부장님 지시 "정독하고 관련된 거 모두 수정" 2026-07-22)
 
-아래는 PROJECT_MASTER.md 에 반영이 필요한 항목의 초안. 실측 근거 병기. **부장님 지정 전까지 마스터 파일 미수정.**
+마스터 3종 **전문 정독** 후 시그널링 테마 관련 어긋남 전부 수정. PROJECT_MASTER **10곳** + PROJECT_SERVER **10곳** + PROJECT_WEB **0곳**(wire op 세부 무언급 — MBCP·DC frame 물리계약은 DC 평면이라 유효 확인). 최종 스윕(grep FLOOR_MBCP/ACTIVE_SPEAKERS/0x2400/0x2500/bearer/binary/floor_ops/S-h/op총수)으로 사각지대 0 확인 — 잔존 언급 전부 철거/역사 문맥.
+
+**PROJECT_MASTER**: ①헤더 payload "JSON or binary"→JSON ②Event 카테고리 "FLOOR_MBCP만 binary" 삭제 ③도메인 nibble "4=Floor·5=Speakers" 결번 표기 ④총 44→**42 op** 산식 ⑤RECONNECT 행 반쪽 op 현행 실측 명기 ⑥0x2400 행 취소선 철거 ⑦0x2500 행 취소선 철거 ⑧Floor 일원화 문구(bearer=ws fallback → DC 단일 확정) ⑨v2→v3 매핑 꼬리 ⑩helper 원칙 예시·기각목록 "WS Floor fallback" 항 완결 표기.
+
+**PROJECT_SERVER**: ①policy.toml floor(bearer)=미독 dead config 표기 ②handler 8→**7파일** ③floor_ops.rs 트리 행 삭제 표기 ④floor_broadcast.rs DC 단일 ⑤"WS Floor path 완전 삭제" 문구의 bearer=ws fallback 모순 해소 ⑥viaRoom TLV 호출처에서 floor_ops 제거 ⑦bearer 왕복 → DC 왕복 재기술 ⑧binary 이벤트 event_tx 경유 문구 소멸 처리 ⑨★**dispatch_binary 유령 심볼 적발**(문서에만 존재, 코드 정의 0 실측) 정정 ⑩헤더 현행화 기준에 20260722 반영 추가.
+
+아래는 반영 전 초안(기록 보존):
 
 **(a) op 총수·산식** — L107 `총 44 op … → 44(ADMIN_DOWNLINK_INJECT)` →
 > 총 **42 op**. 산식 꼬리: 44 → 43(ACTIVE_SPEAKERS 0x2500 철거 20260722) → 42(FLOOR_MBCP 0x2400 철거 20260722).
@@ -316,7 +322,9 @@ cargo check --workspace + 단위(oxsig/common/oxsfud/oxhubd) + **2층 run-all �
 8. **stale 주석 청소** — Phase B/C 발견분: `oxsig/message/mod.rs`·`common/ws/outbound.rs`·`oxhubd/events/mod.rs`·`oxhubd/moderate/handler.rs`·`oxsig/header.rs`(round_trip_floor_mbcp_category 명칭) FLOOR_MBCP/ACTIVE_SPEAKERS 잔존 참조.
 9. **dead config** — `common/config/policy.rs` FloorPolicy.bearer (lib.rs 미독 전환, 파싱만). policy.toml `[floor] bearer` 동반 청소.
 10. **sdk0.2 미발신 요청 타입** — MESSAGE/MODERATE 클라 배선 or 타입 처분 결정(Phase D 발견).
-11. **sdk0.2 op 카탈로그 동기** — ops.ts 에 FLOOR_MBCP·LAYER_CHANGED·(ACTIVE_SPEAKERS?) 잔존. 서버 철거분과 미동기(클라가 미발신이라 무해하나 카탈로그 표류).
+11. **sdk0.2 op 카탈로그 동기** — ops.ts 에 FLOOR_MBCP·LAYER_CHANGED·(ACTIVE_SPEAKERS?) 잔존 + LAYER_CHANGED 수신 핸들러 화석(survey D7/E5). 서버 철거분과 미동기(클라가 미발신이라 무해하나 카탈로그 표류).
+12. **`Packet::wrap`/`to_json` 고아 청산** (survey D8) — 참조 0 실측 재확인(20260722). 2단계·종결 테마 어디에도 배정 안 됐던 누락분 — 0720↔0722 비교 작업이 적발.
+13. **requires_ack 권위 위치** (survey D10, 종결 지침 §3-1 결정 추천 — ★미결재) — oxrtc 로컬 사본이 유일 정의(Phase B 에서 내용은 `_ => true` 로 정리됐으나 권위 위치 결정은 부장님 미결재). 추천은 oxsig 이관이었음.
 
 ### 게이트 (Phase E — 종결 게이트)
 
@@ -345,4 +353,20 @@ cargo check --workspace + 단위(oxsig/common/oxsfud/oxhubd) + **2층 run-all �
 - Phase D: sdk0.2 미발신 요청 타입(MESSAGE/MODERATE/ROOM_LIST)·ScopeSetReq('set' 미발신)·MuteUpdateReq 레거시.
 - Phase E: RECONNECT 반쪽 op(서버발신·클라무처리) 생존·SCOPE_EVENT emit 0·MUTE_UPDATE 하위호환 생존.
 
-**부장님 종결 결재 대기**: ①B~E push ②E-2 마스터 반영 위치·형식 ③Phase D 2층 --core + Phase E 종결 게이트(2층 전체 + 3층) ④다음 테마 지정.
+**부장님 잔여**: ①B~E push(부장님이 직접) ②context 레포 커밋(마스터 2종 수정 + 본 파일 + SESSION_INDEX) ③Phase D/E 게이트는 회귀 불가 변경(미사용 필드·주석)이라 부장님 판단으로 갈음 가능 ④다음 테마 지정. **E-2 마스터 반영 = 완료**(부장님 지시).
+
+---
+
+# 후속 — 소비자 0 wire 표면 청산 (2026-07-22, 부장님 지시 "0720 조사 대조" 흐름)
+
+0720 조사 D2/E4/E6 재검 중 "MUTE_UPDATE 하위호환 잔존" 명분이 **실체 검증 없이 대물림**된 것을 발견. 전 소비자 전수 실측 → 소비자 0 확정 → 철거.
+
+**MUTE_UPDATE(0x1103) 전면 철거** (커밋 b12d971). 소비자 실측: sdk0.2 미발신(카탈로그 부재)·v0.6 sdk/ G1(0609) 폐기(소스 주석 자백)·2층봇/oxrtc/labs 0·Android `MUTE_UPDATE=17`(v2 숫자 wire 세대, 현 v3 서버와 불통 — 0x1103 하위호환 대상 아님). op·MuteUpdateReq·handle_mute_update·dispatch arm 제거. MuteUpdateRes 는 TRACK_STATE_REQ muted 응답으로 존치. **카탈로그 42→41**.
+
+**SCOPE mode="set" 절제** — sdk0.2 는 mode="update"+pub_select/pub_deselect 만 발신, "set" 미발신. handle_scope_set + ScopeSetReq 삭제. SCOPE op 유지(41 불변).
+
+★ **SCOPE sub_add/sub_remove 보류 (실측 정정)** — 당초 "죽은 절반 절제(risk-0)"로 추천했으나, 실측 결과 sub_add/sub_remove 는 `peer.affiliate`/`deaffiliate` 를 호출하고 **그 primitive 의 유일 산 호출처가 SCOPE 뿐**(ROOM_JOIN 은 `join_room` 이 sub_rooms 직접 삽입, affiliate 미경유). 즉 제거 시 peer.affiliate 고아화 + 산 pub 경로와 공유하는 apply_scope_update 수술 = **도메인 변경**이라 risk-0 아님. 이번 pass 보류, 별도 판단 대기. SCOPE 대체(ROOM_SELECT 개명)는 B2B wire spec 동결 + SCOPE_EVENT(S-d) 설계와 묶는 게 정합(2회 일 회피).
+
+게이트: cargo check --workspace 무경고 · oxsig 72·oxsfud 274·oxhubd 25 PASS. 마스터 MASTER 3곳+SERVER 3곳 현행화. 최종 op **41**.
+
+이월 갱신: E-3 목록의 SCOPE sub축 처분 + ROOM_SELECT 개명 검토가 신규 항목(다음 테마/B2B spec 시).
