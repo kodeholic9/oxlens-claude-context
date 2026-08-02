@@ -85,7 +85,7 @@ description: |
 ## 시그널링 프로토콜 (v3 wire, 2026-05-16)
 
 **v3 wire**: 8B 바이너리 헤더 + 16진 opcode 카탈로그 + ACK 의무화 + WS Binary 단일.
-헤더 byte 배치: `[ver(1)=0x01, flags(1)=ACK_STATE(bit0-1, 나머지 예약), op(2 BE), pid(4 BE)]` + payload(JSON or binary). priority 는 flags 가 아니라 op nibble 파생.
+헤더 byte 배치: `[ver(1)=0x01, flags(1)=ACK_STATE(bit0-1, 나머지 예약), op(2 BE), pid(4 BE)]` + payload(JSON — 구 유일 binary body op FLOOR_MBCP 는 20260722 철거로 소멸, 전 op JSON). priority 는 flags 가 아니라 op nibble 파생.
 외부 호환 Packet v2 (`{op,pid,ok,d}`) 보존 — handler 호출처 마이그 부담 거의 0.
 ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 요청/응답 구분.
 단일 진실: `crates/oxsig/src/opcode.rs` (설계서·카탈로그 문서 폐기, 20260623). **body 타입 단일 권위 = `crates/oxsig/src/message/`** (2단계 이관 20260721 — 요청 `XxxReq`/응답 `XxxRes`/이벤트 `XxxEvent`, hub/sfud/oxrtc/oxadmin 공유. 구 `oxsfud/signaling/message.rs` 소멸)
@@ -96,15 +96,15 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 0x0000~0x00FF  Handshake     (pid=0, ACK 없음, hub 로컬, body=JSON)
 0x0100~0x01FF  Session       (ACK 필수, hub 로컬, body=JSON)
 0x1000~0x1FFF  Request       (C→S, ACK = 응답, body=JSON)
-0x2000~0x2FFF  Event         (S→C, ACK 필수, body=JSON, FLOOR_MBCP 만 binary)
+0x2000~0x2FFF  Event         (S→C, ACK 필수, body=JSON)
 0x3000~0x3FFF  Admin Event   (S→admin)
 0xE000~0xEFFF  Internal      (hub↔sfud, 클라 비노출)
 0xF000~0xFFFF  Error         (양방향, 종결)
 ```
 
-두 번째 nibble = 도메인. Request: 1=Room(0x10)·Media(0x11), 2=Scope, 3=Data, 7=Extension. Event: 1=Room(0x20)·Media(0x21), 2=Scope, 3=Data, 4=Floor, 5=Speakers, 7=Extension.
+두 번째 nibble = 도메인. Request: 1=Room(0x10)·Media(0x11), 2=Scope, 3=Data, 7=Extension. Event: 1=Room(0x20)·Media(0x21), 2=Scope, 3=Data, 7=Extension (구 4=Floor·5=Speakers 는 20260722 철거로 결번 — intent 1<<4/1<<5 도 결번).
 
-카테고리 nibble 하나로 dispatch / 방향 / pid 부여 / ACK / priority / intent 전부 lookup. flag 비트 신설 금지가 v3 도그마. 총 **44 op** — 산식: 43(LAYER_CHANGED 0x2106 폐기 0705) → **44(ADMIN_DOWNLINK_INJECT 0x3005 추가 20260709)**. 그 전 이력: ADMIN_REAP 0x3004 추가 0613 / TRACK_DUMP 0x2701·0x1702 → USER_PROBE 재활용 0620(번호 유지·의미 교체). 새 op 추가 시 `oxsig::opcode::ALL_OPS` 갱신.
+카테고리 nibble 하나로 dispatch / 방향 / pid 부여 / ACK / priority / intent 전부 lookup. flag 비트 신설 금지가 v3 도그마. 총 **41 op** — 산식: 43(LAYER_CHANGED 0x2106 폐기 0705) → 44(ADMIN_DOWNLINK_INJECT 0x3005 추가 20260709) → 43(ACTIVE_SPEAKERS 0x2500 철거 20260722) → 42(FLOOR_MBCP 0x2400 철거 20260722) → **41(MUTE_UPDATE 0x1103 철거 20260722 — 전 소비자 실측 0)**. 그 전 이력: ADMIN_REAP 0x3004 추가 0613 / TRACK_DUMP 0x2701·0x1702 → USER_PROBE 재활용 0620(번호 유지·의미 교체). 새 op 추가 시 `oxsig::opcode::ALL_OPS` 갱신.
 
 ### Handshake / Session (Control)
 | op | 이름 | 설명 |
@@ -114,7 +114,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 | 0x0003 | IDENTIFY_RESULT | 인증 결과 (S→C) |
 | 0x0101 | HEARTBEAT | 생존 확인 (hub 전용, sfud touch 안 함) |
 | 0x0102 | TOKEN_REFRESH | JWT 갱신 |
-| 0x0103 | RECONNECT | 세션 복구 (hub shadow 철거 20260705 — 복구는 클라 R1/R2 + 상태 마스터 sfud) |
+| 0x0103 | RECONNECT | 세션 복구 (hub shadow 철거 20260705 — 복구는 클라 R1/R2 + 상태 마스터 sfud). ※**반쪽 op 현행**(실측 20260722): 서버는 emit(hub admin REST graceful reconnect → broadcast @rest/admin.rs) — sdk0.2 카탈로그엔 op 부재라 클라 미디코드(default 흡수) |
 
 ### Request (Client → Server, 0x1xxx)
 | op | 이름 | 설명 |
@@ -126,11 +126,11 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 | 0x1005 | ROOM_SYNC | 참여자+트랙+floor 전체 동기화 (폴링) |
 | 0x1101 | PUBLISH_TRACKS | 트랙 의도 (duplex/simulcast 명시, 증분 add/remove, **per-track tracks[].mid** 0611). PublishContext atomic store + PublisherStream/placeholder 등록. ⚠ **tracks[].codec 사실상 필수** — 미지정 시 서버 묵시 VP8 등록 → 실 인코딩(H264)과 어긋나 구독자 디코딩 0(0613 검은 화면 근본 원인. 서버 offer-pt 판별 전환은 이월) |
 | 0x1102 | TRACKS_READY | subscribe SDP renego 완료 후 발행 (구 TRACKS_ACK 개명 — wire ACK 와 application READY 분리, SMS submit/status-report 패턴). SubscriberGate resume + GATE:PLI 트리거 |
-| 0x1103 | MUTE_UPDATE | (하위호환 잔존) 클라 송신 폐기 — G1(0609) TRACK_STATE_REQ body 분기(`{muted?}`)로 통합 |
+| ~~0x1103~~ | ~~MUTE_UPDATE~~ | **철거 20260722** — 전 소비자 실측 0(sdk0.2 미발신·v0.6 G1 폐기·봇/oxrtc/labs 0·Android v2 세대 불통). "하위호환 잔존" 명분이 실체 없이 대물림된 것. mute 는 TRACK_STATE_REQ(0x1106) body `{muted?}` 분기 단일. 카탈로그 42→41 |
 | 0x1104 | CAMERA_READY | 카메라 웜업 완료 → PLI 트리거 |
 | 0x1105 | SUBSCRIBE_LAYER | Simulcast 레이어 선택 (h/l/pause, targets 배치 지원) |
 | 0x1106 | TRACK_STATE_REQ | 트랙 상태 단일 경로 — body 분기 `{muted?}`(mute, G1 0609 MUTE_UPDATE 흡수) / `{duplex?}`(half↔full 전환). full→half 캐싱 보존 + active:false 통지, half→full 보존 stream 자동 재송출. 식별 = track_id 우선(ssrc 는 폴백+echo — 0613 확인). **room_id 필수**(F11 hub 라우팅) |
-| 0x1200 | SCOPE | scope 변경 (body `mode: "update"` 증분 / `"set"` 전체). sub = `sub_add`/`sub_remove`, **pub = `pub_select`/`pub_deselect`**(S-e~S-g, 0610 — auto-select 폐기. cross-sfu 발언 전환 = 이전 sfud pub_deselect + 새 sfud pub_select 분할 송신). 응답에 scope 스냅샷 |
+| 0x1200 | SCOPE | scope 변경 (body `mode: "update"` 단일 — `"set"` 철거 20260722, sdk0.2 미발신). **산 경로 = pub 축**(`pub_select`/`pub_deselect`, S-e~S-g 0610 — auto-select 폐기. cross-sfu 발언 전환 = 이전 sfud pub_deselect + 새 sfud pub_select 분할 송신). sub 축(`sub_add`/`sub_remove`)은 서버·타입 존치하나 **sdk0.2 미발신**(청취 합류·이탈은 ROOM_JOIN(select:false)/ROOM_LEAVE 경유) — 제거는 peer.affiliate 고아화(도메인 수술)라 별도 판단 대기. 응답에 scope 스냅샷 |
 | 0x1301 | MESSAGE | 텍스트 메시지 |
 | 0x1302 | TELEMETRY | 클라이언트 telemetry 보고 |
 | 0x1303 | ANNOTATE | Canvas Annotation (action: stroke/clear/zoom, 순수 relay) |
@@ -151,8 +151,8 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 | 0x2200 | SCOPE_EVENT | scope 변경 broadcast — payload `{sub, pub(0/1-elem vec), cause, change_id}` (`sub_set_id`/`pub_set_id` 폐기 — RoomSetId 제거 동반, 0602e). 서버 미emit 상태(S-d 설계 대기) — 클라는 수신 시 보고만 |
 | 0x2301 | MESSAGE_EVENT | 메시지 브로드캐스트 |
 | 0x2302 | ANNOTATE_EVENT | Annotation 브로드캐스트 (action 분기, 서버 무상태) |
-| 0x2400 | FLOOR_MBCP | **body=binary** MBCP TLV (TS 24.380). 구 FLOOR_TAKEN(141)/IDLE(142)/REVOKE(143)/Queue Info 통합 — 메시지 종류는 MBCP body 안 self-describing |
-| 0x2500 | ACTIVE_SPEAKERS | Active Speaker 목록 (RFC 6464). ※현재 wire 미발송 — DC `SVC_SPEAKERS` 이관. op/priority/intent 매핑은 wire 복귀 대비 잔존 (0705 정합) |
+| ~~0x2400~~ | ~~FLOOR_MBCP~~ | **철거 20260722** (시그널링 종결 Phase C) — WS bearer + S-h DC-miss WS fallback 포기. floor 발화권은 DC `SVC_MBCP`(mbcp_native TLV) 단일 — DC 미수립 참가자 floor 미달은 DC 전용 전제(부장님 확정). 유일 binary body op 소멸 → `body_is_binary` 폐기, 전 op JSON. 카탈로그 43→42 |
+| ~~0x2500~~ | ~~ACTIVE_SPEAKERS~~ | **철거 20260722** (시그널링 종결 Phase B) — wire 미발송, 화자 통보는 DC `SVC_SPEAKERS` 단일. 구 "wire 복귀 대비 잔존" 매핑(priority/intent) 전량 제거, intent 1<<5 결번. 향후 wire 필요 시 opcode 재설계. 카탈로그 44→43 |
 | 0x2700 | MODERATE_EVENT | Moderated Floor 이벤트 (authorized/unauthorized/speakers, hub-local) |
 | 0x2701 | USER_PROBE_REQ | User Probe 진단 요청 (hub → 특정 user 1명 unicast, hub-local Extension. 구 TRACK_DUMP_REQ broadcast 재활용 — track-dump 폐기·user unicast 후신, 0620) |
 
@@ -167,9 +167,9 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 | 0xE001 | SESSION_DISCONNECT | hub→sfud WS 끊김 통보 (Internal, 클라 비노출. sfud 는 인지+로깅만, 삭제 안 함) |
 | 0xF001 | ERROR | 양방향, 종결 |
 
-> **Floor Control 일원화**: WS JSON Floor path 완전 삭제 + FLOOR_TAKEN/IDLE/REVOKE 3 op 통합. Floor Control 은 DataChannel MBCP(TS 24.380) 전용 (0x2400 FLOOR_MBCP). bearer=ws fallback 시에도 동일 MBCP 바이너리를 WS binary 프레임으로 전달.
+> **Floor Control 일원화**: WS JSON Floor path 완전 삭제 + FLOOR_TAKEN/IDLE/REVOKE 3 op 통합 → **DC MBCP(TS 24.380) 단일 확정(20260722)** — 구 wire op FLOOR_MBCP(0x2400)·bearer=ws 경로·S-h DC-miss WS unicast fallback 전부 철거. floor 는 DC `SVC_MBCP` 로만 흐른다(`server_config.floor_bearer` wire 필드는 "dc" 고정 존치).
 
-> **v2 → v3 핵심 매핑** (참고): TRACKS_ACK(16) → TRACKS_READY(0x1102), SCOPE_UPDATE(53)+SCOPE_SET(54) → SCOPE(0x1200)+`mode` 분기, FLOOR_TAKEN/IDLE/REVOKE(141~143)+FLOOR_QUEUE_POS(43) → FLOOR_MBCP(0x2400)+MBCP type self-describing, SESSION_END(dead) cleanup. body=JSON 기본 + 0x2400 만 binary.
+> **v2 → v3 핵심 매핑** (참고): TRACKS_ACK(16) → TRACKS_READY(0x1102), SCOPE_UPDATE(53)+SCOPE_SET(54) → SCOPE(0x1200)+`mode` 분기, FLOOR_TAKEN/IDLE/REVOKE(141~143)+FLOOR_QUEUE_POS(43) → FLOOR_MBCP(0x2400)+MBCP type self-describing(→0x2400 자체도 20260722 철거, floor DC 단일), SESSION_END(dead) cleanup. body=전 op JSON(구 "0x2400 만 binary"는 철거로 소멸).
 
 ---
 
@@ -366,7 +366,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - **PTT virtual track remove는 잔존자 체크 필수** — 안 하면 subscriber 영상 영구 미표시
 - **앞단 완성 후 뒷단 고민 의미** — 분리 가능한 설계에서 뒷단을 미리 상세화하면 대부분 폐기된다. 앞단이 서면 뒷단의 제약이 드러나 자동으로 구체화됨 (Peer 재설계의 "one-shot" 원칙과 자매 — Peer 는 쪼갤 수 없어서 one-shot, Cross-SFU 는 분리 가능해서 순차)
 - **byte-level wire 검증 = 서버/클라 대칭 보증의 유일 방법** — 각 언어 상수 조회만으론 불충분. 실제 `buildMsg()` 출력 바이트를 `assertEq(v[2], 13)` 식 직접 확인. 상수 일치와 wire 일치는 다른 문제
-- **helper 추출로 분산 검증 재사용** — 같은 도메인 검증이 여러 전송 경로(DC + WS fallback)에 걸치면 helper 가 기본. `Peer::resolve_floor_target` 가 이 패턴
+- **helper 추출로 분산 검증 재사용** — 같은 도메인 검증이 여러 전송 경로에 걸치면 helper 가 기본. `Peer::resolve_floor_target` 가 이 패턴(구 DC+WS bearer 이원 시절 확립 — WS 철거 20260722 후에도 DC 경로 검증 helper 로 유지)
 - **hook 분류 = 횡단 관심사 fire-and-forget 만. 주 흐름은 자기 도메인 모듈** (묶음 5 분류 오류 정합) — MBCP (3GPP TS 24.380) Granted/Taken/Idle/Revoke broadcast 같은 *PTT 표준 규격 = 주 흐름* 을 hook 으로 빼면 실패 격리 불가. hook 은 외부 webhook / OpenTelemetry / 분산 로깅 자리만
 - **표현 정확도 — 폐기/이주/마이그/통합 동사 검증** (묶음 2 반성 정합) — commit 메시지 / doc 주석에서 "함수 9자리 폐기" 같은 표현은 실제 *함수 6 + 필드 3* 혼합 자리 였음. 동사가 자료 범위를 정확히 표현하는지 검증 의무
 - **mechanical refactor 함정 — 옛 별칭/순서의 *의도* 점검 의무** (0524 반성 정합) — 별칭 폐기 시 *게으름 가명 vs 명료성 가명* 판정 누락이 반복 함정. 공통 함수 흡수 시 옛 코드 순서 *답습 vs 자료 의미 차원 정공* 판정. `release_subscribe_track` 본문 순서 (mid_map → SubscriberStreamIndex → mid_pool) 가 자료 의미 정공 사례 — mid_pool.release 가 다음 add 의 시작 신호이므로 Index 먼저 깨끗해야 idempotent 분기 잔재 차단
@@ -404,7 +404,7 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 - **PowerFsm → Pipe.transitionPower()** — God Object화
 - **Pipe.toSubscribeTrack()** — SdpNegotiator 담당
 - **클라이언트 mid 자체 할당** — 서버 할당이 정석
-- **WS Floor fallback 유지** — DC-only가 정답. bearer=ws는 동일 바이너리를 WS binary로 전달
+- **WS Floor fallback 유지** — DC-only가 정답. (20260722 완결: bearer=ws 경로 + S-h DC-miss WS fallback + FLOOR_MBCP 0x2400 op 자체 철거 — "DC는 DC로만 소통한다")
 - **FLOOR_PING 유지** — RTP liveness가 정답 (hot path 0줄)
 - **disconnect → LeaveRoom** — 종속. zombie 자연 경로
 - **HEARTBEAT touch()** — sfud STUN 독립 관찰
@@ -527,25 +527,63 @@ ACK: 모든 메시지의 `ok` 필드 기반 대칭 ACK. `flags.ACK_STATE` 로 �
 ### 디렉토리 구조
 ```
 context/
-├── 202603/ ~ 당월/    ← 월별 세션 파일 (YYYYMM — 작업지침 + 완료보고 + 설계 일부 혼재)
-├── architecture/    ← 아키텍처/proto/API 설계 산출물 (구 `design/` — 명칭 정합, 실측 0620)
+├── 202603/ ~ 당월/    ← ★모든 세션 기록 (설계·지침·분석·논의 전부. 종류별 디렉토리 없음)
+├── guide/           ← AI 가이드 7종 (§가이드 표 — QA/METRICS/REGRESSION/RUN/MEDIA_DEBUG/WEBSDK/CAPACITY)
 ├── biz/             ← 사업 문서
 ├── blog/            ← 블로그 초안
-├── guide/           ← AI 가이드 7종 (§가이드 표 — QA/METRICS/REGRESSION/RUN/MEDIA_DEBUG/WEBSDK/CAPACITY)
 ├── lesson/          ← 부장님 학습 문서
 ├── qa/              ← QA 하니스/산출물
+├── doclint.sh       ← 기록 규칙 검사기 (아래 규칙을 기계로 강제)
 ├── PROJECT_MASTER.md · PROJECT_SERVER.md · PROJECT_WEB.md  ← 마스터 3종 (2026-06-03 분리)
 └── SESSION_INDEX_YYYYMM.md  ← 세션 인덱스 (월별, 루트 유지)
 ```
-> claudecode/ 디렉토리는 부재(신설 안 함) — 작업지침·완료보고 둘 다 `YYYYMM/`에 통합 저장(지침 `YYYYMMDD<suffix>_<topic>.md` / 완료보고 `..._done.md`). 옛 글로벌 지침의 `claudecode/` 경로는 화석.
+> `architecture/` 는 **폐지**(2026-08-02) — 15개 전부 `YYYYMM/` 으로 흡수. 이름 충돌 3건은 `a` 접미로 구분(`20260329a_oxlabs_design` / `20260409a_moderated_floor_design` / `20260414a_datachannel_design` = 설계서 본문, 접미 없는 쪽 = 당일 세션 요약). `claudecode/`·`design/` 경로는 화석.
 
-### 규칙
-- 세션 파일: `YYYYMM/YYYYMMDD<suffix>_<topic>.md` (월별 디렉토리 — 작업지침·완료보고 둘 다 여기. 지침 vs `_done` suffix 로 구분)
-- 설계 문서: `architecture/YYYYMMDD_토픽.md` (일부 설계는 `YYYYMM/`에도 혼재)
+### ★기록 규칙 (2026-08-02 확정 — 후행 작업은 무조건 이 절을 따른다)
+
+**R1. 위치는 하나다.** 모든 세션 기록은 `context/YYYYMM/` 평면. 설계든 지침이든 분석이든 **종류별 디렉토리를 새로 만들지 않는다.** 종류는 디렉토리가 아니라 **파일명**이 담는다. (`guide/`·`biz/`·`blog/`·`lesson/`·`qa/`는 기록이 아니라 현행 문서·산출물이라 예외로 존치.)
+
+**R2. 파일명 = `YYYYMMDD<접미문자>_<슬러그>_<kind>.md`** — kind 4종만 쓴다.
+
+| kind | 용도 | 흡수한 옛 접미사 |
+|---|---|---|
+| `_task` | 실행. **지침+진행+완료가 한 파일** | `_done` `_complete` `_work_order` `_workplan` `_plan` `_impl_guide` `_request` `_prep` `_handoff` |
+| `_design` | 구조·결정 | `_design` `_redesign` |
+| `_analysis` | 조사·측정·근본원인 | `_analysis` `_survey` `_audit` `_report` `_review` `_knowledge` |
+| `_note` | 논의·브레인스톰·세션 요약 | `_dialogue` `_notes` `_summary` `_brainstorm` |
+
+**R3. `_done.md` 별도 파일을 만들지 않는다.** 지침을 쓴 그 `_task` 파일 **아래로 append** 해서 닫는다. 지침 절은 **작성 후 고치지 않는다** — 바뀌면 위를 수정하지 말고 `## 지침 변경 · YYYYMMDD` 를 아래에 붙인다. (원본 보존이 완료보고를 별도 파일로 빼던 이유였고, append-only 가 같은 보장을 한 파일로 준다.)
+
+```markdown
+---
+kind: task
+status: open          # open | done | dropped
+opened: YYYYMMDD
+closed:
+refs: [관련 기록 파일명]
+---
+# 제목
+
+## 지침                       ← 불변
+목표 / 범위(건드릴 곳·안 건드릴 곳) / 단계 / 검증 게이트 / 완료 조건
+
+## 진행 · YYYYMMDD             ← 아래로만 append
+## 지침 변경 · YYYYMMDD         ← 지침이 바뀌면 위를 고치지 말고 여기에
+## 완료 · YYYYMMDD
+결과 / 커밋 / GAP(못 한 것) / 트레이드오프
+```
+
+**R4. 상태는 파일명이 아니라 frontmatter `status`.** `_done` 접미가 하던 일을 이 필드가 대신한다.
+
+**R5. `SESSION_INDEX_YYYYMM.md` 는 인덱스다.** 한 줄 요약(20~40자) + 파일명 + status. 세부는 세션 파일에. **기존 항목이 길다고 관성으로 따라 쓰지 말 것** — 이 규칙은 2026-06 부터 적혀 있었고 계속 어겨졌다(202607 행이 본문 수준). 위반 시 `doclint.sh` 가 잡는다.
+
+**R6. 현행 설계의 자리는 마스터 문서다.** `YYYYMM/` 기록은 그 시점에 박제된다. "지금의 진실"은 `PROJECT_SERVER.md`/`PROJECT_WEB.md`/`PROJECT_MASTER.md` 가 서술하고, 근거 기록을 `context/YYYYMM/...` 경로로 **참조**한다. 기록을 사후에 고쳐 현행을 맞추지 않는다.
+
+**R7. 과거 파일은 개명하지 않는다.** 712개 기록의 상호참조가 깨진다. R1~R5 는 **신규부터** 적용. `doclint.sh` 도 기준일 이후 파일만 검사한다.
+
 - 새 세션 시작 시 `SESSION_INDEX_YYYYMM.md`(월별) → 최신 컨텍스트 파일 순으로 읽기
-- 세션 종료 시 해당 월 디렉토리에 새 파일 생성 + `SESSION_INDEX_YYYYMM.md` 업데이트
+- 세션 종료 시 해당 월 디렉토리에 새 파일 생성 + `SESSION_INDEX_YYYYMM.md` 업데이트 + `./doclint.sh` 통과 확인
 - **세션 컨텍스트에 "오늘의 기각 후보" 및 "오늘의 지침 후보"를 반드시 포함할 것**
-- **`SESSION_INDEX_YYYYMM.md`는 인덱스다** — 한 줄 요약(20~40자) + 파일명만. 세부 기록은 세션 파일에. 기존 항목이 길다고 관성으로 따라 쓰지 말 것.
 
 ### 프로젝트 문서 관리
 - **PROJECT_MASTER.md** — 유일한 마스터 프로젝트 문서. 현재 유효한 상태/원칙만 집약. 완료 이력은 SESSION_INDEX 단일 출처

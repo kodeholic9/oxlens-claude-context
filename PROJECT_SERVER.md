@@ -2,7 +2,7 @@
 # OxLens — 서버 구조/아키텍처 (oxlens-sfu-server + oxhubd)
 
 > PROJECT_MASTER.md 에서 분리(2026-06-03). 서버 코드 종속 — 소스 구조·미디어 아키텍처·oxhubd·Peer 재설계·scope 자료구조.
-> **현행화 기준: 20260711 doclint** — 소스 HEAD `2e477dd` 대비 전문 전수 대조(갭 감사·집행 기록 = `202607/20260711_doclint_gap_audit.md`). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
+> **현행화 기준: 20260711 doclint** — 소스 HEAD `2e477dd` 대비 전문 전수 대조(갭 감사·집행 기록 = `202607/20260711_doclint_gap_audit.md`) **+ 20260722 시그널링 테마 종결 반영**(FLOOR_MBCP/ACTIVE_SPEAKERS 철거·floor DC 단일·op 42·body 권위 oxsig::message — `202607/20260722_signaling_theme_closure_task.md`). 코드 비종속 원칙·계약은 [PROJECT_MASTER.md](PROJECT_MASTER.md).
 
 ---
 
@@ -12,8 +12,8 @@
 ```
 oxlens-sfu-server/
 ├── Cargo.toml              ← workspace root (resolver = "3")
-├── system.toml             ← static config (포트, 경로, TLS, JWT, gRPC)
-├── policy.toml             ← 운영 config — logging/media(bwe_mode·remb·auto_layer)/floor(bearer)/hub. 유령 그룹([room] 등) 삭제 20260705. **부팅 1회 로드**(런타임 교체 기계 삭제 — 반영은 재기동)
+├── system.toml             ← **hub 전용** static config (hub listen/TLS/JWT, [[unit]] 자식 목록(role sfu/ccc/other, 종류 무관 동일 모양), supervisor, routing, ccc, dirs). 유닛은 안 읽음 — 20260726 인자 통일
+├── policy.toml             ← 운영 config — logging/media(bwe_mode·remb·auto_layer)/hub. 유령 그룹([room] 등) 삭제 20260705. ※[floor] bearer 는 **미독 dead config**(20260722 WS bearer 철거로 lib.rs 읽기 제거 — 파싱만, 청소 이월). **부팅 1회 로드**(런타임 교체 기계 삭제 — 반영은 재기동)
 ├── proto/
 │   └── oxlens_sfu_v1.proto ← gRPC v3: SfuService(Handle/Subscribe/SubscribeAdmin/TracePackets) + CccService(텔레메트리 수집), WsMessage `bytes wire` 단일 passthrough(oneof 폐기 0516)
 └── crates/
@@ -43,12 +43,12 @@ oxlens-sfu-server/
     │       ├── telemetry_bus.rs— telemetry 수집/전달 버스
     │       ├── signaling/
     │       │   ├── opcode.rs   — common re-export
-    │       │   └── handler/    — gRPC dispatch (8파일). Packet=`common::signaling::Packet`, body 타입=`oxsig::message` 직접 참조 (**message.rs 삭제 20260721 2단계** — 구 요청 15종·ScopeEventPayload·RoomEventPayload 소멸, body 계약 oxsig 단일 권위)
-    │       │       ├── mod.rs      — DispatchContext, dispatch, dispatch_binary
+    │       │   └── handler/    — gRPC dispatch (7파일 — floor_ops.rs 삭제 20260722). Packet=`common::signaling::Packet`, body 타입=`oxsig::message` 직접 참조 (**message.rs 삭제 20260721 2단계** — 구 요청 15종·ScopeEventPayload·RoomEventPayload 소멸, body 계약 oxsig 단일 권위)
+    │       │       ├── mod.rs      — DispatchContext, dispatch (구 dispatch_binary 는 유령 심볼 — 코드 부재 실측 20260722, binary op 소멸로 WS/gRPC 전부 JSON dispatch 단일)
     │       │       ├── room_ops.rs — JOIN, LEAVE, SYNC (per-user TRACKS_UPDATE), SESSION_DISCONNECT
-    │       │       ├── track_ops.rs— PUBLISH, TRACKS_READY, MUTE, CAMERA, SUBSCRIBE_LAYER, TRACK_STATE_REQ (duplex 전환 단일 경로, 2026-05-31)
-    │       │       ├── floor_ops.rs— handle_floor_binary (DC bearer=WS 경로, WS JSON floor 삭제됨)
-    │       │       ├── scope_ops.rs — SCOPE 단일 op 핸들러 (body 안 `mode=update/set` 분기) + sub primitive (묶음 1 Phase A, Cross-Room rev.2)
+    │       │       ├── track_ops.rs— PUBLISH, TRACKS_READY, CAMERA, SUBSCRIBE_LAYER, TRACK_STATE_REQ (duplex+mute 단일 경로 — 구 MUTE_UPDATE 0x1103 핸들러 철거 20260722, do_mute 는 TRACK_STATE_REQ muted 분기 전용)
+    │       │       ├── (floor_ops.rs 삭제 20260722 — WS bearer MBCP 핸들러. FLOOR_MBCP 0x2400 철거, floor 는 DC `datachannel::handle_mbcp_from_datachannel` 단일)
+    │       │       ├── scope_ops.rs — SCOPE 단일 op 핸들러 (body `mode="update"` 단일 — mode="set"/handle_scope_set 철거 20260722, 소비자 0) + sub primitive (묶음 1 Phase A, Cross-Room rev.2)
     │       │       ├── helpers.rs  — emit_to_hub, emit_per_user_tracks_update, collect_subscribe_tracks(mid 할당), evict_user_from_room(take-over/reap 공용 7단계). ※PTT silence 방출은 여기 아님 — `domain/floor_broadcast.rs::broadcast_silence_frames`(구 "flush_ptt_silence" 명칭은 유령 심볼)
     │       │       ├── admin.rs    — build_rooms_snapshot + build_users_snapshot (축 분리: 방 뷰 + User 뷰)
     │       │       └── client_event.rs — CLIENT_EVENT(0x1304) 사건 보고 → agg-log 녹임 (146, source/event/severity 카운터)
@@ -71,7 +71,7 @@ oxlens-sfu-server/
     │       │   ├── subscriber_stream_index.rs — by_vssrc / by_mid O(1) RCU
     │       │   ├── slot.rs         — PTT/Hall Slot (per-room virtual_ssrc + Slot.subscribers Weak Vec)
     │       │   ├── floor.rs        — FloorController (PTT 발화권, QueueUpdated 액션)
-    │       │   ├── floor_broadcast.rs — Floor 액션 → DC/WS 브로드캐스트 (SubscriberIndex user 단위, speaker_rooms/via_room TLV)
+    │       │   ├── floor_broadcast.rs — Floor 액션 → DC(SVC_MBCP) 단일 브로드캐스트 (SubscriberIndex user 단위, speaker_rooms/via_room TLV. 구 WS bearer 분기+S-h fallback 철거 20260722 — DC 미수립 참가자는 floor 미달)
     │       │   ├── floor_routing.rs — FloorRouteDeny 등 floor 라우팅 (peer.rs 에서 분리, pub use re-export)
     │       │   ├── ptt_rewriter.rs — PTT SSRC/seq/ts 오프셋 리라이팅 (RtpRewriter wrapper) + translate_rtp_ts
     │       │   ├── rtp_rewriter.rs — 공통 토대 RtpRewriter (uint64 seq/ts 단일 스칼라 offset + PLI 자가치유. SnRangeMap 폐기 20260622 — 재도입 금지)
@@ -175,20 +175,20 @@ oxlens-sfu-server/
 - 프레임 포맷: `[svc(1) + len(2) + payload]` — svc=0x01(MBCP). svc=0x03(Pan-Floor) 폐기 (묶음 1, 2026-05-18)
 - readiness 버퍼링: `dc_unreliable_ready: AtomicBool` + `dc_pending_buf: Mutex<VecDeque>` (MAX=64), DCEP Open 시 drain
 - DcMetrics 19 카운터 (sfu_metrics.rs dc 카테고리)
-- 설계: `context/architecture/20260414_datachannel_design.md`
+- 설계: `context/202604/20260414a_datachannel_design.md`
 
 ### MBCP Floor Control (DC-only, 3GPP TS 24.380)
 - **TS 24.380 native TLV 포맷** (RTCP APP PT=204 폐기). 헤더 ACK_REQ(1b)+type(4b)+field_count(1B)=2B, 필드 TLV id(1)+len(1)+value
 - **FIELD_DESTINATIONS(0x18, 24)** (4/22 추가): FLOOR_REQUEST 시 발화 대상 방 목록을 동반. `u8 count + [u8 len + utf8 room_id] × count`. 서버가 `destinations[0]` 로 방 선택(기존 `participant.room_id` 고정 참조 폐기). Phase 1 서버는 `count==1` 만 허용, `count≥2` 는 Denied (Phase 2에서 enable)
-- **WS Floor path 완전 삭제** — bearer=ws fallback은 동일 바이너리를 WS binary frame으로 전달 (envelope `[env_len|env_json|payload]`)
-- **viaRoom TLV 5개 빌더 의무화** (4/25i): `mbcp_native::build_{granted/idle/deny/revoke/queue_info}` 가 `via_room: Option<String>` 동봉. floor_broadcast.rs / datachannel/mod.rs / floor_ops.rs 호출처 전 지점 주입. 클라 라우팅 fallback chain: `viaRoom → destinations[0] → speakerRooms[0] → _currentRoom`
+- **WS Floor path 완전 삭제 → DC 단일 확정(20260722)** — 구 bearer=ws fallback(동일 바이너리 WS binary frame 전달) + S-h DC-miss WS unicast fallback + FLOOR_MBCP(0x2400) wire op 전부 철거. floor 는 DC `SVC_MBCP` 로만. DC 배관의 event_tx 관통(구 S-h 통로)도 전면 제거
+- **viaRoom TLV 5개 빌더 의무화** (4/25i): `mbcp_native::build_{granted/idle/deny/revoke/queue_info}` 가 `via_room: Option<String>` 동봉. 호출처 = floor_broadcast.rs / datachannel/mod.rs 전 지점 주입(구 floor_ops.rs 는 20260722 삭제). 클라 라우팅 fallback chain: `viaRoom → destinations[0] → speakerRooms[0] → _currentRoom`
 - **T101/T104** (클라): 500ms × 3회, Floor Ack 수신 시 취소
 - **T132** (서버): ACK_REQ=1 메시지(Granted/Revoke), 500ms × 3회
 - **FLOOR_PING 제거** → RTP liveness: tasks.rs에서 speaker의 `last_video_rtp_ms`/`last_audio_arrival_us` 활용 (hot path 변경 0줄)
 - DC 양방향 응답: Granted/Denied/Queued를 같은 SCTP stream에 즉시 write
-- bearer 왕복: 클라→hub(WS binary)→sfud(gRPC binary)→floor→event_tx→hub(bin_event_tx)→클라
+- floor 왕복(DC 단일, 20260722): 클라 DC(SCTP `[svc=0x01|len|MBCP TLV]`)→sfud `handle_mbcp_from_datachannel`→FloorController→DC reply(같은 stream)+`floor_broadcast` DC broadcast. (구 WS bearer 왕복 클라→hub WS binary→gRPC→event_tx→hub→클라 는 철거)
 - 큐 위치 갱신 (TS 24.380 §6.3.4.4) 6곳, Granted duration (§8.2.2) FIELD_DURATION(9) u16 BE
-- 설계: `context/architecture/20260415_mbcp_datachannel_v2_design.md`
+- 설계: `context/202604/20260415_mbcp_datachannel_v2_design.md`
 
 ### SubscriberGate (mediasoup pause/resume 패턴)
 - 새 publisher video 발견(TRACKS_UPDATE) → subscriber video gate pause(TrackDiscovery, 5s)
@@ -203,7 +203,7 @@ oxlens-sfu-server/
 - **fan-out 단일 본문**: `fanout() → track_type() 3분기 → broadcast(subs, prefan)` — 세 경로가 broadcast 한 본문에 합류.
 - **vssrc 역탐색 폐기**: 구 `find_subscriber_stream_by_vssrc` 매칭 fan-out 폐기. **vssrc 는 라우팅 키가 아니라 값** — subscribe 등록(cold-path)에서 `SubscriberStream.vssrc` 로 복사돼 egress rewrite hot-path 가 그 복사본 사용.
 - dead Weak 는 attach_subscriber 의 retain 으로 자연 청소 (명시 detach 없음).
-- 설계서: `context/architecture/20260528_fanout_direction_redesign.md`.
+- 설계서: `context/202605/20260528_fanout_direction_redesign.md`.
 
 ### PLI Governor (시간 기반 평탄화 — 0621 재설계)
 - **구 인과관계 추정(키프레임 도착 관측 판단·자동 레이어 조정·deferred 안전망) 전면 폐기** — 오탐이 freeze 를 유발. drop 사유 = 레이어별 min_interval 하나(h 300ms / l 100ms — 인코더 비용 비례). 키프레임 수신 시각은 진단 기록만(판단에 안 씀)
@@ -263,11 +263,11 @@ oxlens-sfu-server/
 - **클라(웹/Android) TRACK_STATE_REQ 발신 · 통지 수신 · 개인grid↔PTT slot UI 패러다임 전환 = 별도 작업** (미착수). 신규 sub add 경로 실행 검증도 멀티봇/클라 단계
 
 ### 식별 계층 (track_id / vssrc / 실 ssrc, 0603 — 서버 A·B 완료)
-설계서 `context/architecture/20260531_track_state_unification.md`(rev.3). 식별 3평면 분리 — 평면을 가르고 캡슐화.
+설계서 `context/202605/20260531_track_state_unification.md`(rev.3). 식별 3평면 분리 — 평면을 가르고 캡슐화.
 
 | 평면 | 식별자 | 소유 | 쓰임 |
 |---|---|---|---|
-| 시그널링(지목) | **track_id**(불투명) | 논리 `PublisherStream` | MUTE_UPDATE·TRACK_STATE_REQ(발신)·TRACK_STATE·TRACKS_UPDATE(통지). **키 조회, 파싱 금지** |
+| 시그널링(지목) | **track_id**(불투명) | 논리 `PublisherStream` | TRACK_STATE_REQ(발신, mute+duplex)·TRACK_STATE·TRACKS_UPDATE(통지). (구 MUTE_UPDATE 철거 20260722) **키 조회, 파싱 금지** |
 | egress SSRC(값) | **vssrc** | 논리 `PublisherStream` | subscriber 단일 SSRC 의 publisher측 원천. subscribe 등록(cold-path)에서 `SubscriberStream.vssrc` 로 복사 — **라우팅 키 아님** |
 | ingress(식별) | 실 `ssrc` | 물리 `PublisherTrack` | publisher RTP 수신 매칭·NACK/RTX (`PublisherTrackIndex.by_ssrc`) |
 
@@ -297,7 +297,7 @@ track = duplex(full/half) + simulcast(on/off) + priority(0~N)
 - 서버가 mid 할당 (per-subscriber `MidPool`, kind별 분리: recycled_audio/recycled_video) — 클라 자체 할당 시 m-line 무한 누적 → video freeze
 - TRACKS_UPDATE add/remove 는 전부 per-user 전달 — user 별 `WsBroadcast::unicast` 반복 발행(`emit_per_user_tracks_update`. 구 per_user_payloads 필드는 v3 wire 단일화로 폐기)
 - 클라이언트 passthrough: `assignMids`는 서버 mid 그대로 사용, mid 기반 inactive pipe 재활용
-- 설계: `context/architecture/20260412_subscribe_mid_design.md`
+- 설계: `context/202604/20260412_subscribe_mid_design.md`
 
 ### 생존·발행·구독 상태 3벌 (구 ParticipantPhase 5단계 — 0517 분해, state.rs)
 ```
@@ -310,7 +310,7 @@ SubscribeState(수신 배관): Created(0) ──TRACKS_READY──> Active(1)  (
 - REAPER_INTERVAL: 5초, SUSPECT_TIMEOUT: 15초, ZOMBIE_TIMEOUT: 20초 (4/25e 단축 — take-over 분기 도입으로 reconnect race 별도 처리)
 - agg-log 3종: `session:suspect`, `session:zombie`, `session:recovered`
 - **Take-over (LiveKit/mediasoup 표준, 4/25e)** — ROOM_JOIN AlreadyInRoom(2003) 시 `helpers.rs::evict_user_from_room()` (handle_room_leave cleanup 재현: cancel_pli_burst → floor cleanup → rooms.remove_participant → SubscriberIndex detach → peer.leave_room → speaker_tracker.remove — 구 purge_subscribe_layers 는 0429 제거(SubscriberStream 자동 정리) → emit_per_user_tracks_update + participant_left broadcast) → 새 peer 재생성 (새 ICE creds) → join_room 재시도. 5초 안에 phase=ready 회복. 단순 zombie 단축으로는 reconnect race 못 막음
-- 설계: `context/architecture/20260417_server_lifecycle_phase.md`, `20260417_server_participant_phase.md`
+- 설계: `context/202604/20260417_server_lifecycle_phase.md`, `context/202604/20260417_server_participant_phase.md`
 
 ### ICE Address Migration
 - ICE restart 불필요 — STUN consent check 자동 갱신(Pion/mediasoup/Janus 공통)
@@ -335,14 +335,13 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
                     └─ROOM_LEAVE─┘  (방 퇴장 시 Identified 복귀, WS 유지)
 ```
 - **WS disconnect → SESSION_DISCONNECT(0xE001) 통보만** — sfud에 LeaveRoom 안 보냄 (종속 해소)
-- 설계: `context/architecture/20260417_server_lifecycle_phase.md`
+- 설계: `context/202604/20260417_server_lifecycle_phase.md`
 
 ### WS 흐름제어
 - OutboundQueue: 4단계 우선순위(P0 floor/gate ~ P3 telemetry) + 슬라이딩윈도우(8)
 - 대칭 ACK: 모든 메시지에 `ok` 필드 기반 (양방향 동일)
 - 채널 분리: event_tx(bounded) + reply_tx(unbounded)
-- binary(MBCP) 이벤트도 event_tx → OutboundQueue 경유 — 구 "bin_event 큐 우회(T132 이중화 방지)"
-  계약은 송신자 0 인 미구현 인프라였고 철거(20260705, 감사 20260703b H3)
+- (binary 이벤트 경로 소멸 20260722 — FLOOR_MBCP 철거로 WS 는 JSON body 전용. 구 "binary(MBCP) 이벤트 event_tx→OutboundQueue 경유" 및 그 전신 "bin_event 큐 우회" 계약 전부 역사 — 후자는 송신자 0 미구현으로 20260705 철거)
 - pid는 per-connection seq
 
 ### User Probe (Hub Extension, 2026-06-20 — track-dump 후신)
@@ -356,7 +355,7 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 - `role: u8` 참가자 역할 (sfud 저장/릴레이, 의미 해석은 hub/app)
 - `isPtt` 플래그 (`__ptt__` virtual userId 패턴 제거)
 - grant → SDK 자동 audio/video publish (기존 PTT 파이프라인 재사용, sfud 변경 제로)
-- 설계: `context/architecture/20260409_moderated_floor_design.md`, `20260410_moderated_floor_design_v2.md`
+- 설계: `context/202604/20260409a_moderated_floor_design.md`, `context/202604/20260410_moderated_floor_design_v2.md`
 
 ### 이벤트 인프라
 - sfud→hub: `emit_to_hub()` 단일화 — `WsBroadcast{room_id, exclude, target, wire}` 단일 그릇(broadcast/unicast 는 target 유무로 분기)
@@ -367,9 +366,19 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 - metrics_group! 매크로 6카테고리 (ws/flow/grpc/auth/msg/stream)
 - 어드민 대시보드 Hub Gateway 섹션
 
-### Config 체계
-- system.toml: static (포트, 경로, TLS, JWT secret, gRPC 주소)
-- policy.toml: 운영 설정 (logging / media / floor / hub — 유령 그룹 삭제 20260705). **부팅 1회 로드** — 런타임 교체 기계(update_policy/reload_policy)는 호출자 전무로 삭제(20260705), 반영은 재기동
+### Config 체계 (20260726 인자 통일)
+
+**판별 기준: 프로세스가 2개 떴을 때 값이 서로 달라져야 하면 인자, 같아야 하면 파일.**
+파생 — 파일 = 그 머신/배포의 것(1개) · 인자 = 그 프로세스의 것(N개). hub 는 머신당 1개라 파일 권위.
+
+- **system.toml = hub 전용 파일** — `[hub]`/`[routing]`/`[supervisor]`/`[[unit]]`/`[ccc]`/`[dirs]`. 유닛(oxsfud·oxcccd)은 **읽지 않는다**.
+- **policy.toml = hub·유닛 공통** — logging / media / floor / hub (유령 그룹 삭제 20260705). **부팅 1회 로드** — 런타임 교체 기계(update_policy/reload_policy)는 호출자 전무로 삭제(20260705), 반영은 재기동
+- **유닛 인스턴스 설정 = CLI 인자** — oxsfud `--id/--grpc-listen/--udp-port/--udp-workers/--public-ip/--log-dir`, oxcccd `--grpc-listen/--log-dir`. 우선순위 인자 > 코드 기본값(파일 경유 없음). `--config-dir` 은 policy.toml 위치 지정용으로 유지.
+- **`[[unit]]` = hub 가 아는 자식 목록(단일 권위, 종류 무관 동일 모양)** — `role`(sfu/ccc/other)·`id`(=alias)·`addr`(dial=ready)·`cmd`·`args`(hub 미해석, 그대로 전달). hub 가 읽는 건 role·id·addr 뿐. `sfu_registry()`=role="sfu" (id,addr), `ccc_endpoint()`=role="ccc" addr(없으면 `[ccc].endpoint`=secondary 원격). `--log-dir` 만 `[dirs].log` 에서 덧붙임. role="sfu" 없으면 코드 기본값 폴백. **N 변경 = 항목 추가/삭제 하나.**
+  - **로컬 vs 원격 = `cmd` 유무**: cmd 있음=hub 가 supervisor 로 spawn(로컬), **cmd 없음=원격 타 장비**(그 장비가 띄우고 hub 는 addr 로 dial 만 — registry/이벤트/방배치엔 오르고 spawn 제외). sfu 분산 배치는 원격 노드를 `role+id+addr` 로 기재. ★ self-register/discovery 미도입(hub→sfu dial 구조) — 노드 추가 시 hub config 갱신 필요(별도 설계 이월).
+- 구 `[sfu]`(단수)·`[[hub.sfu]]`·`[supervisor.sfu]`·`[[supervisor.units]]` (toml 파싱) **폐기** — sfu 만 목록·ccc 만 손기재로 갈렸던 두 체계를 `[[unit]]` 하나로 통일. `[recording]`(소비자 0, oxtapd 부재)도 삭제.
+- **로그 파일 = 인스턴스별** — sfud `oxsfud.log.<id>.<날짜>`, hub `oxhubd.log.<날짜>`, oxcccd `oxcccd.log.<날짜>`(20260726 신설 — 종전 파일 로깅 부재로 hub 콘솔에 섞임). 구 형상은 sfud N개가 한 파일을 O_APPEND 공유해 사후 분리 불가였다.
+- 기동 배너(`config:` 1줄)가 해석된 최종값 전량을 담는다 — 인자가 권위라 파일에 안 남으므로 로그가 유일한 사후 재구성 경로.
 - `.env` / dotenvy 완전 삭제
 
 ---
@@ -393,6 +402,7 @@ Connected(0) → Identified(1) ⇄ Joined(2) → Disconnected(3)
 
 - **역할** — oxhubd 가 자식 프로세스 oxsfud(N node)를 기동/감시/재기동(POSIX). `supervisor/`(backoff/component/mod/ready/spec/stop/unit/tests).
 - **spec** — 자식 프로세스 정의(실행 커맨드/env/node id).
+- **unit 변환**(20260726) — `[[unit]]` 각 항목 → UnitConfig 를 **hub main 이 조립**한다(`main.rs::unit_configs_from_entries`). alias=`id`, ready=`addr` 파생, args 그대로 전달 + `--log-dir` 덧붙임. `SupervisorConfig.units` 는 `serde(skip)` — unit 기재 자리는 `[[unit]]` 하나뿐(두 체계 방지). **supervisor 코어는 도메인 무지 유지** — 변환은 코어 밖, 코어는 완성된 UnitConfig 만 받는다(`spec.rs` 불변). sfu·ccc 를 종류로 구분하지 않고 같은 변환을 탄다.
 - **기동 + ready** — spawn 후 ready 신호(healthz 등) 대기 → 등록.
 - **backoff 재기동** — 비정상 종료 시 backoff 정책으로 재기동(intensity 가드 — 폭주 재기동 방지, 0603g).
 - **stop** — graceful 정지(SIGTERM, 0603e sfud 측 graceful 수신 정합).
