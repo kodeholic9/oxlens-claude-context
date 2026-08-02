@@ -85,30 +85,40 @@ op **41**(`ALL_OPS` 실측 41, 산식 43→44→43→42→41 이 커밋 이력 `
 
 ---
 
-## 발견_사항 (보고만 — 조치 안 함)
+## 후속 · 20260802 — 소스 주석 죽은 경로 정정 (발견_사항 해소)
 
-**★ 소스 주석의 죽은 문서 경로 9건.** `crates/**` 주석이 폐지된 `context/design/`·`context/claudecode/` 를 가리킨다. 전부 실물은 `YYYYMM/` 아래 살아 있다.
+부장님 지시: **"소스 주석 확인해. doclint 작업은 모든걸 포괄하는 거자나."** → 발견_사항을 보고만 하지 않고 집행.
 
-```
-context/claudecode/202605/20260530c_publisher_2layer_roadmap.md
-context/design/20260416_dc_channel_multiplex_design.md
-context/design/20260421_ptt_unified_model_design.md
-context/design/20260423_scope_model_design.md
-context/design/20260427_track_lifecycle_redesign.md
-context/design/20260430_rewriter_generalization.md
-context/design/20260516_signaling_v3.md
-context/design/20260613_oxcccd_design.md
-context/design/20260615_oxadmin_trace_design.md   ← grpc/sfu_service.rs:267
-```
+### 실측 확대
 
-주석 경로 정정(동작 0)이라 이번 범위(문서만) 밖으로 두고 보고만 한다. 별건으로 처리 결재 요청.
+전 소스(`crates/**`, `oxe2epy/`, `sdk0.2/src`, `qa/`)의 context 문서 참조를 전수 훑었다. **참조 문서 16종** 중 죽은 것은 아래 형태 — **17곳**.
 
-## GAP — 못 한 것
+| 죽은 참조 | 실제 | 곳 |
+|---|---|---|
+| `context/design/20260427_track_lifecycle_redesign.md` | `context/202604/…` | 6 |
+| `context/design/20260516_signaling_v3.md` | `context/202605/20260516_signaling_v3_**design**.md` (파일명도 달랐다) | 4 |
+| `context/design/20260615_oxadmin_trace_design.md` | `context/202606/…` | 2 |
+| `context/design/{20260416_dc_channel_multiplex,20260421_ptt_unified_model,20260423_scope_model,20260430_rewriter_generalization}_*.md` | `context/202604/…` | 각 1 |
+| `context/design/20260613_oxcccd_design.md` | `context/202606/…` | 1 |
+| `context/claudecode/202605/20260530c_publisher_2layer_roadmap.md` | `context/202605/…` | 1 |
 
-1. **소스 주석 dangling 9건 미수정**(위 발견_사항).
-2. **`ctxlint.sh` R6 은 마스터 3종의 `context/YYYYMM/*.md` 참조만 검사**한다. 소스 주석 참조는 검사 범위 밖 — 재발 방지 장치가 없다.
-3. **`default = ["trace"]` 는 문서화만 했고 코드는 그대로다.** 상용 출하 게이트로 남는다.
-4. **STALLED 결함(tasks.rs:141) 미수리** — 20260711 doclint 에서 적발된 상태 그대로. 수리 결재 대기.
+★ **오늘 `architecture/` 해체로 깨진 소스 참조는 0건** — 소스에 `context/architecture/` 참조가 애초에 없었다(확인 후 이동한 게 아니라 사후 확인. 다음엔 이동 전에 본다).
+접두어 없는 bare 참조(`20260528_fanout_direction_redesign.md` 등 6곳)는 죽은 게 아니라 무자격일 뿐이라 손대지 않았다 — 불필요한 churn.
+
+### 집행
+
+- 소스 17파일 17곳 정정. **주석만 — diff 는 전부 경로 문자열**. `cargo check --workspace` 통과.
+- 커밋: `oxlens-sfu-server` `98510be` "docs(comment): 소스 주석의 죽은 설계서 경로 정정 (17곳)". **push 는 부장님.**
+
+### 재발 방지 — `ctxlint.sh` R6-b 신설
+
+R6 을 둘로 갈랐다. **R6-a** = 마스터 3종의 참조(기존), **R6-b** = **소스 주석의 참조**(신설). doclint 가 "문서를 가리키는 모든 것"을 포괄한다는 원칙을 검사기에 반영한 것.
+검사 범위 `../oxlens-sfu-server/{crates,oxe2epy}` · `../oxlens-home/{sdk0.2/src,qa}`. 위반 시 죽은 경로 + 소스 파일 위치를 같이 뱉는다.
+**물림 실증**: `header.rs` 에 죽은 경로를 일부러 되돌려 넣으니 `FAIL R6 소스 주석의 죽은 문서 경로` + 파일 위치 적시, 원복하니 통과.
+
+### 발견_사항 (조치 안 함)
+
+`oxlens-sfu-server/system.toml` 에 **부장님 로컬 미커밋 변경**이 있다 — `[[unit]] id="sfu-2"` 의 `enabled = false` 주석 해제(sfu-2 노드 끔). 본 작업과 무관해 스테이징에서 제외했다.
 
 ## 트레이드오프
 

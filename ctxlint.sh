@@ -108,7 +108,7 @@ for idx in SESSION_INDEX_*.md; do
   [ "$n" -gt 0 ] && bad "R5 $idx: 과다 길이 행 ${n}건 (200자 초과) — 한 줄 요약 + 파일명 + status 로 줄인다"
 done
 
-# ---- R6: 마스터 문서의 참조 경로가 실재하는가 -------------------------------
+# ---- R6-a: 마스터 문서의 참조 경로가 실재하는가 -----------------------------
 for m in PROJECT_MASTER.md PROJECT_SERVER.md PROJECT_WEB.md; do
   [ -e "$m" ] || continue
   grep -oE '`context/[0-9]{6}/[A-Za-z0-9._-]+\.md`' "$m" | tr -d '`' | sort -u | while read -r ref; do
@@ -119,6 +119,27 @@ if [ -s /tmp/ctxlint_dangling.$$ ]; then
   while IFS= read -r l; do bad "R6 참조 경로 부재: ${l#DANGLING }"; done < /tmp/ctxlint_dangling.$$
 fi
 rm -f /tmp/ctxlint_dangling.$$
+
+# ---- R6-b: 소스 주석의 context 문서 참조가 실재하는가 -----------------------
+# doclint 는 문서만이 아니라 "문서를 가리키는 모든 것"을 포괄한다. 소스 주석의
+# 설계서 경로가 죽으면 코드에서 근거로 못 걸어간다 — 20260802 실측 17곳 적발
+# (폐지된 context/design/·context/claudecode/ 를 가리키고 있었다).
+SRC_ROOTS="../oxlens-sfu-server/crates ../oxlens-sfu-server/oxe2epy ../oxlens-home/sdk0.2/src ../oxlens-home/qa"
+: > /tmp/ctxlint_src.$$
+for root in $SRC_ROOTS; do
+  [ -d "$root" ] || continue
+  grep -rhoE 'context/[A-Za-z0-9_][A-Za-z0-9_./-]*\.md' "$root" 2>/dev/null
+done | sort -u | while read -r ref; do
+  [ -e "${ref#context/}" ] || echo "$ref" >> /tmp/ctxlint_src.$$
+done
+if [ -s /tmp/ctxlint_src.$$ ]; then
+  while IFS= read -r ref; do
+    bad "R6 소스 주석의 죽은 문서 경로: $ref"
+    where=$(for root in $SRC_ROOTS; do [ -d "$root" ] && grep -rln "$ref" "$root" 2>/dev/null; done | head -3 | tr '\n' ' ')
+    note "→ $where"
+  done < /tmp/ctxlint_src.$$
+fi
+rm -f /tmp/ctxlint_src.$$
 
 # ---- 결과 ------------------------------------------------------------------
 echo
