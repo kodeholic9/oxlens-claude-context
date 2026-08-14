@@ -385,6 +385,39 @@ Arc 공유가 없어 취소 한 방이면 전부 풀린다.
 전부 잡힌다. `last_stun` 유휴 판정은 **peer 가 영영 회수되지 않는 경우**(WS 는 살아 있는데
 미디어만 사라진 상태)에만 필요한 2차 안전망이므로, 1차를 넣고 재측정한 뒤에 결정한다.
 
+### 구현 · 20260815 08:15 — 서버 `4b8aeb2` (단위 통과, 2층 게이트 잔여)
+
+부장님 "진행해" 사인. 위 설계 그대로 넣었다. **영향 범위 4파일 / +155 −20.**
+
+| 변경 | 좌표 |
+|---|---|
+| `MediaSession.transport_cancel` 신설 + `transport_cancel()` / `cancel_transport()` | `domain/peer.rs` |
+| `Peer::cancel_transport()` — PC pair 둘 다 | `domain/peer.rs` |
+| `PeerMap::remove()` 가 취소 (회수 3경로 수렴점) | `domain/peer_map.rs:98` |
+| `run_sctp_loop(.., cancel)` + `select!` 취소 arm | `datachannel/mod.rs:84,116` |
+| sub keepalive 루프를 `select!` 로 전환 + 취소 arm | `transport/udp/mod.rs:579` |
+| `DtlsSessionEntry.cancel` + `evict_conflicting` **취소 먼저, 제거 나중** | `transport/udp/mod.rs:83,116` |
+
+**현재 동작**: peer 가 회수되면(reaper 5s 틱 / ROOM_LEAVE / ws-cut) 두 루프가 즉시 break →
+태스크 종료 → `DTLSConn` drop → reader 종료. 포트 재사용 축출도 tx 를 떨어뜨리기 전에 취소를
+켜므로 스핀이 남지 않는다.
+
+**트레이드오프**: 정리 시점이 reaper 틱에 묶인다(무접속 소멸 시 최대 그 주기만큼 지연).
+대신 정상 통화 중에는 `remove()` 가 호출되지 않아 **조기 종료 위험이 구조적으로 없다** —
+유휴 판정(last_stun) 방식보다 안전한 축이다.
+
+**안전 근거**:
+- 단위 **280 통과**(0 실패). 신규 3종 — `evict_cancels_before_drop` /
+  `peer_map_remove_cancels_transport` / `peer_map_lookup_does_not_cancel`(조회·재사용·타 유저
+  회수로는 취소 안 됨 = 조기 종료 가드).
+- take-over 경로 확인: 모드 불일치·2003 재-JOIN 모두 `remove` 후 **새 Peer 재생성**
+  (`room_ops.rs:174,214`, 기존 시험 `!Arc::ptr_eq` 단언) → 취소된 토큰이 재사용되지 않는다.
+- `cargo check --workspace --all-targets` 무경고.
+
+**잔여**: 2층 `run-all` 43종 + 좀비 0 확인. **soak(N=30) 종료 후** — 지금 돌리면 표본이 깨진다.
+release 바이너리는 08:15:28~08:15:48 에 재빌드(nice -19, -j3)했다. 돌고 있는 서버 프로세스는
+그대로이므로 soak 표본에 영향 없다(재기동해야 새 바이너리가 뜬다).
+
 ### F5 갱신 — 좀비 생성률은 "회당 1개"가 아니다
 
 soak(20260815 01:10 기동, N=30) 기준선 5 → run 1 에서 6 → run 10 에서 7.
