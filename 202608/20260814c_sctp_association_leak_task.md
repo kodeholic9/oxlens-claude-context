@@ -357,6 +357,34 @@ sub keepalive 종료는 `udp/mod.rs:598` trace 라 현재 로그로는 사후 �
 | 4 | `253df78` 존치 여부 | 위 4번으로 대체 — 존치하되 순서 수정 |
 | 5 | **(신규)** `Arc<DTLSConn>` 이 취소 시 실제로 drop 되나 = 유일 소유인가 | 미확인. `udp/mod.rs:568`(pub)·`:579`(sub) 두 소비처가 같은 Arc 를 쓴다 |
 
+### 확인 #5 통과 + 취소 배선 좌표 (소스 확인, 코드 미변경)
+
+**#5 = 통과.** `dtls::accept_dtls` 는 `Result<DTLSConn, _>`(`transport/dtls.rs:74`) —
+**Arc 가 아니라 소유값**이다. spawn 태스크의 지역변수이므로 루프가 break 하고 태스크가 끝나면
+`DTLSConn` 이 drop 되고, 그 안의 `reader_close_tx` 가 떨어지며 reader 가 종료된다.
+Arc 공유가 없어 취소 한 방이면 전부 풀린다.
+
+**단, F3 의 *"다른 태스크가 이미 같은 패턴"* 은 그대로 못 쓴다.** 기존 `CancellationToken`
+(`lib.rs:252`)은 **서버 종료용 1개**를 4개 백그라운드 태스크가 공유하는 형태다(`tasks.rs:32/120/265/345`).
+필요한 건 **peer 생명주기 토큰**이라 새로 둬야 한다.
+
+**배선 지점은 사실상 한 곳이다.** peer 회수 3경로가 전부 같은 모양(`unregister_session` +
+`endpoints.remove(user_id)`)으로 끝난다:
+
+| 경로 | 좌표 |
+|---|---|
+| reaper | `domain/peer_map.rs:277~284` |
+| ROOM_LEAVE | `signaling/handler/room_ops.rs:449~456` |
+| ws-cut(leave helper) | `signaling/handler/helpers.rs:678~685` |
+
+→ 토큰을 `Peer` 에 두고 **`PeerMap::remove()`(peer_map.rs:98) 안에서 한 번 취소**하면 세 경로가
+모두 덮인다. 콜백 주입 없이 직접 호출이다.
+
+**★그리고 이게 유휴 판정보다 먼저다.** F4 대로 **좀비들은 이미 reaper 가 peer_map 에서
+걷어간 뒤**였다 — 루프만 그 사실을 몰랐을 뿐이다. 즉 `remove()` 취소 하나로 관측된 좀비 4~7개는
+전부 잡힌다. `last_stun` 유휴 판정은 **peer 가 영영 회수되지 않는 경우**(WS 는 살아 있는데
+미디어만 사라진 상태)에만 필요한 2차 안전망이므로, 1차를 넣고 재측정한 뒤에 결정한다.
+
 ### F5 갱신 — 좀비 생성률은 "회당 1개"가 아니다
 
 soak(20260815 01:10 기동, N=30) 기준선 5 → run 1 에서 6 → run 10 에서 7.
