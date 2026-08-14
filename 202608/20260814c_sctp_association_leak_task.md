@@ -115,6 +115,51 @@ RUST_LOG=oxsfud=debug,sctp_proto=trace                   # 더 파야 할 때
 
 ---
 
+## ★ 근본 수리 설계 (20260815 확인 — 다음 세션 착수분)
+
+**부장님 지적: "계속 땜빵만 하고 있는 전형적인 그 패턴."** 맞다. `253df78`(ufrag 축출)은
+누수를 남긴 채 충돌만 피한 것이고, 근본은 손대지 않았다. 아래가 근본이다.
+
+### 결정적 사실 — 세션을 지우면 태스크가 스스로 죽는다
+
+`transport/demux_conn.rs` `DemuxConn::recv`:
+```rust
+match rx.recv().await {
+    Some(data) => { ... }
+    None => Err(webrtc_util::Error::Other("dtls rx channel closed".into())),
+}
+```
+**tx 가 drop 되면 recv 가 에러를 반환한다.** 그리고 매달린 두 루프의 종료 조건이 정확히 그것:
+- sub keepalive: `Ok(0) | Err(_) => break`
+- pub `run_sctp_loop`: `Ok(0) | Err(_) => { break; }`
+
+즉 `dtls_map` 엔트리를 제거하면 → tx drop → recv 에러 → **루프 종료 → 태스크·Arc<Peer> 해제**.
+어제 제안한 "CancellationToken 을 peer 생명주기에 엮는" 큰 작업이 **불필요할 수 있다.**
+
+### 수리안 (단순): `remove_stale()` 에 유휴 판정 추가
+
+```
+현재:  tx.is_closed()                  → 태스크가 죽어야 지움  (순환 의존 — 그래서 영영 안 지워짐)
+추가:  마지막 STUN 수신 후 N초 경과     → 지움 → tx drop → 태스크 종료
+```
+- 마지막 STUN 시각은 서버가 이미 안다(`latch+response (keepalive)` 경로). `DtlsSessionEntry` 에
+  `last_stun: Instant` 를 두고 STUN 처리에서 갱신하면 된다.
+- `remove_stale()` 은 이미 1000패킷마다 호출되므로 호출 지점을 새로 만들 필요가 없다.
+- 정상 클라는 ICE consent(keepalive STUN)를 계속 보내므로 **조기 종료 위험이 낮다.**
+  RFC 7675 consent freshness 와 같은 발상 — 표준적이다.
+- N 값은 미정. WebRTC 관행(consent 30s 간격) 고려해 60s 안팎이 후보. **실측 후 결정.**
+
+### 착수 전 확인 사항
+
+1. `last_stun` 갱신 지점이 keepalive STUN 을 실제로 다 받는가(`latch_changed=false` 분기 포함).
+2. pub PC 는 SCTP 루프가 `Conn::recv` 를 `select!` 안에서 쓴다 — tx drop 이 그 arm 을
+   깨우는지 확인(sub 은 직접 recv 라 명확).
+3. 조기 종료 회귀: run-all 43종 + 장시간 유휴 시나리오에서 정상 세션이 안 끊기는지.
+4. 성공하면 **`253df78`(ufrag 축출) 은 걷어낼 수 있는지** 재검토 — 근본이 고쳐지면
+   포트 재사용 잔재 자체가 안 생긴다. 다만 축출은 이중 안전망으로 남길 여지도 있다.
+
+---
+
 ## 수리 방향 (미착수 — 설계부터 볼 것)
 
 1. **`run_sctp_loop` 에 `CancellationToken`** — peer 회수 경로(reaper · ROOM_LEAVE · ws-cut)에서
