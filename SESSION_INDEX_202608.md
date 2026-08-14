@@ -10,4 +10,4 @@
 | 08-02 | 마스터 3종 현행화(doclint 전수 28커밋) | `202608/20260802c_master_docs_resync_task.md` | done |
 | 08-14 | 방→SFU 배치 HRW 결정론화 + 2층 격리 실측 | `202608/20260814a_sfu_placement_hrw_task.md` | done |
 | 08-14 | MCPTT KPI 계측 신설 → SCTP datagram 결함 수리 | `202608/20260814b_mcptt_kpi_sctp_datagram_task.md` | done |
-| 08-14 | SCTP association 누수 발굴(원인 확정·수리 미착수) | `202608/20260814c_sctp_association_leak_task.md` | open |
+| 08-14 | SCTP association 누수 근본 수리(2층 통과·3층 잔여) | `202608/20260814c_sctp_association_leak_task.md` | open |
