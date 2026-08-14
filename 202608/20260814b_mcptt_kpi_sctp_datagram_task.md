@@ -227,6 +227,41 @@ ICE/DTLS 에 몰려 있다. 봇 폴링 100ms 를 빼면 실질 KPI 2 ≈ **290ms
 
 ---
 
+## 진행 · 20260814 22:xx — soak 중 별건 적발·수리 (`floor_seam` 오탐)
+
+soak 8회 중 2회 빨강. 찾던 seq 결손이 아니라 **`conf_ptt_relay` 의 `floor_seam`** 이었다
+(`seq_loss.txt` 0건). soak 을 멈추고 재현율 높은 쪽(25%)을 먼저 팠다.
+
+```
+[botC] floor_seam(a) botB→botA 옛화자 잔류 503ms > 50ms
+```
+
+503ms 가 `MBCP_T132_MS`(500) 와 같아 재전송으로 의심했으나 **시나리오 RELEASE→REQUEST
+간격**이었다(`at:3` → `at:3.5`). 또 설계값을 신호로 오인할 뻔했다.
+
+규명(봇 dump + 서버 로그 + 서버 소스 교차, 단독 12회 중 2회로 재현):
+- **봇 무죄** — `_ptt_tx_loop` 가 `if self.floor_granted` 로 막는다. dump 도
+  botB GRANTED 4.1353 → 첫 송신 4.1473 확인. GRANT 없이 안 보낸다.
+- **서버 무죄** — 문제 구간에 봇 송신 0개인데 청취자 수신 4개. `floor_broadcast.rs` 가
+  RELEASE 마무리 silence flush 3프레임 + grant 예열 CN 을 같은 slot 으로 broadcast 한다
+  (서버 로그 `[PTT:REWRITE] silence flush 3 frames`). 설계대로다.
+- **등식 결함** — 옛/새 화자를 GRANTED **통지 도착 시각**으로 갈랐다. 예열 CN 은 통지와
+  거의 동시에 나가 도착 순서가 경합하고, CN 이 0.6ms 먼저 오면 옛 화자로 분류돼 잔류가
+  500ms 로 부풀었다. 17~25% 레이스.
+
+수리(`e1cb98d`): 잔류는 **화자 음성만** 센다. 판별은 페이로드 **바이트 일치**
+(`ptt_rewriter.rs:61 OPUS_SILENCE = [0xf8,0xff,0xfe]` ↔ 봇 `OPUS_DUMMY` = 같은 TOC + 패딩 20B).
+길이가 아니라 바이트라 패딩이 바뀌어도 안전하다. 부장님 지적으로 잡은 축 —
+당초 `rtp_ts` 점프라는 **간접 지표**를 쓰려 했는데 페이로드가 원자 사실이었다.
+
+검증: 실패 dump 2건 → 0건 / 침묵을 음성으로 위조 → 1건 적발(판별력 유지) /
+`conf_ptt_relay` 10회 연속 PASS / `run-all` 43종 OK 43.
+
+**오늘 세 번째 시험 결함**이다(화자전환 지표 · `adv_loss` 30fps 양자화 · 이번 건).
+부장님 원칙("1번이라도 안 되면 버그, 규명 전까진")대로 처리했고 세 번 다 출구가 시험 쪽이었다.
+
+---
+
 ## 미결
 
 1. **★`onepc_adv_rtcp` RTP seq 1개 결손 — 규명 전까지 버그로 취급.**
