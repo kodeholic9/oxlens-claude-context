@@ -152,6 +152,56 @@ RUST_LOG=oxsfud=debug,sctp_proto=trace                   # 더 파야 할 때
 
 ---
 
+## 진행 · 20260815 01:00 — ★같은 뿌리의 **세 번째 증상** 발견·차단 (포트 재사용)
+
+이 누수는 SCTP 좀비 하나가 아니었다. **정리 안 되는 태스크 하나가 세 증상을 만든다.**
+
+| # | 증상 | 상태 |
+|---|---|---|
+| ① | SCTP association 좀비 — 60초마다 무한 재전송 | 미수리 |
+| ② | transport 태스크 + `Arc<Peer>` 누수 | 미수리 |
+| ③ | **DTLS 포트 재사용 → 신규 연결 영구 차단** | **증상 차단(`253df78`)**, 근본 미수리 |
+
+### ③ 발견 경위
+
+soak run 2·3 이 `adv_loss` 에서 중단(5회 중 2회 = **40%**). 신설 진단이 지점을 지목했다:
+```
+ice_state=completed nominated=1 check_done=True / dtls_state=connecting → WantReadError
+```
+ICE 는 성공인데 서버가 DTLS 를 **시작조차 안 했다.** 포트 이력이 답이었다:
+```
+:58276  22:37 listenC sub → USE-CANDIDATE → handshake OK → SRTP ready
+        23:32 botB    sub → latch+response 만
+        00:08 botB    pub → latch+response 만   ← 실패
+```
+`dtls_map` 키가 SocketAddr 뿐이고 판정이 `!has(&remote)` 라, OS 가 옛 세션의 소스 포트를
+새 클라에 배정하면 서버가 "이미 있음"으로 보고 USE-CANDIDATE 를 무시한다.
+
+### 왜 옛 엔트리가 안 지워지나 = ①②와 같은 뿌리
+
+`remove_stale()` 은 `entry.tx.is_closed()` 로만 지운다. 그 tx 를 쥔 태스크가 안 끝난다:
+- pub = `run_sctp_loop` (F2 — recv 에러 / association_lost 로만 종료)
+- sub = keepalive 루프 `match dtls_conn.recv(..) { Ok(0)|Err(_) => break }`
+**둘 다 UDP 라 상대가 사라져도 그 조건이 안 온다.**
+
+### 수리(증상 차단만)
+
+`253df78` — 엔트리에 ufrag 를 실어 세션 동일성 판정(`has_live` / `evict_conflicting`).
+키는 SocketAddr 유지(**바꿀 수 없다** — DTLS 레코드에 ufrag 가 없어 `inject` 가 주소로만 라우팅).
+진입 두 경로(STUN USE-CANDIDATE / DTLS 선도착) 모두 반영, ufrag 출처 동일성 확인
+(`register_session(&peer, &peer.publish.media.ufrag, ...)` ↔ `session(pc).ufrag`).
+축출 시 tx drop 으로 매달린 태스크 정리도 유도된다. 단위 시험 3종 신설.
+
+**근본은 그대로다** — 루프가 안 끝나는 한 ①②는 계속되고, ③도 축출로 덮을 뿐이다.
+
+### ★ 그래서 미결이 느는 게 아니다
+
+겉보기엔 후보가 늘지만 **①②③이 한 뿌리**다. `run_sctp_loop`/keepalive 루프에
+종료 경로(수리안 1: CancellationToken)를 넣으면 **셋이 동시에 사라진다.**
+수리 우선순위가 올라갔다 — ③은 실사용 직격(클라 재접속 시 연결 자체 실패)이기 때문이다.
+
+---
+
 ## 진행 · 20260814 20:16 — F5 자료 수집 중
 
 seq 결손 빈도 측정 soak(20260814b §미결 1-②)이 돌면서 **좀비 생성 자료도 같이 쌓인다.**
