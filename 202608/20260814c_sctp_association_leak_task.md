@@ -260,3 +260,105 @@ grep -hoE "retransmitting tsn=[0-9]+" ~/repository/oxlens-sfu-server/oxsfud.log.
 ```
 회당 1개가 유지되면 F5 는 "run-all 안의 특정 시나리오"로 좁혀지고, 회차별 생성 시각을
 `soak_*/summary.txt` 의 회차 시각과 대조하면 **어느 시나리오 구간인지** 특정된다.
+
+---
+
+## 진행 · 20260815 07:50 — ★「단순 수리안」의 전제가 틀렸다 (소스 재검증 + 스핀 실측)
+
+부장님 지시: *"정확한 원인 분석이 중요해."* 위 §★근본 수리 설계를 착수 전에 소스로 재검증했다.
+**전제 두 개가 사실과 다르다.** 위 절은 R3(append-only)에 따라 고치지 않고 여기서 정정한다.
+
+### 정정 1 — 두 루프 다 `DemuxConn` 이 아니라 `DTLSConn` 을 읽는다
+
+| 루프 | 좌표 | 읽는 대상 |
+|---|---|---|
+| pub SCTP | `datachannel/mod.rs:116` `Conn::recv(dtls_conn, ..)` | **DTLSConn** |
+| sub keepalive | `transport/udp/mod.rs:579` `dtls_conn.recv(..)` | **DTLSConn** |
+
+위 절의 *"sub 은 직접 recv 라 명확"* 은 틀렸다. `DemuxConn` 은 두 루프 어디에서도 직접 읽히지
+않고 **DTLS 내부 reader 태스크**만이 읽는다.
+
+### 정정 2 — tx drop 은 루프를 못 깨운다. 대신 **코어를 태운다**
+
+`dtls-0.17.1` 원본 좌표 3개가 결론을 확정한다.
+
+```
+conn/mod.rs:786   let n = next_conn.recv(buf).await?;      ← 우리 DemuxConn. 채널 닫히면 즉시 Err
+conn/mod.rs:403   if Error::ErrAlertFatalOrClose == err { break }   ← 그 외 에러는 trace 만 찍고 재호출
+error.rs:154      Util(#[from] util::Error)                ← "dtls rx channel closed" = Error::Util
+```
+
+우리 에러는 `Error::Util` 이라 :403 의 등식이 성립하지 않는다 →
+**reader 가 `read_and_buffer` 를 무한 재호출하는 busy loop 로 들어간다.**
+그리고 reader 가 안 끝나므로 `decrypted_tx` 도 안 떨어져,
+`read()`(conn/mod.rs:443)의 `decrypted_rx.recv()` 는 **영원히 pending** — 두 루프 다 안 깨어난다.
+
+> 즉 `remove_stale()` 에 유휴 판정만 넣으면 **좀비가 사라지는 게 아니라 좀비 1개가 스핀 1코어로
+> 바뀐다.** 현재 좀비 7개 → 코어 7개.
+
+### 실측 — sfu-2 는 지금 이 스핀을 돌리고 있다
+
+`2026-08-15 07:39~07:47`, soak 진행 중 관측:
+
+| | sfu-1 (pid 79734) | sfu-2 (pid 79736) |
+|---|---|---|
+| CPU time / 경과 | 1:06 / 6:34:16 | **73:34** / 6:34:16 |
+| 현재 %CPU | 0.4 | **103.8 ~ 111.0** |
+| `ps -M` | 실행 스레드 0 | **1 스레드 R, 99.3%** |
+| `sample` 최상위 스택 | 해당 없음(0건) | `DTLSConn::new::{{closure}}` → `DemuxConn::recv` **1031 samples** |
+
+**CPU 회계가 축출 시각과 맞는다.** sfu-2 축출은 `04:36:12.365`(botA pub, `:64522`) 1건.
+그 이후 벽시계는 3h11 이지만 맥이 반복 절전 중이라 **각성 누계는 68.6분**(`pmset -g log` 로 산출).
+관측된 CPU 73:34 와 같은 규모다 = **각성 중 사실상 100% 점유**. 차이 ~5분은 정상 미디어 처리분
++ 구간 추정 오차.
+
+### 왜 sfu-1 은 멀쩡한가 — 축출이 항상 스핀을 낳지는 않는다 (원인 미확정)
+
+축출 2건의 **대상 이력**이 다르다.
+
+| | sfu-2 04:36:12 | sfu-1 06:17:04 |
+|---|---|---|
+| 축출된 옛 세션 | botS **pc=sub, 01:16:15** 생성 (3h20 전) | botA **pc=sub, 06:16:58** 생성 (**6초 전**) |
+| 그 세션의 주인 | 이미 사라진 봇(close_notify 없음) | 같은 run 의 같은 봇 |
+| 결과 | **스핀** | 스핀 없음 |
+
+**가설(미확정)**: 옛 세션이 **정상 종료된 뒤 아직 `remove_stale` 이 안 걷어간 엔트리**였다면
+(tx 는 이미 closed) 축출은 무해하다. 살아서 매달린 엔트리를 축출할 때만 스핀이 생긴다.
+sub keepalive 종료는 `udp/mod.rs:598` trace 라 현재 로그로는 사후 확인 불가 —
+**확인법**: 그 종료 지점을 debug 로 승격하거나 카운터를 붙인다.
+
+### ★반대 증거 — 정상 종료 경로는 이미 완벽히 작동한다
+
+`conn/mod.rs:447~460`: decrypted 채널이 닫히면 `read()` 는 **`Err(ErrAlertFatalOrClose)`** 를 낸다.
+그래서 상대가 close_notify 를 보내면 reader break → 채널 닫힘 → 두 루프 모두 `Err(_) => break`.
+실측(sfu-2 `06:22:47.162`): `ROOM_LEAVE user=botADV` → 같은 ms 에 `[DC] SCTP loop ended`
+(`datachannel/mod.rs:197`). **좀비는 close_notify 없이 사라진 peer 에서만 생긴다.**
+
+### 수리 방향 재확정
+
+1. **유휴 판정 단독 = 금지.** 좀비를 스핀으로 바꾼다(위 정정 2).
+2. **수리안 1(CancellationToken)이 여전히 근본이고, 이제는 유일한 경로다.**
+   취소 → 루프 `break` → `Arc<DTLSConn>` drop → `reader_close_tx`(conn/mod.rs:325) drop →
+   reader 의 `reader_close_rx.recv()` 가 `None` 으로 완료 → **reader break**.
+   `DTLSConn` 에 `Drop` 구현은 없지만 **sender drop 만으로 성립한다**(원본 확인).
+3. **유휴 판정(`last_stun`)은 폐기가 아니라 "취소 트리거"로 쓴다.** 지우는 주체가 아니라
+   `cancel.cancel()` 을 호출하는 주체다. 제거는 그 뒤 tx closed 를 보고 기존 `remove_stale` 이 한다.
+4. **`253df78`(ufrag 축출) 재평가**: 증상 차단은 유효하나 **살아 있는 엔트리를 축출하면 스핀이
+   남는다.** 취소 경로가 들어간 뒤에는 축출도 `cancel → 제거` 순서로 바꾼다. 걷어내는 게 아니라
+   **순서를 고친다.**
+
+### 착수 전 확인 (갱신)
+
+| # | 항목 | 상태 |
+|---|---|---|
+| 1 | `last_stun` 갱신점이 keepalive STUN 을 다 받나 | **확인** — `udp/mod.rs:426~450` 도달. 조기 return 은 unknown ufrag(:404)·integrity 실패(:433) 뿐. `peer.last_seen`(:420)은 이미 매 STUN 갱신 |
+| 2 | tx drop 이 pub 의 `select!` arm 을 깨우나 | **확인 — 아니오.** 위 정정 2 |
+| 3 | 조기 종료 회귀(run-all 43 + 장시간 유휴) | 미확인 |
+| 4 | `253df78` 존치 여부 | 위 4번으로 대체 — 존치하되 순서 수정 |
+| 5 | **(신규)** `Arc<DTLSConn>` 이 취소 시 실제로 drop 되나 = 유일 소유인가 | 미확인. `udp/mod.rs:568`(pub)·`:579`(sub) 두 소비처가 같은 Arc 를 쓴다 |
+
+### F5 갱신 — 좀비 생성률은 "회당 1개"가 아니다
+
+soak(20260815 01:10 기동, N=30) 기준선 5 → run 1 에서 6 → run 10 에서 7.
+**11회에 +2 = 0.18/run.** 종전 근거(4회/4개)는 이 표본에서 반증됐다.
+생성 계기 특정(F5)은 여전히 미결이고, 표본이 커진 만큼 `summary.txt` 회차 시각 대조가 더 쉬워졌다.
