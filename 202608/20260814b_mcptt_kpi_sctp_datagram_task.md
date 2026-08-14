@@ -243,13 +243,40 @@ ICE/DTLS 에 몰려 있다. 봇 폴링 100ms 를 빼면 실질 KPI 2 ≈ **290ms
      ↑관측                    (관측 없음)                          ↑관측
    ```
 
-   **다음 수(순서 고정)**:
-   ① **관측 홉 추가** — "서버가 그 seq 를 실제로 forward 했는가" 하나면 이분된다
-      (안 보냄=서버 결함 / 보냈는데 못 받음=봇·소켓). `oxsfud` 는 `trace` feature 가
-      default 라 per-ssrc egress 추적이 이미 있을 수 있다. **재현 없이 지금 준비 가능.**
-   ② 확률 증폭 — 1% 를 50% 로. 단서: run-all(장시간 단일 프로세스)에서만 나온다.
-   ③ 야간 반복 20~30회로 빈도 확보.
-   ①이 선결이다. 없이 ②③ 하면 재현돼도 "또 1개 없네"만 나온다.
+   **① 관측 홉 — 20260814 확보 완료(커밋 `36e8a89`).**
+   서버는 SR 을 relay 하며 packet_count 를 **egress 기준으로 교체**한다
+   (`rtcp_terminator.rs` `translate_sr`, `out[20..24]`). 즉 "서버가 몇 개 내보냈나"가
+   **이미 wire 로 오고 있었고 봇도 이미 dump 에 적고 있었다** — 쓰지 않았을 뿐이다.
+   `egress_delivery` 등식 신설로 이제 방향이 갈린다:
+   - egress > 수신 → 망/봇 수신 유실(**서버 무죄**)
+   - egress = 수신 + seq 구멍 → 서버 forward 누락(**서버 유죄**)
+
+   failability 확인: dump 에서 수신 RTP 3개 제거 → 1건 적발
+   "서버 139개 / 봇 136개 (차 +3)". 정상 기준선 egress 135 = 수신 135.
+   ※ 조작 픽스처를 문자열 매칭으로 만들었다가 실제 제거가 0개라 "죽은 게이트"로
+     오판할 뻔했다 — **failability 시험 자체도 검증 대상**이다.
+
+   **② 빈도 측정 — 20260814 20:16 착수, 실행 중.**
+   ```
+   ~/repository/testlogs/202608/soak_runall.sh 30      # 세션 독립(nohup), 중단: pkill -f soak_runall.sh
+   출력: ~/repository/testlogs/202608/soak_20260814_201608/
+     summary.txt   회차별 판정
+     seq_loss.txt  신규 seq 결손만(conf_audio_fault=의도된 drop 은 제외)
+   ```
+   서버는 이 soak 전에 **로그를 켜고 재기동**했다(`RUST_LOG=info,sctp_proto=trace`).
+   검증 완료: sctp-proto trace 212건 + oxsfud `[FLOOR]` 4건 + `[DC]` 18건 동시 관측,
+   **좀비 재전송 0건 = 깨끗한 기준선**에서 출발.
+
+   판독표:
+   | 관측 | 판정 |
+   |---|---|
+   | seq 결손 + `egress≠수신` 동반 | 봇/망 수신 유실 — **서버 무죄** |
+   | seq 결손인데 egress 는 일치 | 서버 forward 누락 — **서버 유죄**(서버 로그 살아있으니 즉시 추적) |
+   | 30회 무결 | 빈도 3% 미만 → ③ 확률 증폭으로 |
+
+   **③ 확률 증폭** — ②가 무결로 끝나면. 단서: run-all(장시간 단일 프로세스)에서만 나왔다.
+   한계: SR 이 흐르는 시나리오는 `rtcp_sr: true` 인 `adv_rtcp`·`onepc_adv_rtcp` 2종뿐이다.
+   다행히 결손이 난 것이 후자라 바로 적용되지만, 넓히려면 다른 시나리오에도 켜야 한다.
 
    참고: RTP 는 `SRTP → socket.send_to()` 로 나가고 DTLS conn 을 쓰지 않는다(키 협상만).
    이번 SCTP 수리(send 1→N회)와 **경로가 다르다.** 접점은 같은 UDP 소켓 공유 하나뿐이고,

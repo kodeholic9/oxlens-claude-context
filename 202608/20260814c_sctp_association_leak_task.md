@@ -149,3 +149,19 @@ RUST_LOG=oxsfud=debug,sctp_proto=trace                   # 더 파야 할 때
 
 **착수 순서 권고**: F5(생성 계기 특정) → 수리안 1 설계 → 구현 → run-all 로 정상 세션
 조기 종료 없음 확인.
+
+---
+
+## 진행 · 20260814 20:16 — F5 자료 수집 중
+
+seq 결손 빈도 측정 soak(20260814b §미결 1-②)이 돌면서 **좀비 생성 자료도 같이 쌓인다.**
+서버를 로그 켜고 재기동해 **좀비 0 기준선**에서 출발했으므로, run-all 30회 동안
+몇 개가 생기는지 = 회당 생성률이 그대로 나온다.
+
+확인:
+```bash
+grep -hoE "retransmitting tsn=[0-9]+" ~/repository/oxlens-sfu-server/oxsfud.log.sfu-*.2026-08-14 \
+  | sort -u | wc -l                    # 누적 좀비 개수
+```
+회당 1개가 유지되면 F5 는 "run-all 안의 특정 시나리오"로 좁혀지고, 회차별 생성 시각을
+`soak_*/summary.txt` 의 회차 시각과 대조하면 **어느 시나리오 구간인지** 특정된다.
