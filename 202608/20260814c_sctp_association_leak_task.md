@@ -462,3 +462,64 @@ KPI 2 대상 밖"으로 정리할 항목.
 soak(20260815 01:10 기동, N=30) 기준선 5 → run 1 에서 6 → run 10 에서 7.
 **11회에 +2 = 0.18/run.** 종전 근거(4회/4개)는 이 표본에서 반증됐다.
 생성 계기 특정(F5)은 여전히 미결이고, 표본이 커진 만큼 `summary.txt` 회차 시각 대조가 더 쉬워졌다.
+
+---
+
+## 3층 게이트 · 20260815 15:22~15:27 — **누수 항목 통과**, 별건 실패 1건
+
+부장님 "3층 시험 진행해". `oxlens-home/qa/live` Playwright 전체(15 spec / 20 시험) 1회 +
+실패 2건 단독 재실행. 서버는 부장님 기동분(15:08:45, oxsfud 바이너리 08:15 = `4b8aeb2`).
+캡처: `testlogs/202608/20260815_layer3_leakfix/`
+(`before_mark.txt` · `playwright_run1.txt` · `solo_onepc.txt` · `solo_multiroom.txt` · `after_mark.txt`).
+
+### 결과
+
+| | |
+|---|---|
+| 스위트 | **17 통과 / 1 skip / 2 실패** (1.8분, 직렬) |
+| 실패 ①  `ONEPC-CONF-01` framesDecoded 15s 초과 | **flaky** — 단독 5/5 통과(20.2s). 기존 known flaky 동형 |
+| 실패 ②  `MULTIROOM-01` | **단독에서도 실패** = 회귀 아님/flaky 아님. 별건(아래 §) |
+
+### 누수 지표 — 이 수리의 3층 판정 근거 (2층 08:41 과 같은 잣대)
+
+전 mark(15:22:20, sfu-1 69190행 / sfu-2 67657행) **이후 구간만** 셌다.
+
+| 지표 | 3층 구간 실측 |
+|---|---|
+| SCTP 루프 started / ended | **sfu-1 2/2 · sfu-2 40/40 — 전부 회수** |
+| 취소 경로 발동 | **28건**(sfu-2) = 원래 매달렸을 루프 28개를 새 경로가 걷어냄 |
+| 신규 좀비(재전송 tsn 유니크) | **0** (양 SFU) |
+| CPU / 실행 중 스레드 (18:49 경과) | **1.48s · 6.74s / 스레드 0** — 스핀 없음 |
+
+파일 전체 좀비 4개는 **전부 08:27 이전**(재기동 전 구 바이너리 구간). 일별 단일 파일이라 남은 것이고
+15:08 재기동 이후 신규는 0이다. → **§잔여 1(3층 실영상 게이트) 해소.**
+
+### 별건 — `MULTIROOM-01` 은 전제가 깨져 있다 (누수 수리와 무관)
+
+**실측**
+- 클라: `slotsByRoom={"qa_test_01":2}` — 청취방 RB(`qa_test_02`) slot 트랙이 **클라에 아예 없다**
+  (Δ=-1 은 트랙 부재 sentinel). 단, step ② `virtual._slots` 는 `[RA, RB]` 둘 다 통과.
+- 서버(sfu-2 15:24:57.829): `[DIAG:SUB_TRACKS] sub=U03 tracks=[slot(audio)=0x49EA4245,
+  slot(video)=0xFDAEAC81, slot(audio)=0x26012764, slot(video)=0x8FCBD562] rooms=2`,
+  `existing_tracks=4`. `[FLOOR] granted user=U02 room=qa_test_02` · `[PTT:PRIME] room=qa_test_02`.
+  **서버는 양방 다 준비했다.**
+- `[MULTIROOM-DBG] rooms=[{qa_test_01, :19741},{qa_test_02, :19741}] transports=[:19741]`
+  → **두 방이 같은 SFU(sfu-2), transport 1개.** 시험 제목의 *cross-sfu* 가 아니다.
+
+**해석(구분해 적는다)**
+- 실측: HRW 배치(20260814a, `room_id` 순수 함수)에서 `qa_test_01`·`qa_test_02` 가 **같은 sfu-2**,
+  `qa_test_03` 은 sfu-1. 즉 이 시험은 지금 **same-SFU 다방 경로**를 밟는다.
+- 추정(미검증): 구 RoundRobin 카운터 시절엔 연속 생성된 두 방이 갈려 실제 cross-sfu 였을 것.
+  그래서 §5 주석의 GAP 해소(=cross-sfu mid 충돌 수리)가 통했고 지금은 다른 경로다.
+- **same-SFU 다방 경로가 원래 됐는지 자체가 미확인이다.** 회귀인지 미개척인지 아직 못 가른다.
+- 오늘 수리(`4b8aeb2`)와의 인과: **없다고 볼 근거** — 실패는 join/구독 단계이고 그 사이 peer 회수가
+  없다(로그상 `session_disconnect` 는 시험 종료 후 15:25:04). 수리는 회수 시 종료 경로만 건드렸다.
+  **확정은 A/B 필요**(구 바이너리 대조 또는 방 이름을 갈라 cross-sfu 복원) — 서버 재기동/코드 변경이라 미집행.
+
+### 잔여 갱신
+
+1. ~~3층 실영상 게이트~~ → **통과**(위 표).
+2. soak 재개 — 그대로.
+3. sfu-1 비대칭 미확정 — 그대로.
+4. `last_stun` 유휴 판정 — 그대로.
+5. **(신규)** `MULTIROOM-01` same-SFU 다방 slot 미수신 — 별건. A/B 로 회귀/미개척 분별부터.
