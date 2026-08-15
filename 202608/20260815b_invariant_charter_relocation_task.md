@@ -194,3 +194,62 @@ mediasoup 은 `UpdateTargetLayers(-1,-1)` 이 있으나 트리거가 producer �
 4. ~~RFC 8083 circuit breaker~~ → **대상 밖으로 정리**(20260815, 위 §C). 재론 조건은 §0-I.
    대신 남는 것: `STALLED 감지` 기능 정지(20260711 발견, 미수리) — 별건.
 5. **`adv_floor_failover` L1 빨강** — soak 실측 1/9. 미규명.
+
+---
+
+## 3차 · 20260815 야간 — 위상 빈칸 정리 + 하니스 정직성 잔여 (부장님 "판단대로 진행해")
+
+### A. 하니스 정직성 2건 (`f8f5326`)
+
+**`dump_integrity`** — loader 가 파싱 실패를 `except: continue` 로 조용히 버리고 있었다.
+실측 106,114건 중 **1,295건(1.22%)**. 정체를 확인하니 **전부 봇이 합성한 TWCC FB**
+(PT=205 FMT=15, aiortc 미지원) — 우리 송신물이라 무해. 그래도 **버리되 분류해서 센다**.
+설명되는 것(`rtcp/send/twcc-fb`)만 면제, 나머지 위반. 특히 **recv 드롭은 서버가 보낸 걸 못 읽은 것**이라 무조건 빨강.
+
+**PTT 순수 청취자** — seam 등식(`floor_seam`(b)·`listener_seam_continuity`)은 화자였던 봇을 제외한다
+(self-gating 공백이 정상이라). 그래서 **발언 0인 봇**이 없으면 손바뀜을 아무도 안 본다.
+실측 PTT 12종 중 **7종**이 그 상태였고 하필 `ptt_voice_seam`(손바뀜 전용, 간격 0.1s)이 포함.
+6종 보강(`ptt_stale_nack` 쌍은 기존 botC 가 NACK 발사자라 화자로 잡혀 botD 신설) → **무효 7종 → 1종**.
+남긴 1종 = `adv_floor_failover`(soak 빨강 조사 중이라 형상 불변).
+
+### B. 위상 빈칸 3건 정리 (`5139102`, `21cca8b`)
+
+| 대장 빈칸 | 결과 |
+|---|---|
+| **S2** `FIELD_DESTINATIONS` count≥2 | **채워짐** — 봇 `request_floor_multi()` + `adv_floor_multi_dest` + `floor_destinations_denied` |
+| **L2** cross-sfu 식별 연속성 | **채워짐** — `loader.publish_bindings` + `identity_across_move` |
+| **S3** cross-sfu RTCP 종단 | **구조상 해당 없음으로 판정** |
+
+**S2**: 서버는 원래 거부하고 있었다(`resolve_floor_target` → `MultipleDestinations` → MBCP DENY).
+못 본 이유는 **봇이 그 요청을 만들 줄 몰라서**. 실측 `1.68s REQUEST_MULTI→DENY / 2.68s REQUEST→GRANTED`.
+★형상에서 배운 것: botADV 의 tracks 를 빼봤더니 floor DC 가 안 서서 **DENY 조차 안 왔다.**
+그대로 뒀으면 "거부됐다"와 "봇이 요청을 못 했다"를 못 가른다 → **거부 뒤 단일 요청으로는 GRANTED 를
+받게** 형상을 짜서 같은 시나리오가 스스로 증명하게 했다.
+
+**L2**: 형상(`ptt_scope_relay` SCOPE 발언방 전환)도 서버도 이미 맞았고 **단언만 없었다.**
+실측: botS 가 roomA(sfu-2)→roomB(sfu-2)→roomC(**sfu-1**) 이동, 세 번 다 `botS_cc000001`.
+응답 body 엔 room 이 없어 송신측이 유일한 방 권위 → send/recv 를 **mid 로** 짝지어 `publish_bindings` 신설.
+
+**S3 를 칸에서 뺀 근거**: 노드 간 RTCP 가 새려면 **SFU 사이 미디어 경로**가 있어야 하는데 없다 —
+방→SFU 1:1, 클라가 SFU 마다 별도 transport 직결, hub 는 시그널링(gRPC)만 중계, SFU↔SFU 포워딩 코드 0건.
+게다가 봇 dump 는 RTCP 를 어느 transport 로 받았는지 태그하지 않아 **현재 관측도 불가**.
+갈래B 를 못 세우는 칸이라 등식을 만들면 공허한 PASS. 6월 대장이 위상 축을 기계적으로 곱하며 생긴 칸으로 판단.
+**재론 조건**: SFU 캐스케이드 도입 시.
+
+### 게이트 (3차)
+
+| | |
+|---|---|
+| `run-all` | **45종 OK 45 / 이상 0** (44→45) |
+| 단위 | **166** (152→166) |
+| 등식 / 시나리오 | 35→**40** / 44→**45** |
+
+가이드 §0-I 표·수치·위상 재대조 절 전부 갱신.
+
+### 잔여 (3차 이후)
+
+1. **S5 등식 본체** — 선결(위상 고정)은 해소. "노드가 갈려도 방 상태가 하나로 보이나" 등식 미착수.
+2. **L5 자원 회수** — 봇 dump 로 원리적 불가. 2층 밖으로 정리할지 판단 필요(soak+서버 로그 담당).
+3. **L3 장시간 idle** — 시나리오 신설 필요(30s+ 무발화).
+4. **`adv_floor_failover` L1 빨강** — soak 1/9 실측. 미규명. 이 시나리오만 순수 청취자 보강도 보류 중.
+5. **`STALLED 감지` 기능 정지** — 서버건(20260711 발견, 미수리).

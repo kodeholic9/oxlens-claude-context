@@ -3,7 +3,7 @@
 > **invoke 키워드: `회귀시험` / `soak`** — 이 단어가 나오면 이 가이드를 먼저 로드한다.
 > 로드 의무: 회귀시험 세션 전 필독 (`QA_GUIDE_FOR_AI.md` / `METRICS_GUIDE_FOR_AI.md`와 동급).
 > author: kodeholic (powered by Claude)
-> created: 2026-05-30 / 재작성: 2026-06-27 (Rust→파이썬 백지) / 현행화: 2026-06-27r (불변식 대장 + 봇 악조건 확장 — 25등식 17시나리오) / 현행화: 2026-06-28d (publisher 메타 단일소유 + simulcast repub·forward layer fallback·track_id 정체성 불변 — 26등식 23시나리오) / 현행화: 2026-07-05 (RTX gate 전환경계 — video half PTT 봇 + stale/fresh NACK 레퍼토리, 27등식 26시나리오) / **현행화: 2026-07-12 (B7 TWCC 합성 축(GAP-twcc 해제) + B8 Hyb 1PC 매트릭스 + B8+ 혼합 모드/take-over + GAP-TOPO·GAP-S4 일괄 해소(crossroom_completeness·resource_bound, adv_resource 정규 승격 — 격리·서버 GAP 0), 33등식 40시나리오)** / **현행화: 2026-08-15 (§0-I 불변식 대장 현행 원천 이관 + S5·L5·C4·H1 신설, 봇 SUBSCRIBE_LAYER 능력 → known-gap 0건, §1-S soak — 35등식 44시나리오)**
+> created: 2026-05-30 / 재작성: 2026-06-27 (Rust→파이썬 백지) / 현행화: 2026-06-27r (불변식 대장 + 봇 악조건 확장 — 25등식 17시나리오) / 현행화: 2026-06-28d (publisher 메타 단일소유 + simulcast repub·forward layer fallback·track_id 정체성 불변 — 26등식 23시나리오) / 현행화: 2026-07-05 (RTX gate 전환경계 — video half PTT 봇 + stale/fresh NACK 레퍼토리, 27등식 26시나리오) / **현행화: 2026-07-12 (B7 TWCC 합성 축(GAP-twcc 해제) + B8 Hyb 1PC 매트릭스 + B8+ 혼합 모드/take-over + GAP-TOPO·GAP-S4 일괄 해소(crossroom_completeness·resource_bound, adv_resource 정규 승격 — 격리·서버 GAP 0), 33등식 40시나리오)** / **현행화: 2026-08-15 (§0-I 불변식 대장 현행 원천 이관 + S5·L5·C4·H1 신설, 봇 SUBSCRIBE_LAYER 능력 → known-gap 0건, §1-S soak — 35등식 44시나리오)** / **현행화: 2026-08-15 야간 (위상 선언 `sfu:` + S2·L2 위상 빈칸 해소 + dump_integrity + PTT 순수 청취자 보강 — 40등식 45시나리오)**
 
 ---
 
@@ -47,7 +47,7 @@
 | | 불변식 | 갈래B (이렇게 깨면 빨개져야) | 현 등식 |
 |---|---|---|---|
 | **S1** | **격리** — A의 어떤 행동도 B의 미디어·세션을 훼손 못 함. 받을 사람만 받는다 | 악조건 입력이 fan-out 을 오염시키게 고침 / 화자 제외를 빼면 self-echo | `isolation_baseline`·`crossroom_isolation`·`leak_zero`·`speaker_self_echo_zero`·`scope_select_routing` |
-| **S2** | **권한** — 자기 자원만 변경 | 권한 체크 제거 → 무권 op 통과 | `authz_denied` |
+| **S2** | **권한** — 자기 자원만 변경 | 권한 체크 제거 → 무권 op 통과 / `destinations` 다중이 GRANTED 되면 경계 뚫림 | `authz_denied`·`floor_destinations_denied` |
 | **S3** | **누설 종단** — 두 RTP 세션 사이 RTCP 내용 교차 0 (SR은 relay지 자체생성 아님) | SR 을 서버 클록으로 생성 / subscriber RR 을 publisher 로 relay | `rtcp_terminate`·`rtcp_present` |
 | **S4** | **자원 유계** — 어떤 입력도 무한 소비 못 함. 고갈이면 거부지 크래시 아님 | 상한 가드 제거 → OOM/패닉/기존 참가자 단절 | `resource_bound` |
 | **S5** | **★노드 간 단일상** — 방의 상태는 SFU 가 몇 대든 하나로 보인다(분기된 상태 관측 0) | 배치를 비결정으로 되돌리거나 노드별 상태를 갈라놓음 | **빈칸** |
@@ -57,7 +57,7 @@
 | | 불변식 | 갈래B | 현 등식 |
 |---|---|---|---|
 | **L1** | **floor 수렴** — 유한시간 내 정확히 1명(또는 명시 idle), holder 급사 시 회수 | 중재 로직 깨면 0명/2명 grant, 회수 타이머 끄면 영구 점유 | `floor_convergence`·`floor_failover`·`gating_correct` |
-| **L2** | **식별 연속성** — track_id 사슬이 재발행·재접속·promote 를 가로질러 안 끊김 | 재연결 시 track_id 재발급 | `identity_5point`·`track_id_returned`·`simulcast_track_id_match`·`simulcast_remove_track_id_match` |
+| **L2** | **식별 연속성** — track_id 사슬이 재발행·재접속·promote 를 가로질러 안 끊김 | 재연결 시 track_id 재발급 | `identity_5point`·`track_id_returned`·`simulcast_track_id_match`·`simulcast_remove_track_id_match`·`identity_across_move`(방 이동) |
 | **L3** | **세션 생존** — 정상 참가자가 idle·전환 중 부당하게 안 죽음 | consent 끄면 idle sub 가 zombie 회수 | **부분** — `duplex_transition`(전환만). 장시간 idle 축 빈칸 |
 | **L4** | **복구 발화** — 손실·재정렬에 NACK/RTX/PLI 가 나감 | NACK 생성 끄면 갭 영구 잔존 | `recovery_signal`·`rtx_gate_stale_nack` |
 | **L5** | **★자원 회수** — 떠난 참가자의 자원은 유한시간 내 **전부** 사라진다 | 회수 경로(취소 배선)를 빼면 태스크·association·peer 가 영구 잔존 | **빈칸(2층)** — 서버 로그 계수로만 확인 중 |
@@ -75,13 +75,15 @@
 
 | | 불변식 | 갈래B | 현 등식 |
 |---|---|---|---|
-| **H1** | **정직성** — 시험은 **안 본 것을 통과로 보고하지 않는다** | 선언한 축의 dump 사실을 지우면 빨개져야 | `harness_honest`(20260815 신설) — 시나리오 yaml 선언 ↔ dump 사실 대조 |
+| **H1** | **정직성** — 시험은 **안 본 것을 통과로 보고하지 않는다** | 선언한 축의 dump 사실을 지우면 빨개져야 / 파싱 못 한 레코드를 안 세면 안 본 것 | `harness_honest`·`dump_integrity`·`topology_as_declared` |
 
 > **H1 구현 메모**: 선언(`floor`·`ptt`·`layer_timeline`·`duplex_timeline`·`scope_timeline`·`twcc_fb`·
 > `adversary.type`)을 `run.py` 가 `parsed.declared` 로 주입하고, 그 축의 dump 사실이 0이면 FAIL.
 > 악조건은 **종류마다 자국이 다르다**(`unauth_publish`→`unauth_ssrcs` / `adv_send`·`publish_flood`→
 > `adversary_ssrcs`) — 한 덩어리로 묶으면 `adv_authz` 가 오탐으로 빨개진다(실측). 모르는 종류는 판정하지 않는다.
-> ★**아직 선언 못 하는 축**: cross-sfu 위상(아래 §0-I 위상 참조), 순수 청취자 유무. 선언 문법이 없으면 H1 도 못 잡는다.
+> ★**선언 문법이 생긴 축**: `sfu: same|different`(위상 — `topology_as_declared` 가 서버가 준 SFU 주소로 검증).
+> ★**아직 선언 못 하는 축**: 순수 청취자 유무. 그래서 PTT 시나리오의 seam 커버리지는 **시나리오 형상으로** 보장한다
+> (발언 0인 봇 1명 — `conf_ptt_relay` 의 botC 패턴). 12종 중 11종 적용, `adv_floor_failover` 만 조사 중이라 보류.
 
 ### ★신설 4건의 근거 (20260815 — 6월 대장 작성 **이후** 실제로 터진 것들)
 
@@ -159,9 +161,17 @@ described in [RFC8083]"* 라고 한다. 그러나 **불변식으로 세우지 �
 |---|---|---|
 | S1 다방 격리 | **채워짐** | `crossroom_isolation`·`crossroom_completeness` + `conf_crossroom`·`crossroom_dynamic` |
 | L1 cross-sfu floor 수렴 | **불확정** | `ptt_multiroom` 이 cross-sfu 를 밟는 건 **43 run 중 17회(40%)** 뿐 |
-| L2 cross-sfu 식별 연속성 | **빈칸** | 2층에 방 이동 발화 시나리오 없음(3층 `removal_select_migrate` 만) |
-| S3 cross-sfu RTCP 종단 | **빈칸** | cross-sfu RTCP 시나리오 없음. `rtcp_terminate` 는 단일방 |
-| S2 `FIELD_DESTINATIONS` count≥2 | **빈칸** | 봇이 `destinations=[room]` 단일만 보냄(`bot/bot.py:168,543` 실측) |
+| L2 cross-sfu 식별 연속성 | **채워짐**(20260815) | `identity_across_move` — `ptt_scope_relay` 가 roomA(sfu-2)→roomB(sfu-2)→roomC(**sfu-1**) 이동. 형상도 서버도 이미 맞았고 **단언만 없었다** |
+| S2 `FIELD_DESTINATIONS` count≥2 | **채워짐**(20260815) | `floor_destinations_denied` + `adv_floor_multi_dest` — 봇 `request_floor_multi()` 신설. 서버는 원래 `MultipleDestinations` 로 거부하고 있었다 |
+| S3 cross-sfu RTCP 종단 | **구조상 해당 없음**(20260815 판정) | 아래 참조 |
+
+**S3 cross-sfu 를 칸에서 뺀 근거**: 노드 간 RTCP 가 새려면 **SFU 사이에 미디어 경로**가 있어야 하는데
+우리 구조엔 없다 — 방→SFU 1:1, 클라가 SFU 마다 별도 transport 를 직접 맺고(`bot._pubs[ep]`·`listen_subs`),
+hub 는 **시그널링(gRPC)만** 중계한다. SFU↔SFU 포워딩 코드가 0건이다(`crates` 전수).
+게다가 봇 dump 는 RTCP 를 어느 transport 로 받았는지 태그하지 않아 **현재 관측도 불가**하다.
+갈래B(어떻게 깨면 빨개지나)를 세울 수 없는 칸이므로 등식을 만들면 공허한 PASS 가 된다.
+6월 대장이 위상 축을 기계적으로 곱하며 생긴 칸으로 판단한다.
+**재론 조건**: SFU 캐스케이드(노드 간 중계)를 도입하면 그때 실재하는 위험이 된다.
 
 **★그리고 더 큰 문제 — 위상이 시나리오의 통제 밖이다.**
 방 이름에 PID 가 붙고(`roomX_3147`) HRW 는 **이름 전체**를 해싱하므로, 같은 시나리오가 run 마다
@@ -193,7 +203,7 @@ python -m oxe2epy run conf_audio_fault --seed 42   # 결함주입 시드 재현(
 python -m oxe2epy run-all                     # 정규 스위트 일괄(44종) + 종합 집계(회귀 1줄 판정)
 ```
 - 결과 = **3-class 리포트**: `✓ PASS — 회귀 0` / `✗ FAIL — 회귀 N` + 위반 등식·detail + 격리(노랑)·XPASS·known-gap 건수. exit code 는 **회귀(빨강)만** 반영.
-- 단위 시험(검증기 로직 자체): `python -m pytest tests/` — 등식마다 음성 픽스처(failability 보장) — **현재 129 passed**. ★단, 20260815 실측 3건 미보유(`scope_select_routing`·`speaker_self_echo_zero`·`listener_seam_continuity`) — "등식마다"는 아직 사실이 아니다.
+- 단위 시험(검증기 로직 자체): `python -m pytest tests/` — 등식마다 음성 픽스처(failability 보장) — **현재 166 passed**. 20260815 미보유 3건(`scope_select_routing`·`speaker_self_echo_zero`·`listener_seam_continuity`)은 같은 날 보강됐다.
 - 별 격리: **현재 없음** — `adv_resource` 는 GAP-S4 수리(서버 자원 유계 가드, 20260712c)로 정규 승격.
 
 ---
@@ -270,7 +280,7 @@ probe 판정창이 15분으로 늘어나 "15분에 1826패킷 = 2pkt/s" 로 계�
 
 ---
 
-## §2 시나리오 (실측 `oxe2epy/scenarios/*.yaml`, **44종** — 20260815)
+## §2 시나리오 (실측 `oxe2epy/scenarios/*.yaml`, **45종** — 20260815)
 
 | 시나리오 | 축 | 커버 |
 |---|---|---|
@@ -301,7 +311,7 @@ probe 판정창이 15분으로 늘어나 "15분에 1826패킷 = 2pkt/s" 로 계�
 
 ---
 
-## §3 판정 모델 = 등식 레지스트리 (**35** — 20260815 `manual_layer_follows` 신설분 포함)
+## §3 판정 모델 = 등식 레지스트리 (**40** — 20260815 야간분 포함)
 
 > 축 좌표의 정의는 **§0-I**(불변식 대장 현행 원천). 아래는 그 좌표에 등식을 건 목록이다.
 
@@ -337,7 +347,7 @@ probe 판정창이 15분으로 늘어나 "15분에 1826패킷 = 2pkt/s" 로 계�
   - ~~GAP-TOPO-crossroom-dynamic-fanout~~ → 현 HEAD 재현 안 됨(0709 fan-out 개편이 해소) — `crossroom_completeness` + `crossroom_dynamic` 재발 가드.
 - **known-gap 0건** (20260815 정리): `GAP-layer-switch` 해제(봇 `SUBSCRIBE_LAYER` 송신 능력 + `sim_manual_layer` + `manual_layer_follows`) · `GAP-duplex-half-to-full` 해제(서버는 원래 보내고 있었고 등식이 한 방향만 봤다 — `duplex_transition` 양방향 확장). 나머지 3건(`send-honest-simulcast`·`count-eq-gating`·`seq-ptt-slot`)은 **갭이 아니라 설계 사실**로 재분류해 근거를 등식 skip 자리로 이관.
 - **등재 기준**: 갭 목록에는 "이 층에서 **아무도 안 보는** 영역"만 올린다. 대체 등식이 있으면 갭이 아니다 — 섞으면 KNOWN_DEFECTS 와 달리 수명 장치(XPASS)가 없어 화석이 된다.
-- **실측 커버리지 빈칸**(20260815, §0-I): S5 노드간 단일상 · L5 자원 회수 · H1 하니스 정직성 = 등식 없음. L3 세션 생존 = 부분.
+- **실측 커버리지 빈칸**(20260815 야간 기준, §0-I): S5 등식 본체(선결인 위상 고정은 해소) · L5 자원 회수 = 등식 없음. L3 세션 생존 = 부분.
 - **해제된 GAP**(20260627q 봇 RTCP 송신 토대로): ~~GAP-rtcp-sr~~·~~GAP-S3-rtcp-terminate~~·~~GAP-L4-recovery-signal~~·~~GAP-L1-floor-failover~~ — aiortc `_send_rtp` 가 `is_rtcp` 판별로 RTCP 도 SRTCP protect → 봇 RR/SR/NACK 송신 가능. 분수령 돌파. / ~~GAP-twcc~~(20260712 B7 — 봇 FB 합성으로 v2 루프 전체 커버, 발신 방향 twcc 삽입만 잔여 별건).
 
 ---
