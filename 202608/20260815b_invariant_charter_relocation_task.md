@@ -253,3 +253,57 @@ mediasoup 은 `UpdateTargetLayers(-1,-1)` 이 있으나 트리거가 producer �
 3. **L3 장시간 idle** — 시나리오 신설 필요(30s+ 무발화).
 4. **`adv_floor_failover` L1 빨강** — soak 1/9 실측. 미규명. 이 시나리오만 순수 청취자 보강도 보류 중.
 5. **`STALLED 감지` 기능 정지** — 서버건(20260711 발견, 미수리).
+
+---
+
+## 4차 · 20260815 심야 — L3·S5 빈칸 해소 (`ef13443`)
+
+부장님 "2,4 빼고 진행해" — L5(2층 밖 판정)·`adv_floor_failover`(미규명) 제외.
+
+### L3 세션 생존 — `idle_session_survives` + `adv_idle_survives`(신설)
+
+서버 회수 기준은 `peer.last_seen`이고 갱신은 **STUN(ICE consent)**이지 미디어가 아니다.
+즉 "송신 0" 자체는 회수 사유가 아니어야 하는데 **시험한 적이 없었다.**
+
+형상: botA 만 발행, botB 는 한 번도 발행 않고 35초(ZOMBIE_TIMEOUT 20s 의 1.75배).
+실측: botB 0.3~35.3s 에 **1,623패킷, 최대 공백 42ms** — 생존.
+술어: 수신 지속 ≥ 20s(**서버 상수 준거** — 임의값 아님) + 공백 ≤ 2s.
+failability 3종: 19s 절단 / 10~15s 공백 / **발행 0인 봇 부재도 FAIL**(시험 불성립 = 조용한 skip 금지).
+
+### S5 노드 간 단일상 — `room_single_node`
+
+**★무엇을 세울지부터 골랐다.** *"한 사용자가 두 방에서 동시 화자일 수 없다"* 는 **안 세웠다** —
+`FloorController` 는 방마다 1개고 노드 간 조율이 없다(실측). 그건 서버 보장이 아니라 클라 규약
+(`talk_in_room` 전환 시 `stop_talk`)이다. **서버가 안 하는 걸 단언하면 시험이 거짓을 요구한다.**
+
+대신 hub 가 코드로 못박은 것을 세웠다 — `state.rs assign_room`:
+*"DashMap entry per-key 락이 동시 same-id CREATE race 를 막는다(1방1sfu 보장)"*.
+배치 함수가 순수해도(HRW) **매핑이 갈리면** 같은 방 참가자가 서로 다른 노드에 붙어 미디어가 안 흐른다.
+
+`loader.room_sfu_views` 신설 — 기존 `room_sfu` 는 `setdefault` 라 뭉개져 **갈린 사실이 사라진다.**
+참가자마다 본 값을 따로 남겨 대조한다. 실측(`ptt_multiroom`): rX{botA,botZ}→19740 / rY{botB,botZ}→19741.
+
+### 부수 — 시험 헬퍼 이름 충돌 재발
+
+`_pkts` 가 기존 헬퍼와 충돌해 `count_eq` 시험 2건이 깨졌다(앞서 `_seam` 과 같은 실수).
+파이썬은 **나중 정의가 이기므로** 조용히 다른 걸 시험할 뻔했다. `_idle_pkts` 로 개명.
+→ 시험 파일에 헬퍼를 추가할 땐 기존 이름을 먼저 grep 할 것.
+
+### 게이트
+
+`run-all` **46종 OK 46 / 이상 0** · 단위 **174** · 등식 **42** / 시나리오 **46**.
+
+### STALLED 감지 — 확인만, 수리 미착수
+
+`tasks.rs:141` 실측: `if peer.phase.load(..) < 2 { continue; }`
+`PeerState { Alive=0, Suspect=1, Zombie=2 }`(`domain/state.rs:28`) 이므로
+**Alive·Suspect 전부 skip, Zombie 만 검사** = 정상 peer 는 아무도 안 본다. 문서 기재(20260711) 그대로 살아 있다.
+의도한 계약은 "미디어 미전송 단계 skip" 이니 `!= Alive` 가 맞다 — **한 줄**이다.
+다만 `crates/` 변경이고 `PROJECT_SERVER.md` 가 **"수리 결재 대기"** 로 명시해 둔 건이라 손대지 않았다.
+클라에 `TRACK_STALLED` 통지가 나가는 경로라 잘못 켜면 오탐 토스트가 뜬다. **별도 사인 필요.**
+
+### 잔여
+
+1. **L5 자원 회수** — 2층 밖 정리 판단 대기(부장님 제외 지시).
+2. **`adv_floor_failover` L1 빨강** — 미규명(부장님 제외 지시). 이 시나리오만 순수 청취자 보강도 보류.
+3. **STALLED 수리** — 위 §. 한 줄, 사인 대기.
