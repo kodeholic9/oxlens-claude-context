@@ -119,11 +119,34 @@ TS 24.380 을 인용하는 것과 대조). **이번에 원문을 열어** 붙인
    강제하지 않고, RFC 8834 §5.1 도 미들박스의 RTCP 종단을 허용만 한다. "SR 은 relay 지 자체생성
    아님"의 근거는 **우리 아키텍처 판단**(NTP→jb 폭등 방지, `PROJECT_SERVER.md`)이다. 규범인 척하면 안 된다.
 
-**★새로 드러난 빈칸 1건**
+**★RFC 8083(circuit breaker) = 대상 밖으로 정리** (부장님 판단 20260815)
 
-RFC 8834 §7.1 — *"WebRTC endpoints **MUST** implement the RTP circuit breaker algorithm that is
-described in [RFC8083]."* 우리는 GCC/TWCC 기반 적응(B7)은 있으나 **circuit breaker(RFC 8083) 는
-구현도 시험도 없다.** 규범 MUST 인데 불변식 목록에도 없었다. 확인 필요.
+RFC 8834 §7.1 은 *"WebRTC endpoints **MUST** implement the RTP circuit breaker algorithm that is
+described in [RFC8083]"* 라고 한다. 그러나 **불변식으로 세우지 않는다.** 근거:
+
+| 실측 | |
+|---|---|
+| 업계 명시 구현 | **0건** — `grep -rniE "circuit.?breaker\|rfc.?8083"` 를 LiveKit·mediasoup·Janus·jitsi 소스 전체에 돌려 전무(`reference/`) |
+| 우리 서버 | 없음. RTCP 타임아웃·미디어 타임아웃 추적 코드 자체가 없다(`last_rtcp`/`rr_timeout` 식별자 0건) |
+| 적용 범위 | 8834 는 *endpoint* 대상이고 RFC 7667 은 SFU 를 *middlebox* 로 분류한다. 어느 쪽인지 **두 RFC 어디에도 명시가 없다**(원문 확인) |
+
+즉 규범 문구는 있으나 **적용 대상이 불분명하고 업계가 아무도 안 한다.** 이 상태에서 불변식으로
+세우면 아무도 못 채우는 칸이 하나 느는 것뿐이다(6월 대장의 위상 빈칸이 그랬다).
+
+**같이 기록해 두는 사실**(논의는 보류 — 지금 단계 아님):
+
+- 우리 자동 경로는 **정지를 못 만든다.** `downlink.rs` 의 `auto_cap` 은 `High`/`Low` 두 값뿐이고
+  `Layer::Pause` 는 수동 `SUBSCRIBE_LAYER` 전용이다. 손실이 커도 `l` 을 계속 보낸다.
+- **LiveKit 은 정지 능력을 정식 축으로 갖고 있다** — `allowPause` / `StreamStatePaused` /
+  `Track.Pause()`, 그리고 *"if pause is allowed, there may be no packets sent"* 를 정상 상태로 다룬다
+  (`pkg/sfu/streamallocator/streamallocator.go:728`).
+- mediasoup 은 `UpdateTargetLayers(-1,-1)` 로 끄지만 트리거가 producer 사망/pause 이고 BWE 는
+  하향만 한다(`BweDowngradeConservativeMs 10000` 히스테리시스).
+- 무전에서는 "끊기느니 저품질"이 맞을 수 있어 **의도된 차이일 가능성**이 있다. video 한정으로는
+  다를 수 있다. 막혀 있는 것은 능력이 아니라 **정책**이다(`Layer::Pause` 상태는 이미 있다).
+
+**재론 조건**: 상용에서 "미디어만 죽고 STUN 은 오는" 수신자가 실제로 관측되거나, video 경로에서
+저품질 지속 송신이 문제로 드러날 때. 그전엔 열지 않는다.
 
 > **인용 주의**: RFC 7667 은 **Informational** 이라 MUST/SHOULD 가 없다(문서 스스로 명시).
 > 토폴로지를 *서술*하는 문서지 요구하는 문서가 아니다. 규범 근거는 RFC 8834 쪽이다.

@@ -161,9 +161,27 @@ cross-sfu 26회 / `ptt_multiroom` 43 중 17회. **위상은 선언된 적도 관
 2. **S3(누설 종단)는 규격 요구가 아니라 우리 선택.** RFC 7667·8834 모두 미들박스 RTCP 종단을
    허용만 한다. 근거는 우리 아키텍처 판단(NTP→jb 폭등 방지)이다. 규범인 척하면 안 된다.
 
-**★새 빈칸 1건**: RFC 8834 §7.1 *"MUST implement the RTP circuit breaker algorithm [RFC8083]"* —
-우리는 GCC/TWCC 적응은 있으나 **circuit breaker 는 구현도 시험도 없다.** 규범 MUST 인데 불변식
-목록에도 없었다. **확인 필요**(미조사 — 서버 소스 미확인 상태로 남긴다).
+**★RFC 8083(circuit breaker) — 조사 후 대상 밖으로 정리** (부장님 판단)
+
+RFC 8834 §7.1 이 MUST 라 처음엔 새 빈칸으로 올렸으나, 서버 소스와 업계 소스를 다 열어보고 접었다.
+
+| 실측 | |
+|---|---|
+| 우리 서버 | 명시 구현 0건. RTCP/미디어 타임아웃 추적 코드 자체가 없다(`last_rtcp`·`rr_timeout` 식별자 0). 수신자 RR 의 `fraction_lost` 는 소비하나(`ingress_subscribe.rs:657`) **적응(auto_cap→Low)까지고 정지는 없다** |
+| 업계 | LiveKit·mediasoup·Janus·jitsi **전부 0건**(`reference/` 전수 grep) |
+| 적용 범위 | 8834 는 *endpoint*, 7667 은 SFU 를 *middlebox* 로 분류. **경계를 명시한 문장이 두 RFC 어디에도 없다**(원문 확인) |
+
+규범 문구는 있으나 적용 대상이 불분명하고 업계가 아무도 안 한다 → 불변식으로 세우면
+**아무도 못 채우는 칸이 하나 느는 것**뿐이다(6월 대장 위상 빈칸의 재판).
+
+**부수 사실(논의 보류 — 부장님 "지금 논할 단계 아니다")**: 우리 자동 경로는 정지를 못 만든다
+(`auto_cap` = High/Low 2값, `Layer::Pause` 는 수동 전용). LiveKit 은 `allowPause`/`StreamStatePaused`/
+`Track.Pause()` 로 **정지를 정식 축으로 갖는다**(`streamallocator.go:728` — *"there may be no packets sent"*).
+mediasoup 은 `UpdateTargetLayers(-1,-1)` 이 있으나 트리거가 producer 사망/pause 다.
+막힌 것은 능력이 아니라 **정책**이다. 재론 조건은 §0-I 에 적었다.
+
+**부수 발견**: `STALLED 감지`가 `PROJECT_SERVER.md` 에 *"phase 가드 의미 뒤집힘 → 정상 peer 전원 skip =
+감지 사실상 전멸(20260711 발견, 미수리)"* 로 적혀 있다. RFC 8083 과 별개인 기존 미결.
 
 > 인용 주의: RFC 7667 은 **Informational** — MUST/SHOULD 없음(문서 스스로 명시). 규범은 8834 쪽.
 
@@ -173,5 +191,6 @@ cross-sfu 26회 / `ptt_multiroom` 43 중 17회. **위상은 선언된 적도 관
 2. **L5 자원 회수** — 봇 dump 로는 원리적으로 안 보인다(서버 태스크·association 잔존). 2층 등식이
    아니라 soak + 서버 로그 계수 담당으로 §0-I 에 명기할지 판단 필요.
 3. **L3 장시간 idle** — 시나리오 신설 필요(30s+ 무발화).
-4. **RFC 8083 circuit breaker** — 신규. 서버 구현 여부부터 확인.
+4. ~~RFC 8083 circuit breaker~~ → **대상 밖으로 정리**(20260815, 위 §C). 재론 조건은 §0-I.
+   대신 남는 것: `STALLED 감지` 기능 정지(20260711 발견, 미수리) — 별건.
 5. **`adv_floor_failover` L1 빨강** — soak 실측 1/9. 미규명.
