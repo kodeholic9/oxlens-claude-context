@@ -110,3 +110,68 @@ TS 24.380 을 인용하는 것과 대조.)
 3. **음성 픽스처 3건**.
 4. **위상 빈칸 5개 재대조** — 6월 이후 `conf_crossroom`·`crossroom_dynamic`·`ptt_multiroom`·
    `removal_select_migrate` 가 생겼으니 일부는 메워졌을 수 있다. 미확인.
+
+---
+
+## 2차 · 20260815 야간 — 위상 배선 + 외부 근거 (부장님 "진행해")
+
+### A. soak 종료
+
+`soak_20260815_205954` **run 9/20 에서 중단**(부장님 지시, 현행 실패건 무시).
+`seq_loss 0줄 · egress_mismatch 0줄 · 좀비 +0(9회)`. 빨강 1건 = run 5 `adv_floor_failover`
+(`floor_failover` holder 급사 후 GRANTED 0 = L1 위반). **절전 차단 상태에서 난 것이라 환경 탓 아님 —
+미규명 상태로 남긴다.**
+
+### B. 위상 선언·고정·검증 — S5 선결 해소 (`f52fec6`)
+
+**문제 재정의**: 배치는 `room_id` 순수 함수라 서버는 이미 결정적(20260814a). 흔들린 건 **시험 쪽 키** —
+시나리오가 방 이름에 PID 를 붙여 run 마다 노드 조합이 달라졌다. 실측: `conf_crossroom` 45 run 중
+cross-sfu 26회 / `ptt_multiroom` 43 중 17회. **위상은 선언된 적도 관측된 적도 없었다.**
+
+| 층 | 신설 |
+|---|---|
+| 만드는 쪽 | `placement.py` — 서버 `state.rs hrw_score/pick_hrw` 파이썬 포팅. **실측 2001/2001 일치**(오늘 로그 전수). `pin()` 이 격리용 PID 유지한 채 접미를 탐색해 선언 위상을 만든다 |
+| 선언 | 시나리오 `sfu: same \| different`. 4종 부여(`conf_crossroom`·`crossroom_dynamic`·`ptt_multiroom`·`ptt_scope_relay`) |
+| 보는 쪽 | `topology_as_declared` — 봇이 ROOM_JOIN 응답으로 받은 `server_config.ice` 주소(`loader.room_sfu`)와 선언 대조. **판정 권위는 서버 사실**이고 하니스 계산은 배치를 *만드는* 데만 쓴다 |
+| H1 연동 | `sfu` 축 등록 — 선언했는데 관측 0 이면 `harness_honest` 가 잡는다 |
+
+**의미 정정 1건**: `different` 를 "전부 다른 노드"로 잡았다가 `ptt_scope_relay`(방 3 / 노드 2)가
+성립 불가로 빨개졌다 → **"최대한 흩어짐" = `min(방 수, 노드 수)`** 로 정정. 방 2 / 노드 2 에선 뜻이 같다.
+노드 1대면 `different` 는 성립 불가 → `None` + 경고. **조용히 same 으로 안 떨어뜨린다.**
+
+**검증**: 라이브 `roomX→sfu-1(19740) / roomY→sfu-2(19741)` 실측. failability 양방향(선언 뒤집기·관측 지우기).
+`run-all` **44종 OK 44 / 이상 0**, 네 시나리오 전부 cross-sfu 확정. 단위 145 → 152.
+
+### C. 외부 근거 — 원문 확인분만 부착
+
+§0-I 에 근거 열 신설. **이번에 연 것만** 적었다(기억 인용 금지).
+
+- **C4 전이 중 보존** ← RFC 7667 §3.7 *"sequence number needs to be consecutively incremented …
+  the RTP sequence number offset will change each time a source is turned on"* — PTT 화자전환이 정확히
+  "source turned on" 이다. 내부 추론으로 만든 `floor_seam(b)`·`listener_seam_continuity` 가 규격과 일치.
+- **S1 self-echo** ← RFC 8834 §4.1(SSRC 충돌 **MUST**) · §12.2.2(미들박스 루프로 자기 트래픽 되받는 경우)
+- **L4** ← RFC 8834 §4.2 NACK REQUIRED · §5.1.1 FIR MUST · §5.1.2 PLI MUST · §6.1 RTX REQUIRED
+- **B7** ← RFC 8834 §7 적응 **MUST**
+
+**★원문이 우리 문구를 정정한 것 2건**
+
+1. **C1 의 "SSRC 보존" 은 SFU 에 대해 틀린 표현.** RFC 7667 §3.7 — SFM 은 세션이 독립이라
+   *"can use any SSRC value"*. **vssrc 재기록이 규격대로**다. 보존되는 건 payload·codec 과
+   세션 내 seq 연속성·ts 이고 SSRC 는 의도적으로 갈아끼운다.
+2. **S3(누설 종단)는 규격 요구가 아니라 우리 선택.** RFC 7667·8834 모두 미들박스 RTCP 종단을
+   허용만 한다. 근거는 우리 아키텍처 판단(NTP→jb 폭등 방지)이다. 규범인 척하면 안 된다.
+
+**★새 빈칸 1건**: RFC 8834 §7.1 *"MUST implement the RTP circuit breaker algorithm [RFC8083]"* —
+우리는 GCC/TWCC 적응은 있으나 **circuit breaker 는 구현도 시험도 없다.** 규범 MUST 인데 불변식
+목록에도 없었다. **확인 필요**(미조사 — 서버 소스 미확인 상태로 남긴다).
+
+> 인용 주의: RFC 7667 은 **Informational** — MUST/SHOULD 없음(문서 스스로 명시). 규범은 8834 쪽.
+
+### 잔여 갱신
+
+1. ~~S5 선결(위상 고정)~~ → **해소**. S5 등식 본체(노드 간 상태 일관성)는 여전히 미착수.
+2. **L5 자원 회수** — 봇 dump 로는 원리적으로 안 보인다(서버 태스크·association 잔존). 2층 등식이
+   아니라 soak + 서버 로그 계수 담당으로 §0-I 에 명기할지 판단 필요.
+3. **L3 장시간 idle** — 시나리오 신설 필요(30s+ 무발화).
+4. **RFC 8083 circuit breaker** — 신규. 서버 구현 여부부터 확인.
+5. **`adv_floor_failover` L1 빨강** — soak 실측 1/9. 미규명.

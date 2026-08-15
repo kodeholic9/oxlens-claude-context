@@ -95,6 +95,39 @@
 > **교훈(문서가 스스로 증명한 것)**: 6월 대장이 "축으로 두겠다"(위상)·"주석으로 두겠다"(갈래B)고 한 둘은
 > 2개월 뒤 **둘 다 비어 있다.** 정식 항목으로 박은 11개는 전부 등식이 붙었다. **항목으로 안 박으면 안 채워진다.**
 
+### 외부 근거 — 20260815 원문 확인분
+
+대장·§0-I 모두 RFC 인용이 0건이었다(구현 문서 `PROJECT_SERVER.md` 는 RFC 6464·8832·8843·4588·
+TS 24.380 을 인용하는 것과 대조). **이번에 원문을 열어** 붙인 것만 적는다 — 기억으로 채우지 않는다.
+
+| 불변식 | 외부 근거 | 성격 |
+|---|---|---|
+| **C4 전이 중 보존** | RFC 7667 §3.7 — *"The sequence number needs to be consecutively incremented based on the packet actually being transmitted in each RTP session. Therefore, the RTP sequence number offset will change each time a source is turned on in an RTP session."* | 서술(Informational) |
+| **C1 ts** | RFC 7667 §3.7 — *"The timestamp (possibly offset) stays the same."* | 서술 |
+| **S1 격리(self-echo)** | RFC 8834 §4.1 SSRC 충돌 검출·해소 **MUST** / §12.2.2 미들박스가 만든 루프로 **자기 트래픽을 되받는 경우**를 다뤄야 | **규범** |
+| **L4 복구 발화** | RFC 8834 §4.2 NACK **REQUIRED** · §5.1.1 FIR **MUST** · §5.1.2 PLI **MUST** · §6.1 RTX **REQUIRED** | **규범** |
+| **B7 혼잡제어** | RFC 8834 §7 — *"MUST ensure that the RTP traffic they generate can adapt to match changes in the available network capacity"* | **규범** |
+
+**★원문이 우리 문구를 정정한 것 2건**
+
+1. **C1 의 "SSRC 보존" 은 SFU 에 대해 틀린 표현이다.** RFC 7667 §3.7 은 SFM 의 RTP 세션이 독립이라
+   *"the SSRC numbers used can also be handled independently"*, 전달 시 *"it can use any SSRC value"*
+   라고 한다. 우리 vssrc 재기록은 **규격대로**다. 보존되는 것은 payload·codec 과 **세션 내 seq 연속성·ts**
+   이고 SSRC 는 **의도적으로 갈아끼운다**. C1 문구를 그렇게 읽어야 하고, 등식들이 vssrc 를 신원으로
+   쓰는 것도 그래서 맞다.
+2. **S3(누설 종단)는 규격 요구가 아니라 우리 선택이다.** RFC 7667 은 SFM 에 RTCP 완전 종단을
+   강제하지 않고, RFC 8834 §5.1 도 미들박스의 RTCP 종단을 허용만 한다. "SR 은 relay 지 자체생성
+   아님"의 근거는 **우리 아키텍처 판단**(NTP→jb 폭등 방지, `PROJECT_SERVER.md`)이다. 규범인 척하면 안 된다.
+
+**★새로 드러난 빈칸 1건**
+
+RFC 8834 §7.1 — *"WebRTC endpoints **MUST** implement the RTP circuit breaker algorithm that is
+described in [RFC8083]."* 우리는 GCC/TWCC 기반 적응(B7)은 있으나 **circuit breaker(RFC 8083) 는
+구현도 시험도 없다.** 규범 MUST 인데 불변식 목록에도 없었다. 확인 필요.
+
+> **인용 주의**: RFC 7667 은 **Informational** 이라 MUST/SHOULD 가 없다(문서 스스로 명시).
+> 토폴로지를 *서술*하는 문서지 요구하는 문서가 아니다. 규범 근거는 RFC 8834 쪽이다.
+
 ### 위상(Topology) 재대조 — 20260815 실측
 
 6월 대장 §1.5 의 cross-room/sfu 빈칸 5개를 현물과 맞춰봤다.
