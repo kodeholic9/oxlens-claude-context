@@ -1,6 +1,6 @@
 # 회귀시험 (oxe2epy) 가이드 — AI용
 
-> **invoke 키워드: `회귀시험`** — 이 단어가 나오면 이 가이드를 먼저 로드한다.
+> **invoke 키워드: `회귀시험` / `soak`** — 이 단어가 나오면 이 가이드를 먼저 로드한다.
 > 로드 의무: 회귀시험 세션 전 필독 (`QA_GUIDE_FOR_AI.md` / `METRICS_GUIDE_FOR_AI.md`와 동급).
 > author: kodeholic (powered by Claude)
 > created: 2026-05-30 / 재작성: 2026-06-27 (Rust→파이썬 백지) / 현행화: 2026-06-27r (불변식 대장 + 봇 악조건 확장 — 25등식 17시나리오) / 현행화: 2026-06-28d (publisher 메타 단일소유 + simulcast repub·forward layer fallback·track_id 정체성 불변 — 26등식 23시나리오) / 현행화: 2026-07-05 (RTX gate 전환경계 — video half PTT 봇 + stale/fresh NACK 레퍼토리, 27등식 26시나리오) / **현행화: 2026-07-12 (B7 TWCC 합성 축(GAP-twcc 해제) + B8 Hyb 1PC 매트릭스 + B8+ 혼합 모드/take-over + GAP-TOPO·GAP-S4 일괄 해소(crossroom_completeness·resource_bound, adv_resource 정규 승격 — 격리·서버 GAP 0), 33등식 40시나리오)**
@@ -39,6 +39,78 @@ python -m oxe2epy run-all                     # 정규 스위트 일괄(별 격�
 - 결과 = **3-class 리포트**: `✓ PASS — 회귀 0` / `✗ FAIL — 회귀 N` + 위반 등식·detail + 격리(노랑)·XPASS·known-gap 건수. exit code 는 **회귀(빨강)만** 반영.
 - 단위 시험(검증기 로직 자체): `python -m pytest tests/` — 등식마다 음성 픽스처(failability 보장, 현재 116 passed).
 - 별 격리: **현재 없음** — `adv_resource` 는 GAP-S4 수리(서버 자원 유계 가드, 20260712c)로 정규 승격.
+
+---
+
+## §1-S soak (반복 회귀) — 저빈도·누적 결함용
+
+**용어**: `soak` 는 약자가 아니라 영어 단어 그대로 **"오래 담가둔다"**. 한 번 담갔다 빼면 멀쩡한데
+오래 담가야 배어나오는 것을 본다. 성능시험 계열에서 올리는 축으로 갈린다 —
+`load`(동시 부하) / `stress`(한계 초과) / `spike`(급변) / **`soak`(시간·반복)**.
+같은 것의 다른 이름: endurance · longevity · burn-in. **우리 soak = `run-all` 을 N회 반복**하는 것이지
+부하를 올리는 게 아니다(부하축은 `CAPACITY_GUIDE_FOR_AI.md`).
+
+**언제**: ① 저빈도 결함(1회만 목격된 것)이 실재하는가 ② 누적 결함(누수) 수리가 진짜 됐는가
+③ 장시간 상태 오염(방·peer·포트 재사용).
+
+### ★ 판정은 **결함 0**. 빈도 추정·허용 임계 프레임 금지
+
+부장님 원칙 **100/100** — 100번 돌려 1번이라도 안 되면 규명 전까진 버그다.
+따라서 soak 결과를 "빈도 N% 미만이니 합격" 으로 읽으면 **안 된다.** 신뢰구간·상한 계산은
+판정 근거가 아니다(20260815 질책 — 구 판독표의 "30회 무결 → 3% 미만"은 폐기).
+N 은 **합격선이 아니라 "몇 번의 기회를 주느냐"** 이고, 그 값은 부장님이 정한다.
+AI 가 임계치를 발명하지 말 것.
+
+### 돌리는 법
+
+```bash
+# 선행: 서버(hub+sfud) 기동 상태 / 실행 중 봇·soak 0건 / 좀비 기준선 기록
+pgrep -f "soak_runall.sh|oxe2epy" | wc -l                      # 0 이어야 한다
+cat oxsfud.log.sfu-*.2026-* | grep -oE "retransmitting tsn=[0-9]+" | sort -u | wc -l   # 기준선
+
+cd ~/repository/testlogs/202608
+nohup caffeinate -i ./soak_runall.sh 20 > /dev/null 2>&1 &     # N=20. 세션 독립
+pkill -f soak_runall.sh                                        # 중단(caffeinate 도 같이 종료)
+```
+
+출력 `testlogs/<YYYYMM>/soak_<타임스탬프>/`:
+
+| 파일 | 내용 |
+|---|---|
+| `summary.txt` | 회차별 판정 + 좀비 수(기준선 대비 증분) + 축출 수 |
+| `seq_loss.txt` | 신규 seq 결손만(`conf_audio_fault` 의 의도된 drop 은 제외) |
+| `egress_mismatch.txt` | `egress≠수신` 로 방향이 갈린 건 |
+| `run_N.log` | 회차 원본 |
+
+### ★★ 로컬 변수는 절전 하나 — `caffeinate` 로 없애고 돌린다
+
+맥이 idle sleep 에 들면 프로세스가 통째로 얼었다 깨어난다. 이건 느려지는 문제가 아니라
+**판정을 오염시키는 문제**다. 실사례(20260815 run 11):
+
+```
+18:32:39      Sleep 진입
+18:32:40.189  [SIM:AUTO] probe 개시 estimate=Some(300000)     ← 절전 1.1초 후
+   (프로세스 동결 15분 11초)
+18:47:51      DarkWake
+18:47:51.397  [SIM:AUTO] probe 중단 (overuse — 1826pkt)       ← 깨어난 0.4초 후
+```
+probe 판정창이 15분으로 늘어나 "15분에 1826패킷 = 2pkt/s" 로 계산됐고, 승격이 기각돼
+`sim_bwe_updown` 이 **가짜 빨강**이 됐다. 절전을 안 막으면 회당 벽시계가 30~35분으로 늘어지고
+(각성시간은 9분 그대로) 이런 오판이 섞인다. **`caffeinate -i` 로 감싸면 이 변수가 사라진다** —
+그러면 빨강이 나왔을 때 "환경 탓" 으로 넘길 구실이 없다. 그게 목적이다.
+
+### 돌리는 동안 금지
+
+- **서버 재기동·재빌드** — 표본이 깨진다(구/신 바이너리 혼입). 필요하면 중단 시점을 기록하고 끊는다.
+- **다른 시험 동시 실행**(3층 Playwright 포함) — 같은 SFU·방 상태를 공유한다.
+- 스크립트는 시작 시 `pgrep oxe2epy` 가 빌 때까지 대기하고, 회차 간 35초를 쉰다
+  (마지막 `adv_floor_failover` 가 좀비를 남긴 채 끝나므로 — sfud 회수 최악 25초).
+
+### 빨강이 나오면
+
+1. 절전은 이미 배제됐다 → **환경 탓 금지.** 그 회차 `run_N.log` 의 위반 등식 detail 부터.
+2. 서버 로그(`oxsfud.log.sfu-*`)를 같은 시각대로 교차 — 봇 dump 만 보고 서버를 추측하지 않는다.
+3. 단독 재실행(`python -m oxe2epy run <scenario>`)으로 재현성 분별. 단독도 실패면 회귀다.
 
 ---
 
