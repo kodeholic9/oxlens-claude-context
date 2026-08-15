@@ -75,7 +75,13 @@
 
 | | 불변식 | 갈래B | 현 등식 |
 |---|---|---|---|
-| **H1** | **정직성** — 시험은 **안 본 것을 통과로 보고하지 않는다** | 축을 태우기로 선언한 시나리오에서 자료가 0인데 초록이면 위반 | **빈칸** — 20260815 실측 35개 중 34개가 자료 0에 조용히 통과 |
+| **H1** | **정직성** — 시험은 **안 본 것을 통과로 보고하지 않는다** | 선언한 축의 dump 사실을 지우면 빨개져야 | `harness_honest`(20260815 신설) — 시나리오 yaml 선언 ↔ dump 사실 대조 |
+
+> **H1 구현 메모**: 선언(`floor`·`ptt`·`layer_timeline`·`duplex_timeline`·`scope_timeline`·`twcc_fb`·
+> `adversary.type`)을 `run.py` 가 `parsed.declared` 로 주입하고, 그 축의 dump 사실이 0이면 FAIL.
+> 악조건은 **종류마다 자국이 다르다**(`unauth_publish`→`unauth_ssrcs` / `adv_send`·`publish_flood`→
+> `adversary_ssrcs`) — 한 덩어리로 묶으면 `adv_authz` 가 오탐으로 빨개진다(실측). 모르는 종류는 판정하지 않는다.
+> ★**아직 선언 못 하는 축**: cross-sfu 위상(아래 §0-I 위상 참조), 순수 청취자 유무. 선언 문법이 없으면 H1 도 못 잡는다.
 
 ### ★신설 4건의 근거 (20260815 — 6월 대장 작성 **이후** 실제로 터진 것들)
 
@@ -88,6 +94,32 @@
 
 > **교훈(문서가 스스로 증명한 것)**: 6월 대장이 "축으로 두겠다"(위상)·"주석으로 두겠다"(갈래B)고 한 둘은
 > 2개월 뒤 **둘 다 비어 있다.** 정식 항목으로 박은 11개는 전부 등식이 붙었다. **항목으로 안 박으면 안 채워진다.**
+
+### 위상(Topology) 재대조 — 20260815 실측
+
+6월 대장 §1.5 의 cross-room/sfu 빈칸 5개를 현물과 맞춰봤다.
+
+| 대장 빈칸 | 현재 | 근거 |
+|---|---|---|
+| S1 다방 격리 | **채워짐** | `crossroom_isolation`·`crossroom_completeness` + `conf_crossroom`·`crossroom_dynamic` |
+| L1 cross-sfu floor 수렴 | **불확정** | `ptt_multiroom` 이 cross-sfu 를 밟는 건 **43 run 중 17회(40%)** 뿐 |
+| L2 cross-sfu 식별 연속성 | **빈칸** | 2층에 방 이동 발화 시나리오 없음(3층 `removal_select_migrate` 만) |
+| S3 cross-sfu RTCP 종단 | **빈칸** | cross-sfu RTCP 시나리오 없음. `rtcp_terminate` 는 단일방 |
+| S2 `FIELD_DESTINATIONS` count≥2 | **빈칸** | 봇이 `destinations=[room]` 단일만 보냄(`bot/bot.py:168,543` 실측) |
+
+**★그리고 더 큰 문제 — 위상이 시나리오의 통제 밖이다.**
+방 이름에 PID 가 붙고(`roomX_3147`) HRW 는 **이름 전체**를 해싱하므로, 같은 시나리오가 run 마다
+다른 노드 조합을 밟는다. 실측:
+
+| 시나리오 | 같은 SFU | 다른 SFU |
+|---|---|---|
+| `conf_crossroom` 계열(roomX·roomY) | 19 run | 26 run |
+| `ptt_multiroom`(ptt_mr_x·ptt_mr_y) | 26 run | 17 run |
+
+즉 **cross-sfu 위상은 선언된 적도, 관측된 적도 없다.** 시험은 자기가 어느 위상을 밟았는지 모른 채
+초록을 찍는다. 20260814a 의 "배치 결정론화"는 *같은 방 이름에 대해* 결정적일 뿐이고,
+시나리오가 PID 를 붙이는 한 **시험 관점에서는 여전히 동전던지기**다.
+→ S5(노드 간 단일상) 시험의 선결 조건 = **시나리오가 위상을 선언·고정할 수단**. 그게 생겨야 H1 도 그 축을 잡는다.
 
 ---
 
