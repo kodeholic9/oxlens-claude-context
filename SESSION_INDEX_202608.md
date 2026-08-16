@@ -10,6 +10,7 @@
 | 08-02 | 마스터 3종 현행화(doclint 전수 28커밋) | `202608/20260802c_master_docs_resync_task.md` | done |
 | 08-14 | 방→SFU 배치 HRW 결정론화 + 2층 격리 실측 | `202608/20260814a_sfu_placement_hrw_task.md` | done |
 | 08-14 | MCPTT KPI 계측 신설 → SCTP datagram 결함 수리 | `202608/20260814b_mcptt_kpi_sctp_datagram_task.md` | done |
-| 08-14 | SCTP association 누수 근본 수리(2층 통과·3층 잔여) | `202608/20260814c_sctp_association_leak_task.md` | open |
+| 08-14 | SCTP association 누수 근본 수리(3층 통과·soak 60회 좀비 0) | `202608/20260814c_sctp_association_leak_task.md` | done |
 | 08-15 | 노운갭 정리 — duplex 양방향 등식 + 봇 SUBSCRIBE_LAYER, 갭 0건화 | `202608/20260815a_known_gap_45_task.md` | done |
 | 08-15 | 불변식 대장 현행 원천 가이드 이관 + 재도출 대조(4건 신설) | `202608/20260815b_invariant_charter_relocation_task.md` | done |
+| 08-16 | 2층 병렬화(4.4배) + RTCP 값 축 + 시각 섭동 메타 시험 | `202608/20260816a_parallel_rtcp_perturb_task.md` | done |

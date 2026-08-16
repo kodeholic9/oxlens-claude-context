@@ -277,9 +277,9 @@ AI 가 임계치를 발명하지 말 것.
 pgrep -f "soak_runall.sh|oxe2epy" | wc -l                      # 0 이어야 한다
 cat oxsfud.log.sfu-*.2026-* | grep -oE "retransmitting tsn=[0-9]+" | sort -u | wc -l   # 기준선
 
-cd ~/repository/testlogs/202608
-nohup caffeinate -i ./soak_runall.sh 20 > /dev/null 2>&1 &     # N=20. 세션 독립
-pkill -f soak_runall.sh                                        # 중단(caffeinate 도 같이 종료)
+cd ~/repository/oxlens-sfu-server/oxe2epy
+nohup caffeinate -i ./tools/soak_runall.sh 20 4 > /dev/null 2>&1 &   # N=20, 병렬 4. 세션 독립
+pkill -f soak_runall.sh                                              # 중단(caffeinate 도 같이 종료)
 ```
 
 출력 `testlogs/<YYYYMM>/soak_<타임스탬프>/`:
