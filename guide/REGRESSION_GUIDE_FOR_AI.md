@@ -36,11 +36,36 @@
 **번호는 재사용하지 않는다** — 기존 S1~C3 은 6월 대장과 같은 번호를 유지한다(가이드 §3·등식 주석·
 세션 기록이 전부 이 좌표로 상호참조한다).
 
-### ★ 규율 두 개
+### ★ 규율 셋
 
 1. **갈래B 없는 칸은 공허한 PASS다.** 각 불변식은 "서버를 **어떻게 망가뜨리면** 이 시험이 빨개지나"를
    같이 적는다. 증명 못 하면 그 칸은 안 본 것이다. → 등식 추가 시 음성 픽스처 의무(§3)의 뿌리.
 2. **새 등식은 이 표에 좌표를 등록하고 들어온다.** 좌표 없는 등식 = 근거 없는 시험.
+3. **★형상이 등식을 성립시킨다 — 덤프에 술어를 얹지 않는다.**(20260816 신설)
+
+#### 규율 3 — 순서가 거꾸로면 반드시 "됐다 안 됐다" 한다
+
+**틀린 순서(하지 말 것)**: ①덤프를 연다 → ②"자료가 이렇게 생겼네" → ③그 위에 비교식을 얹는다.
+→ **여유가 우연히 정해진다.** 우연이니 지연이 흔들리면 판정이 뒤집힌다.
+
+**정석**: ①이 성질을 관측하려면 **형상이 무엇을 보장해야 하나** → ②시나리오가 그걸 **보장하게 만든다**
+→ ③그 다음 술어를 쓴다 → ④`perturb`(§1-T)로 여유를 재서 실측 지연과 견준다.
+
+**실증(20260816 — 하루에 같은 부류 다섯)**: `egress_delivery` · `rr_uplink_clean` ·
+`rr_responsiveness`(2회) · `floor_seam`. 전부 **비동기 두 경로를 시각으로 엮고 기준점이 같은지 안 본 것**이다.
+
+| 사례 | 우연히 정해진 여유 | 형상 수리 후 |
+|---|---|---|
+| `rr_responsiveness` — SR 을 창 **밖**에서 1회 송신 | **14.9ms** (그 run 의 transit max 30.39ms **미만**) | **2,498ms** (SR 을 창 안으로) |
+| `floor_seam` — 옛/새 화자 경계를 **제어 평면** 시각(GRANTED)으로 자름 | **0.6ms** 밀면 −17ms → **+503.8ms** | **49.06ms** (경계를 미디어 자신=침묵 프레임으로) |
+
+**★술어만 옮기는 정정은 수리가 아니다.** `rr_responsiveness` 1차 정정("아무 RR → 마지막 RR")은
+여유를 0 → 14.9ms 로 늘렸을 뿐 여전히 우연이었고 하루 만에 다시 터졌다.
+`floor_seam` 의 20260814 수리(침묵 프레임 제외)도 절벽은 그대로 뒀고 2년치 같은 숫자(503ms)로 재발했다.
+
+**★저장 표본으로 먼저 확인한다**(§1-R). `rr_responsiveness` 는 `rejudge` 로 재판정하니
+`rtcp_sr` 시나리오 **7/7 전부 판정 불성립**이었다 — 19/20 초록은 서버를 본 게 아니라
+경계 race 가 운 좋게 떨어진 것이었다. **초록이 곧 검증은 아니다.**
 
 ### ★ 축 두 개 — 정합 축 / 회수 축 (20260816 결정, 부장님)
 
@@ -489,7 +514,11 @@ python -m oxe2epy perturb [시나리오] [--dumps 경로]      # 경로 주면 �
 - **생명성 L** (결국 됨): `gating_correct`(PTT 화자 구간)·`floor_seam`(손바뀜 전환갭/slot연속/제3자누수)·`floor_convergence`(L1 경합 1 grant)·`floor_failover`(L1 급사 회수)·`recovery_signal`(L4 NACK→RTX)·`identity_5point`(L2 5점 ssrc-join: client_pub→send_raw→server_pub→server_sub→client_sub)
 - **전이/simulcast**: `duplex_transition`(⑧)·`simulcast_entry_ssrc_zero`(가드1)·`simulcast_track_id_match`(SRV-0625 격리해제, add 방향 resp⊆add)·`simulcast_remove_track_id_match`(remove 둔갑 가드: remove track_id∈add — vssrc→ssrc 위조 차단, I3 정체성 불변)·`simulcast_rid_only`(가드2)
 - **B7 twcc 합성 축**(20260712 — 적용 게이트 = dump 의 봇 합성 config, 층의 원자 사실 = 발신봇이 payload 에 박은 h/l 표지 1B): `twcc_stamp_present`(v2 전역 스탬핑 전제 물증 — 스탬프 0 = 환경 미충족 명시 FAIL)·`bwe_layer_roundtrip`(credit+ramp: 층 run 정확히 h→l→h→l — 초과=진동)·`layer_switch_clean`(극소 run = 전환 seam 잔류/플랩)·`probe_gate_negative`(reject: 프로브 발사 물증 + h 재유입 0)
-- 등식 추가 = `@equation` 함수 1개 + **음성 픽스처 짝**(`tests/`) 의무 — 안 깨지는 등식은 죽은 게이트. 악조건 ssrc(unauth/adversary/rtx/flood)는 정합 등식서 제외(authz_denied/isolation_baseline/recovery_signal 가 덮음).
+- **등식 추가 절차(4단, §0-I 규율 3)**: ①**형상**이 무엇을 보장해야 관측이 성립하는지 먼저 정한다 →
+  ②시나리오가 그걸 보장하게 고친다 → ③`@equation` 함수 1개 + **음성 픽스처 짝**(`tests/`) 의무
+  (안 깨지는 등식은 죽은 게이트) → ④`perturb`(§1-T)로 여유를 재서 **실측 지연과 견준다**.
+  ★①②를 건너뛰고 ③부터 하면 여유가 우연히 정해져 "됐다 안 됐다" 한다(20260816 실증 5건).
+  ★수정할 때도 같다 — **술어만 옮기는 정정은 수리가 아니다.** 악조건 ssrc(unauth/adversary/rtx/flood)는 정합 등식서 제외(authz_denied/isolation_baseline/recovery_signal 가 덮음).
 
 ---
 
