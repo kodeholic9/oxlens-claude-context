@@ -3,7 +3,7 @@
 > **invoke 키워드: `회귀시험` / `soak`** — 이 단어가 나오면 이 가이드를 먼저 로드한다.
 > 로드 의무: 회귀시험 세션 전 필독 (`QA_GUIDE_FOR_AI.md` / `METRICS_GUIDE_FOR_AI.md`와 동급).
 > author: kodeholic (powered by Claude)
-> created: 2026-05-30 / 재작성: 2026-06-27 (Rust→파이썬 백지) / 현행화: 2026-06-27r (불변식 대장 + 봇 악조건 확장 — 25등식 17시나리오) / 현행화: 2026-06-28d (publisher 메타 단일소유 + simulcast repub·forward layer fallback·track_id 정체성 불변 — 26등식 23시나리오) / 현행화: 2026-07-05 (RTX gate 전환경계 — video half PTT 봇 + stale/fresh NACK 레퍼토리, 27등식 26시나리오) / **현행화: 2026-07-12 (B7 TWCC 합성 축(GAP-twcc 해제) + B8 Hyb 1PC 매트릭스 + B8+ 혼합 모드/take-over + GAP-TOPO·GAP-S4 일괄 해소(crossroom_completeness·resource_bound, adv_resource 정규 승격 — 격리·서버 GAP 0), 33등식 40시나리오)** / **현행화: 2026-08-15 (§0-I 불변식 대장 현행 원천 이관 + S5·L5·C4·H1 신설, 봇 SUBSCRIBE_LAYER 능력 → known-gap 0건, §1-S soak — 35등식 44시나리오)** / **현행화: 2026-08-15 야간 (위상 선언 `sfu:` + S2·L2 위상 빈칸 해소 + dump_integrity + PTT 순수 청취자 보강 — 40등식 45시나리오)** / **현행화: 2026-08-15 심야 (L3 idle 생존 + S5 방 단일 노드 — 42등식 46시나리오)**
+> created: 2026-05-30 / 재작성: 2026-06-27 (Rust→파이썬 백지) / 현행화: 2026-06-27r (불변식 대장 + 봇 악조건 확장 — 25등식 17시나리오) / 현행화: 2026-06-28d (publisher 메타 단일소유 + simulcast repub·forward layer fallback·track_id 정체성 불변 — 26등식 23시나리오) / 현행화: 2026-07-05 (RTX gate 전환경계 — video half PTT 봇 + stale/fresh NACK 레퍼토리, 27등식 26시나리오) / **현행화: 2026-07-12 (B7 TWCC 합성 축(GAP-twcc 해제) + B8 Hyb 1PC 매트릭스 + B8+ 혼합 모드/take-over + GAP-TOPO·GAP-S4 일괄 해소(crossroom_completeness·resource_bound, adv_resource 정규 승격 — 격리·서버 GAP 0), 33등식 40시나리오)** / **현행화: 2026-08-15 (§0-I 불변식 대장 현행 원천 이관 + S5·L5·C4·H1 신설, 봇 SUBSCRIBE_LAYER 능력 → known-gap 0건, §1-S soak — 35등식 44시나리오)** / **현행화: 2026-08-15 야간 (위상 선언 `sfu:` + S2·L2 위상 빈칸 해소 + dump_integrity + PTT 순수 청취자 보강 — 40등식 45시나리오)** / **현행화: 2026-08-15 심야 (L3 idle 생존 + S5 방 단일 노드 — 42등식 46시나리오)** / **현행화: 2026-08-16 (§1-P 병렬 실행 `--jobs N` + RTCP 값 축 3종 + `perturb` 시각 섭동 메타 시험 — 46등식 47시나리오)** / **현행화: 2026-08-16 야간 (§0-I 「축 두 개」 정합 축/회수 축 분리 — L5 회수 축 소속 확정, 커버리지 빈칸 0)**
 
 ---
 
@@ -42,6 +42,36 @@
    같이 적는다. 증명 못 하면 그 칸은 안 본 것이다. → 등식 추가 시 음성 픽스처 의무(§3)의 뿌리.
 2. **새 등식은 이 표에 좌표를 등록하고 들어온다.** 좌표 없는 등식 = 근거 없는 시험.
 
+### ★ 축 두 개 — 정합 축 / 회수 축 (20260816 결정, 부장님)
+
+2층은 **판정 자료원이 둘**이다. 여태 하나(봇 dump)만 2층이라 부르고 나머지를 "2층 밖"이라 했는데 그게
+틀렸다. **층은 클라 역할이 누구냐**(1층 단위 / 2층 봇 / 3층 실브라우저)이고 **자료원은 판정 근거가
+어디서 오느냐**다. 둘은 직교한다 — 실제로 3층 `MANUAL-LAYER-01` 의 판정 권위 ③은 브라우저가 아니라
+`oxadmin` 서버 조회다.
+
+| 축 | 판정 구간 | 자료원 | 실행 단위 | 현행 |
+|---|---|---|---|---|
+| **정합 축** | 봇 생애 **안** | 봇 dump | `run-all` (§1-P) | 등식 46 |
+| **회수 축** | 봇 생애 **밖** (run 전/후) | 서버 로그 계수 | `soak` (§1-S, N회 누적) | **등식 없음 — 사람이 `summary.txt` 를 읽는다** |
+
+**경계 기준은 "판정 구간이 봇 생애 안이냐 밖이냐"다.** 봇은 서버 내부를 원래 못 보지만 살아있는
+동안엔 서버 반응(응답·패킷·통지)으로 내부를 추론한다 — 정합 축 46등식이 전부 그렇게 한다.
+L5 가 묻는 *"떠난 뒤 정리됐나"* 는 **추론할 봇이 사라진 뒤가 판정 구간**이라 dump 로 원리적으로 막힌다.
+도구를 잘 만들어서 되는 문제가 아니다.
+
+**3층 이관은 답이 아니다**(20260816 검토): ① 자원 회수는 클라가 누구든 같아야 하는 성질이라 브라우저가
+판정에 아무것도 더하지 않고 ② 저빈도 누적(구 생성률 0.18/run)이라 확정에 60회가 필요했는데 3층은 회당
+비용이 수십 배고 ③ 브라우저 known flaky 가 낀다. 옮기면 **관측은 되는데 표본을 못 채우는 칸**이 된다.
+
+> **회수 축의 현행 한계 — 알고 쓴다.** 판정을 코드가 아니라 **사람이 한다.** `soak_runall.sh` 가 서버
+> 로그를 `grep` 해 `summary.txt` 에 적고 그걸 눈으로 읽는다. 약점은 로그 문구가 바뀌면 `grep` 이 0을
+> 돌려줘 **"값이 0"과 "물어볼 수 없었다"가 구별되지 않는 것**이다 — H1 처방(`dump_integrity` 식)을
+> 걸 수가 없다.
+> **재론 조건**: `oxadmin` gauge 노출(현재 살아있는 association·peer·task **수**). 배선은 마지막 한 홉만
+> 비어 있다 — 계수기(`DcMetrics.dc_open`/`dc_close`)·전달(`ADMIN_METRICS` 0x3003)·`Gauge` 원시타입은
+> 있고 hub REST `/admin/metrics` 가 501 스텁, oxadmin 에 명령 없음. 단 그건 **delta counter**
+> (`flush()` 가 swap(0))라 그대로는 못 쓴다 — **gauge 신설이 실작업**이다. 손이 많이 가 20260816 보류.
+
 ### 안전성 S — 절대 안 됨
 
 | | 불변식 | 갈래B (이렇게 깨면 빨개져야) | 현 등식 |
@@ -60,7 +90,7 @@
 | **L2** | **식별 연속성** — track_id 사슬이 재발행·재접속·promote 를 가로질러 안 끊김 | 재연결 시 track_id 재발급 | `identity_5point`·`track_id_returned`·`simulcast_track_id_match`·`simulcast_remove_track_id_match`·`identity_across_move`(방 이동) |
 | **L3** | **세션 생존** — 정상 참가자가 idle·전환 중 부당하게 안 죽음 | consent 끄면 idle sub 가 zombie 회수 | `duplex_transition`(전환)·`idle_session_survives`(장시간 idle, `adv_idle_survives` 35s) |
 | **L4** | **복구 발화** — 손실·재정렬에 NACK/RTX/PLI 가 나감 | NACK 생성 끄면 갭 영구 잔존 | `recovery_signal`·`rtx_gate_stale_nack` |
-| **L5** | **★자원 회수** — 떠난 참가자의 자원은 유한시간 내 **전부** 사라진다 | 회수 경로(취소 배선)를 빼면 태스크·association·peer 가 영구 잔존 | **빈칸(2층)** — 서버 로그 계수로만 확인 중 |
+| **L5** | **★자원 회수** — 떠난 참가자의 자원은 유한시간 내 **전부** 사라진다 | 회수 경로(취소 배선)를 빼면 태스크·association·peer 가 영구 잔존 | **회수 축 소속**(위 축 구분) — `soak` + 서버 로그 계수(§1-S). 정합 축 등식 없음이 **정상**이지 빈칸이 아니다 |
 
 ### 정합성 C — 출력 == 입력
 
@@ -262,6 +292,11 @@ take-over 연출(두 봇이 같은 `user:`)은 시나리오 안에서 값이 같
 **언제**: ① 저빈도 결함(1회만 목격된 것)이 실재하는가 ② 누적 결함(누수) 수리가 진짜 됐는가
 ③ 장시간 상태 오염(방·peer·포트 재사용).
 
+**★soak 는 §0-I 「축 두 개」의 회수 축 실행 단위다**(20260816). `run-all` 이 보는 정합 축(봇 생애 **안**,
+dump 권위)과 달리 여기서는 **봇 생애 밖**(run 전/후 서버 상태 델타)을 본다. **L5 자원 회수의 담당이
+여기다** — 정합 축에 L5 등식이 없는 것은 빈칸이 아니라 소속이 다른 것이다. 단 판정이 코드가 아니라
+`summary.txt` 를 읽는 **사람**이라는 한계가 있다(§0-I 재론 조건).
+
 ### ★ 판정은 **결함 0**. 빈도 추정·허용 임계 프레임 금지
 
 부장님 원칙 **100/100** — 100번 돌려 1번이라도 안 되면 규명 전까진 버그다.
@@ -390,7 +425,7 @@ probe 판정창이 15분으로 늘어나 "15분에 1826패킷 = 2pkt/s" 로 계�
   - ~~GAP-TOPO-crossroom-dynamic-fanout~~ → 현 HEAD 재현 안 됨(0709 fan-out 개편이 해소) — `crossroom_completeness` + `crossroom_dynamic` 재발 가드.
 - **known-gap 0건** (20260815 정리): `GAP-layer-switch` 해제(봇 `SUBSCRIBE_LAYER` 송신 능력 + `sim_manual_layer` + `manual_layer_follows`) · `GAP-duplex-half-to-full` 해제(서버는 원래 보내고 있었고 등식이 한 방향만 봤다 — `duplex_transition` 양방향 확장). 나머지 3건(`send-honest-simulcast`·`count-eq-gating`·`seq-ptt-slot`)은 **갭이 아니라 설계 사실**로 재분류해 근거를 등식 skip 자리로 이관.
 - **등재 기준**: 갭 목록에는 "이 층에서 **아무도 안 보는** 영역"만 올린다. 대체 등식이 있으면 갭이 아니다 — 섞으면 KNOWN_DEFECTS 와 달리 수명 장치(XPASS)가 없어 화석이 된다.
-- **실측 커버리지 빈칸**(20260815 심야 기준, §0-I): **L5 자원 회수만** 등식 없음 — 봇 dump 로는 원리적으로 안 보인다(서버 태스크·association 잔존). soak + 서버 로그 계수가 담당. 2층 밖으로 정리할지 판단 대기.
+- **실측 커버리지 빈칸**(20260816 기준, §0-I): **없음.** L5 자원 회수는 §0-I 「축 두 개」로 정리됐다 — 정합 축(봇 dump)이 아니라 **회수 축**(soak + 서버 로그 계수) 소속이고, 정합 축 등식이 없는 것이 정상이다. 판정을 사람이 한다는 한계와 재론 조건(`oxadmin` gauge)은 §0-I 에 명기.
 - **해제된 GAP**(20260627q 봇 RTCP 송신 토대로): ~~GAP-rtcp-sr~~·~~GAP-S3-rtcp-terminate~~·~~GAP-L4-recovery-signal~~·~~GAP-L1-floor-failover~~ — aiortc `_send_rtp` 가 `is_rtcp` 판별로 RTCP 도 SRTCP protect → 봇 RR/SR/NACK 송신 가능. 분수령 돌파. / ~~GAP-twcc~~(20260712 B7 — 봇 FB 합성으로 v2 루프 전체 커버, 발신 방향 twcc 삽입만 잔여 별건).
 
 ---
