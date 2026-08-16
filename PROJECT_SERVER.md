@@ -260,7 +260,10 @@ oxlens-sfu-server/
 - 5초 주기 체크: delta==0이면 STALLED (정당사유 제외)
 - 정당사유: PTT floor 없음, 트랙 muted, SubscriberGate paused, Simulcast pause, Publisher 퇴장, PTT kf_pending
 - TRACK_STALLED(0x2105) → 클라이언트 ROOM_SYNC 1회 + 토스트. 30초 쿨다운
-- ⚠ **결함 발견(20260711 doclint, 수리 결재 대기)**: 체커 진입 가드 `peer.phase < 2 continue`(tasks.rs:141 — 20260802 실측, 미수리)는 구 ParticipantPhase 5단계(Active=2) 기준 — 0517 3벌 분해 후 phase=PeerState(Alive=0/Suspect=1/Zombie=2)라 **의미가 뒤집혀 정상 peer 전원 skip = STALLED 감지 사실상 전멸**. 계약(미디어 미전송 단계 skip)이 옳고 코드가 위반
+- 체커 진입 가드: `if peer.get_phase() != PeerState::Alive { continue; }` (`tasks.rs:147`) — 계약은 **"미디어가 흐르지 않는 단계는 건너뛴다"**
+- ✅ **결함 수리 완료(20260816 `d0afd32`)**: 구 가드는 `peer.phase < 2 continue` 로, 구 ParticipantPhase 5단계(Active=2) 기준이었다. 0517 3벌 분해로 phase=PeerState(Alive=0/Suspect=1/Zombie=2)가 되며 **의미가 뒤집혀 Alive·Suspect 전원 skip = 정상 peer 를 아무도 안 봄 = 감지 전멸**(20260711 발견 → 20260802 실측 재확인 → 한 달간 미수리). 계약이 옳고 코드가 위반이었으므로 코드를 계약에 맞췄다. 타입이 아니라 정수 비교라 컴파일러가 못 잡은 건이다
+- 수리 후 관측: 정상 트래픽 46종 전 구간 **STALLED 0건**(오탐 없음) / 인위 stall(fault drop 1.0, publisher join 유지·full·unmuted·gate 허용) **즉시 적발** → 클라 `TRACK_STALLED{reason:"no_media_flow"}` @6.67s 도달. **"0건"이 전멸이라 0인지 정상이라 0인지가 갈렸다**
+- 회귀 가드: 2층 `adv_stall_detect` 시나리오 + `stall_detected` 등식(선언 `expect_stalled` 게이트). 봇이 `TRACK_STALLED`(0x2105) 를 수신 기록한다 — **감지기가 또 조용히 죽으면 회귀가 잡는다**
 
 ### Duplex 전환 (TRACK_STATE_REQ 단일 경로 + full→half 캐싱, 2026-05-31)
 - **전환 신호 = `TRACK_STATE_REQ`(0x1106) 단일 경로** — PUBLISH_TRACKS hot-swap 에서 분리 (이중화 금지, 결정 D). PUBLISH_TRACKS 는 최초 등록 전용
