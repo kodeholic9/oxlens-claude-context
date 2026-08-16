@@ -263,7 +263,7 @@ python -m oxe2epy run conf_audio_fault --seed 42   # 결함주입 시드 재현(
 python -m oxe2epy run-all                     # 정규 스위트 일괄(44종) + 종합 집계(회귀 1줄 판정)
 ```
 - 결과 = **3-class 리포트**: `✓ PASS — 회귀 0` / `✗ FAIL — 회귀 N` + 위반 등식·detail + 격리(노랑)·XPASS·known-gap 건수. exit code 는 **회귀(빨강)만** 반영.
-- 단위 시험(검증기 로직 자체): `python -m pytest tests/` — 등식마다 음성 픽스처(failability 보장) — **현재 174 passed**. 20260815 미보유 3건(`scope_select_routing`·`speaker_self_echo_zero`·`listener_seam_continuity`)은 같은 날 보강됐다.
+- 단위 시험(검증기 로직 자체): `python -m pytest tests/` — 등식마다 음성 픽스처(failability 보장) — **현재 201 passed**(20260816). 20260815 미보유 3건(`scope_select_routing`·`speaker_self_echo_zero`·`listener_seam_continuity`)은 같은 날 보강됐다 — 실측 각각 4·5·7건 보유.
 - 별 격리: **현재 없음** — `adv_resource` 는 GAP-S4 수리(서버 자원 유계 가드, 20260712c)로 정규 승격.
 
 ---
