@@ -138,7 +138,9 @@ L5 가 묻는 *"떠난 뒤 정리됐나"* 는 **추론할 봇이 사라진 뒤�
 > `adversary_ssrcs`) — 한 덩어리로 묶으면 `adv_authz` 가 오탐으로 빨개진다(실측). 모르는 종류는 판정하지 않는다.
 > ★**선언 문법이 생긴 축**: `sfu: same|different`(위상 — `topology_as_declared` 가 서버가 준 SFU 주소로 검증).
 > ★**아직 선언 못 하는 축**: 순수 청취자 유무. 그래서 PTT 시나리오의 seam 커버리지는 **시나리오 형상으로** 보장한다
-> (발언 0인 봇 1명 — `conf_ptt_relay` 의 botC 패턴). 12종 중 11종 적용, `adv_floor_failover` 만 조사 중이라 보류.
+> (발언 0인 봇 1명 — `conf_ptt_relay` 의 botC 패턴). **12종 전부 적용**(20260816 `adv_floor_failover` 보강으로 완료).
+> ★`adv_floor_failover` 는 유일한 **급사(disconnect)→reaper 회수→새 화자** 경로다 — 나머지는 전부 정상 RELEASE.
+>   실측: 청취자가 slot 220패킷을 **seq 결손 0** 으로 수신 = 급사 경로에서도 `ptt_rewriter` 가 slot seq 를 잇는다(C4 첫 실증).
 
 ### ★신설 4건의 근거 (20260815 — 6월 대장 작성 **이후** 실제로 터진 것들)
 
