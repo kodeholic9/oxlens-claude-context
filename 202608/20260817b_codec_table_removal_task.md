@@ -2,7 +2,7 @@
 kind: task
 status: open
 opened: 20260817
-progress: "W2·W3·W5 구현 완료(sdk0.2 3커밋) · W1 미착수 · 3층 3회 연속 20통과"
+progress: "W1~W5 전부 집행 완료 · 서버1+클라4 커밋 · 1층30/2층47/3층20(3회) 전부 초록 · push 미결재"
 refs: [202608/20260817a_onepc_pt_mismatch_blackscreen_task.md, PROJECT_SERVER.md, PROJECT_WEB.md, guide/MEDIA_DEBUG_GUIDE_FOR_AI.md]
 ---
 # 서버 코덱 고정표 철거 + 재협상 재보고 — "어긋나면 그 자리에서 드러낸다"
@@ -319,16 +319,35 @@ n=3 순차 관찰로 인과를 단정했다 — **`feedback_coexistence_not_caus
 바로 앞 세션에서 내가 지적한 항목이다.** A/B 는 교대여야 하고, 상태를 공유하는 스위트에서
 순차 비교는 증거가 아니다.
 
-## 6-2. 남은 작업
+## 6-2. W1 집행 (당일 완료)
 
-- **W1 미착수** — 서버 `ServerConfig` 에서 코덱 표 축소(PT·fmtp·clockrate·channels 제거,
-  `rtcp_fb` 만 잔류). SDK 는 이미 표의 PT/fmtp 를 **안 읽으므로** 서버를 안 고쳐도 동작한다.
-  즉 이제 순수 정리 작업이고, wire 변경이라 서버 재빌드·2층·3층 재검증이 붙는다.
-  `_allowedCodecNames` 가 "서버가 이름을 주면 그것, 안 주면 SDK 상수"로 되어 있어
-  **표를 통째로 빼도 무중단**이다.
-- **오디오 PT 통보 신설** — W1 과 짝. 지금은 서버 표 `opus/111` 이 유일 출처이고
-  크롬도 111 이라 우연히 맞는다.
-- `3002` 에러 문구의 `VP9` 오기(§1.3) — 별건 한 줄.
+| 커밋 | 저장소 | 내용 |
+|---|---|---|
+| `cc5de77` | oxlens-sfu-server | `CodecPolicy` = `{kind, name, rtcp_fb}`. `TrackEntry.video_pt`→`pt` 개명 + audio 적재. audio `actual_pt = t.pt.unwrap_or(111)`. `OPUS_PAYLOAD_TYPE` 신설(PTT slot 전용). `3002` 문구 `VP9` 오기 정정. 봇 `codec_match` 를 kind 기준으로 교체 |
+| `3d54653` | oxlens-home | `_subTrackCodecs` 가 서버 표 대신 통보값(`track.pt/rtx_pt/codec`)으로 sub m-line 을 세운다. `video_pt`→`pt` 내부 통일. `CodecConfig` 의 PT/clockrate 계열 optional. **PT 미통보면 던진다** |
+
+**시험**: 서버 단위 280/280 · 1층 30/30 · 2층 run-all 47/47 · 3층 **3회 연속 20통과/1skip/실패 0**.
+
+### ★ 표 철거가 즉시 드러낸 것 — PTT slot 파이프
+
+`talkgroups/talk/virtual.ts:116` 이 slot RemotePipe 를 **`pt`/`codec` 없이** 만들고 있었다.
+종전엔 클라가 서버 코덱 표로 조용히 떨어져 가려져 있던 자리다. 표를 빼자 3층이 즉시
+**20종 실패**로 잡았고(`subscribe m-line: publisher PT 미통보 … track_id=ptt-…-audio`),
+통보값을 관통시켜 해소했다. **§0 원칙이 설계대로 작동한 첫 사례** — 조용한 폴백을 없애니
+숨어 있던 미통보 경로가 한 번에 드러났다.
+
+서버 쪽도 같이 드러났다: PTT slot audio entry 에는 애초에 PT 가 없었다(`opus/111` 이
+클라 표에만 있었다). slot 은 여러 화자가 돌려쓰는 공용 m-line 이라 **서버가 PT 를 정하는
+것이 맞는 유일한 자리**여서, 거기만 `OPUS_PAYLOAD_TYPE` 로 명시했다.
+
+### 남은 별건
+
+- **PTT slot 오디오는 여전히 PT 를 재기록하지 않는다.** video 는 `subscriber_stream.rs:480`
+  이 `pt_for_video_codec` 으로 정규화하는데 audio 는 `payload_base` 를 그대로 흘린다.
+  즉 화자마다 opus PT 가 다르면 slot 선언(111)과 어긋난다. 지금은 크롬·aiortc 가 모두
+  111 이라 안 드러날 뿐 — **§1.4 의 우연이 이 자리에 하나 남아 있다.**
+- `is_rtx_pt()` 가 하드코딩 표(97/103)로 판정한다. 선언값(`rtx_pt`)을 안 쓴다.
+- `rtx_pt_for(media_pt)` 추측 표(`102=>103, _=>97`).
 
 ## 7. 근거 기록
 
