@@ -257,31 +257,62 @@ MEDIA_NOTICE 0x2107 (S→C)
 **범위 결정 필요**: A(신 op + pt_mismatch 만) / **B(기존 3 op 흡수)** — 부장님 지적의 핵심은 B.
 B 는 다단계라 **한 세션에 안 끝난다는 전제**로 시작할 것.
 
-### 2. 2층 형상 — 시험 케이스 부재 (지침 7)
+### 2. ★선언 ↔ 실도착 대조를 **축으로** 확장 (부장님 20260817: "pt에 대해서만 로깅하지?")
+
+> **서버는 선언과 실제가 다른 것을 알면서 넘어가지 않는다.**
+
+오늘 넣은 `[PT:MISMATCH]` 는 **축 하나의 필드 하나**다. 클라가 PUBLISH_TRACKS 로 선언하는 값이
+19개인데(`PublishTracksReq` 8 + `PublishTrackItem` 11) **대조하는 건 media `pt` 하나뿐이다.**
+
+| 선언값 | 대조 근거 | 현재 |
+|---|---|---|
+| `pt`(media) | 도착 RTP 헤더 | **20260817 가드** |
+| `rtx_pt` | 첫 RTX 패킷 PT | 없음 — `is_rtx_pt()` 가 **하드코딩 표(97/103)** 로 판정하고 선언값을 안 쓴다 |
+| `ssrc` | 도착 RTP ssrc | 없음 — 못 찾으면 RTP-first promote 로 새 트랙 생성. **simulcast 정상 경로와 구분이 안 된다** |
+| `rtx_ssrc` | FID 짝 | 없음 |
+| `mid` | RTP mid 확장 | 없음 |
+| `rid` | RTP rid 확장 | 없음 |
+| `codec` | payload 구조(VP8 descriptor / H264 NAL) | 입구 거절만(`from_str_strict`). **실 payload 와 대조 안 함** |
+| `kind` | 도착 PT ↔ audio/video | 없음 |
+| `twcc/rid/repair_rid/mid/audio_level _extmap_id` | 선언 ID 자리에 실제 확장이 있나 | **없음** — 선언값을 그대로 믿고 `parse_rid(buf, id)` 등을 호출하고, 못 찾으면 `None` 으로 **조용히 넘어간다**. 클라가 `rid_extmap_id=3` 이라 했는데 Chrome 이 4에 넣었으면 simulcast 레이어 오분류 |
+
+**훅은 이미 있다** — `PublisherTrack.pt_checked`(첫 RTP 1회) 자리에서 전부 볼 수 있다.
+비용 불변(첫 패킷 이후 relaxed load 1회 단락). 로그 이름은 `[DECL:MISMATCH]` 식으로 필드별.
+
+**착수 순서(난이도별)**:
+1. **쉬움 — `ssrc`·`kind`·`mid`·`rid`**: 이미 파싱된 값과 비교만. **여기부터.**
+2. 중간 — `extmap` 4종: "선언 ID 자리에 확장이 있나". ★simulcast 는 rid 가 없는 게 정상인
+   구간이 있어 **오탐 주의**(음성 픽스처 필수)
+3. 중간 — `rtx_pt`·`rtx_ssrc`: 첫 RTX 패킷 시점이 불확정(NACK 있어야) → 별도 훅
+4. 어려움 — `codec` ↔ payload 구조: VP8/H264 판별 신설. **오탐 위험 최대**, 마지막
+
+`pt` 하나로 3세션짜리 사고가 한 줄이 됐다. 1번 4종이면 상당 범위가 덮인다.
+
+### 3. 2층 형상 — 시험 케이스 부재 (지침 7)
 
 2층에 `codec_match` 등식은 **있다**(수신 RTP pt ↔ 약속 `video_pt` 대조). 못 잡은 이유는
 봇이 `publish_video(pt=96, codec="VP8")` 로 **선언하고 그대로 보내** 항상 일치하기 때문.
 → **봇이 "선언 PT ≠ 실송신 PT" 를 만들 수 있으면 `codec_match` 가 잡는다.** 등식 신설 불요.
 20260816 §0-I 규율 3(형상 우선)의 교과서적 사례.
 
-### 3. `rtx_pt_for(media_pt)` 추측 — 별건
+### 4. `rtx_pt_for(media_pt)` 추측 — 별건
 
 `102=>103, _=>97`. publisher 가 표준 PT 를 안 쓰면 H264 에 VP8 용 RTX PT 가 붙는다.
 `rtx_pt_for_video_codec(codec)` 이 이미 있으니 호출자가 코덱에서 유도하면 된다.
 **단, 구독 m-line 이 선언한 RTX PT 와 맞춰야 한다** — 오늘 이걸 정책표 기준으로 고쳤다가
 되돌렸다(정상 시 RTX 는 114). 실측 먼저.
 
-### 4. `PublisherTrack` 접근자의 묵시 기본값 — 별건
+### 5. `PublisherTrack` 접근자의 묵시 기본값 — 별건
 
 `video_codec()` → `unwrap_or(Vp8)` / `actual_pt()` → `unwrap_or(0)`.
 "Stream 부재"와 "값 없음"이 같은 값으로 뭉개진다. `Option` 반환 계열 신설 + 소비처 명시 처리가
 정석이나 호출처가 많다. 범위 산정 필요.
 
-### 5. 3층 비결정 구조 (§H) — 신원 격리 / `catch{}` 제거 / 단발→`expect.poll` 30곳
+### 6. 3층 비결정 구조 (§H) — 신원 격리 / `catch{}` 제거 / 단발→`expect.poll` 30곳
 
-### 6. 빈 방 회수 (§I) — B안 결정 대기
+### 7. 빈 방 회수 (§I) — B안 결정 대기
 
-### 7. 3층 시험 항목 체계 (지침 3·4) — 조사만 하고 결론 미도출
+### 8. 3층 시험 항목 체계 (지침 3·4) — 조사만 하고 결론 미도출
 
 `qa/checks/` 178항목은 `qa/README.md:68` 이 스스로 *"v0.1 기준 전면 stale, sdk0.2 재편 미착수"*
 로 선언해둔 상태. 원천은 **구현 파생**(외부 규격 인용은 checks 내 1건뿐), 눈·귀 체감 항목은
@@ -290,7 +321,7 @@ B 는 다단계라 **한 세션에 안 끝난다는 전제**로 시작할 것.
 이미 옳게 있다: *"와이어로 결판나면 2층에서 끝. 실 디코딩·품질·픽셀이 판정을 바꿔야만 3층."*
 ※ `README` 도 뒤처져 있다 — *"시나리오 5종"* 이라 하는데 실제 **21종**.
 
-### 8. push — 미결재 누적
+### 9. push — 미결재 누적
 
 `oxlens-sfu-server` 3건(`a0b7b89`·`01bb699` 외) / `oxlens-home` 3건(`c5ce83f`·`8d17ace`·
 `c8a83f4`·`385157f`) / `context`.
