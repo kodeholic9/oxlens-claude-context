@@ -92,7 +92,9 @@ publisher PUBLISH_TRACKS
   (서버 resume 은 peer 전체 스트림 순회라 1회면 충분).
 - **서버 로그 체크포인트** (이 순서로 grep):
   ```
-  [TRACK:REG]     ssrc/pt/track_id 등록 — pt 값을 여기서 확보
+  [TRACK:REG]     ssrc/pt/track_id 등록 — pt 값을 여기서 확보 (20260817 로그에 pt·codec 실제 추가)
+  [PT:MISMATCH]   선언 PT ≠ 실도착 PT (첫 RTP 1회) — 이 줄이 뜨면 클라 보고가 틀린 것
+  [PT:OMIT]       video_pt=0 이라 구독 entry 에서 pt 생략 → 클라가 정책표로 fallback
   [TRACK:NOTIFY]  구독자 통지(이때 gate pause)
   "TRACKS_READY gate resume sub=X → pub=Y"   (구 표기 subscriber=/publisher= — 20260715 sub=/pub= 통일)
   [GATE:PLI] / [DBG:PLI] sent → user=Y    PLI 가 publisher 주소로 나감
@@ -122,6 +124,29 @@ publisher PUBLISH_TRACKS
   preferredCodec 정책 변경 시 3곳 동시 확인.
 - **서버측 함정 잔존**: 묵시 VP8 기본은 "PT 는 동적" 원칙과 어긋남 — codec 미지정 intent 는
   offer 의 pt 로 판별하거나 reject 가 정도. Android 등 타 클라가 같은 함정 가능(서버 이월).
+  ※ 20260817 현행화: `VideoCodec::from_str_strict`(20260613)로 **입구는 막혔다**. 다만
+  `PublisherTrack::video_codec()` 이 `unwrap_or(Vp8)`, `actual_pt()` 가 `unwrap_or(0)` 라
+  **접근자에 묵시 기본이 살아 있다**(근거 주석 "stream None → 라우팅 대상 아님"인데
+  `collect_subscribe_tracks`(SDP 생성)가 그 접근자를 읽는다 = 가정 밖 소비처).
+
+### ★고장 모드 2 — profile-level-id 불일치가 PT 매핑을 깨뜨린다 (20260817 실증, 1PC 검은화면)
+
+```
+클라 answer 합성(sdp.ts `_mapCodecsToOfferPts`)이 H264 만 매칭 조건에 profile-level-id 일치를 걸었다.
+  publisher profile 42e01f (서버 정책과 같음) → 매칭 성공 → offer PT 109 반영 → 정상
+  publisher profile 42001f                    → **매칭 실패 → 서버 정책 PT 102 잔류** → 검은 화면
+Chrome 은 H264 를 profile 별로 여러 개 제안하고 실제 선택이 매번 다르다 = 간헐(10회 중 7회)의 정체.
+```
+- **`profile-level-id` 도 PT 와 똑같이 협상 산물**이다. 정책 고정값과 다르다고 매칭을 깨면 안 된다.
+  수리: 이름으로 매칭하고 **PT·fmtp·rtx_pt 를 전부 offer 것으로 반영**(RFC 3264).
+- 매칭 실패를 **조용히 넘기고 서버 값을 유지**한 것이 사고의 본질. `server_codec_policy` 가
+  *"fixed, no negotiation"* 으로 profile 까지 고정한 것이 뿌리.
+- **서버 가드 신설**: `[PT:MISMATCH]` — 첫 RTP 1회, 선언 PT ↔ 실도착 PT 대조
+  (`ingress_publish.rs`, `pt_checked` relaxed load 로 단락). 자가치유는 **일부러 안 한다**
+  (땜빵은 원인을 덮는다 — 부장님 20260817).
+- 판독 주의: 이 고장 모드는 **`pliCount=0`** 이다(§1 표의 "pliCount 지속 증가"와 다름).
+  코덱이 안 붙어 **디코더 자체가 없으니 PLI 보낼 주체가 없다.** `framesReceived=0` +
+  `codecId 필드 부재`가 이 모드의 서명.
 
 ---
 
