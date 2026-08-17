@@ -92,29 +92,59 @@ a=fmtp:108 ... packetization-mode=1;profile-level-id=42e01f
 
 ※ 한계: 크롬↔크롬 · 320x240. level(`1f`=3.1)을 넘는 해상도와 비-크롬 하드웨어 디코더는 미측정.
 
-### 1.6 재협상하면 와이어 코덱이 바뀌는데 **재보고가 없다** (실측, 실 RTP)
+### 1.6 ★ 구독 사이클이 **협상 결과를 되돌린다** — 되비출 원본이 틀렸다
 
-PC 2개 실연결, 캔버스 영상 송신, `getStats().outbound-rtp.codecId` 로 판독:
+**재협상 자체는 문제가 아니다.** offer/answer 한 번이 전체 상태를 다시 정하는 건
+RFC 3264/JSEP 의 모델이고 정상이다. **문제는 되비출 원본을 협상 "전" 것으로 잡은 것이다.**
 
-| | 실제 와이어 | packetsSent / framesEncoded |
+`transport.ts:293` `_negoOnePcSubscribe`:
+
+```ts
+const remoteSdp = buildUnifiedRemoteOffer(
+  this.serverConfig,
+  pc.localDescription?.sdp || '',   // ★ 이 시점 localDescription = 내가 보낸 offer(협상 前)
+  subscribeTracks,
+)
+```
+
+발행 사이클 직후 상태는 이렇다:
+
+| | 내용 |
+|---|---|
+| `pc.localDescription` | **내 offer** — 크롬 PT **27개** 전부 (VP8·VP9·AV1·H265 포함) |
+| `pc.remoteDescription` | **서버 답장 = 협상 결과** — PT 4개 (`102 103 96 97`) |
+
+되비추기(`sdp.ts:389` + `_echoCodecAndExtmap` `:521`)는 **협상 결과가 아니라 협상 전 목록**을
+그대로 복사해 offer 로 돌려주고, 거기에 **크롬이 자기 답장을 쓴다.**
+→ **걸러냈던 코덱이 되살아나고, ①의 합의가 무효가 된다.**
+
+**실측 A — 원본만 바꾸면 값이 유지된다** (PC 2개 실연결, 실 RTP, `outbound-rtp.codecId` 판독)
+
+| 되비출 원본 | 협상 직후 | 구독 사이클 후 |
 |---|---|---|
-| ① SDK 가 서버 표로 답장 | `PT 102 H264 **42e01f**` | 63 / 44 |
-| ① 시점 서버 보고 `video_pt` | **102** | |
-| ② 되비춘 offer 로 재협상 후 | `PT 102 H264 **42001f**` | 108 / 89 |
+| **현행** `localDescription` (협상 前 offer, PT 27개) | `102 H264 42e01f` | **`102 H264 42001f` — 바뀜** |
+| `remoteDescription` (협상 결과, PT 4개) | `102 H264 42e01f` | **`102 H264 42e01f` — 유지** |
 
-원인: 1PC 구독 사이클이 pub m-line 을 **크롬 것 그대로 되비춰** offer 로 돌려주고
-(`sdp.ts:389` + `_echoCodecAndExtmap` `sdp.ts:521`), 거기에 **크롬이 자기 답장을 쓴다.**
-그러면 ①의 합의가 덮어써지는데 **서버에 다시 알리는 코드가 없다.**
+**실측 B — 번호까지 갈린다** (`setCodecPreferences` 미적용 = `transport.ts:628` 이 삼키는 그 상황)
 
-**2PC 는 구독이 별도 PC 라 ②가 없다.** 1PC 빈도가 높은 이유.
+크롬 기본 offer 순서는 `m=video ... 96 97 102 103 104 ...` 로 **VP8 이 1순위**다.
 
-이건 규격 결함이 아니다 — offer/answer 한 번은 전체 상태를 다시 정하는 게 RFC 3264/JSEP 의
-모델이다. 문제는 **서버 역할을 하는 쪽(SDK)이 ①과 ②에 서로 다른 목록을 넣는 것**이다.
-①은 서버 표, ②는 클라 자기 목록. mediasoup·Janus 는 목록을 한 곳에서만 내므로 이 진동이 없다.
+| | 값 |
+|---|---|
+| 서버에 보고한 `video_pt` | **102 (H264)** |
+| 협상 직후 와이어 | `PT 102 H264` ✓ |
+| **구독 사이클 후 와이어** | **`PT 96 VP8`** ← 코덱이 통째로 바뀜 |
 
-★ 미확정: PT **번호**가 갈리는 것(`declared=102 arrived=98`)은 **재현하지 못했다.**
-등급만 갈렸다. 이 크롬에서 `98 = VP9` 이므로 `20260817a §D ⑤` 의 *"98 = OpenH264"* 관찰과
-모순된다. **실패 회차 `sdpDump` 의 `m=video` 한 줄**이 남은 단서.
+→ 서버는 H264/102 로 등록하고 실제로는 VP8/96 이 도착한다. **`declared ≠ arrived` 재현.**
+`20260817a §G` 서버 가드가 잡은 그 형상이다(기록의 `arrived=98` 과 번호는 다르나 계열 동일).
+
+**방아쇠는 `setCodecPreferences` 다.** 성공하면 크롬 1순위가 H264/102 가 되어 되살아난 목록에서도
+우연히 같은 값을 고른다. **실패하면(삼켜져서 아무도 모른다) 즉시 VP8/96 으로 갈린다.**
+
+**2PC 는 구독이 별도 PC 라 되비추기 자체가 없다.** 1PC 빈도가 높은 이유가 이것이다.
+
+※ `20260817a §D ⑤` 의 *"98 = OpenH264"* 는 이 크롬에서 `98 = VP9` 이므로 여전히 모순이다.
+   실패 회차 `sdpDump` 의 `m=video` 한 줄로 그 회차의 번호 배치를 확인할 것.
 
 ### 1.7 정답 형태가 **같은 파일 안에 이미 있다** — extmap
 
@@ -173,19 +203,30 @@ SDK 허용목록에 없는 것만 뺀다(extmap `:125` 와 동형). `rtcp-fb` �
 
 **드러내기**: 허용목록에 없어 코덱을 하나도 못 남기면 **던진다.** 조용한 폴백 금지.
 
-### W3. 재협상 후 **재보고** — §1.6 의 진짜 결함
+### W3. 되비출 원본을 **협상 결과**로 — §1.6 의 진짜 수리
 
-**좌표**: `transport.ts:504 enrichPublishIntent` · `:686 _parseAnswerVideoPt` ·
-`_negoOnePcSubscribe` `:280` / `_reNegoPublishNow` `:185`
+**좌표**: `transport.ts:295` (`pc.localDescription?.sdp` 인자)
 
-**하는 일 (두 가지)**
-1. 보고값의 출처를 **자기가 쓴 SDP → 크롬**으로 바꾼다.
-   `sender.getParameters().codecs[0].payloadType` 이 실제 송신 PT 다.
-   지금은 자기 답장의 `m=video` 첫 숫자를 다시 읽는 **자문자답**이다.
-2. **협상이 끝날 때마다** 직전 보고값과 비교해서 **바뀌었으면 서버에 다시 보낸다.**
-   1PC 구독 사이클(`_negoOnePcSubscribe`) 뒤가 핵심 지점.
+**하는 일**: 되비출 원본을 **협상 전 내 offer → 확정된 협상 결과**로 바꾼다.
+`buildPublishRemoteAnswer` 가 만든 그 답장이 `pc.remoteDescription` 에 있고,
+**pub m-line 을 서버 시점(recvonly)으로 이미 담고 있다** — rid/simulcast recv 줄까지
+포함한다(`sdp.ts:182-185`). 따라서 되비추기에 필요한 것이 전부 들어 있다.
 
-**드러내기**: 바뀌었는데 재보고 경로가 막혀 있으면 **로그가 아니라 에러**로 올린다.
+실측 A(§1.6)가 이 한 수로 값이 유지됨을 보인다.
+
+★ **W1/W2 를 해도 이 수리는 별도로 필요하다.** 답장이 offer echo 가 되어도 허용목록으로
+거른 만큼 **답장 ⊂ offer** 이므로, offer 를 되비추면 걸러낸 코덱(VP9·AV1·H265)이 되살아난다.
+서버가 모르는 코덱으로 재협상될 경로가 그대로 열려 있다.
+
+**드러내기 (보강)**
+1. 보고값 출처를 **자기가 쓴 SDP → 크롬**으로. `sender.getParameters().codecs[0].payloadType`
+   이 실제 송신 PT 다. 지금 `_parseAnswerVideoPt`(`:686`)는 자기 답장의 `m=video` 첫 숫자를
+   다시 읽는 **자문자답**이다.
+2. 협상이 끝날 때마다 직전 보고값과 대조해서 **다르면 드러낸다.** §0 원칙.
+   (원본 교체로 진동이 사라지면 이 대조는 상시 침묵해야 한다 — 울리면 다른 경로가 있다는 뜻)
+
+★ **`setCodecPreferences` 실패 삼킴 제거** (`transport.ts:628`). §1.6 실측 B 의 방아쇠다.
+`try{}catch{ log.warn }` → **던진다.** 코덱 선호가 안 걸린 채 협상하는 건 조용히 넘어갈 일이 아니다.
 
 ★ **오디오 PT 통보 경로가 없다** — `enrichPublishIntent:519` 가 `kind === 'video'` 일 때만
 PT 를 싣는다. `PublishTrackItem.pt` 주석도 *"클라 실사용 video PT"*. 오디오는 서버 표의
@@ -234,9 +275,11 @@ PT 를 싣는다. `PublishTrackItem.pt` 주석도 *"클라 실사용 video PT"*.
 
 ## 6. 안 닫힌 사실 (다음 세션이 이어받는 단서)
 
-- **PT 번호 갈림 미재현**: §1.6 ★. 실패 회차 `sdpDump` 의 `m=video` 한 줄이면 닫힌다.
-- **`setCodecPreferences` 실패를 삼킨다**: `transport.ts:628` `try{}catch{ log.warn }`.
-  실패하면 코덱 순서가 통째로 밀려 PT 배치가 달라진다. 번호 갈림의 유력 후보. **드러내야 한다(§0).**
+- **PT 번호 갈림은 재현됐다**(§1.6 실측 B — 보고 102/H264, 와이어 96/VP8). 다만
+  `20260817a §D ⑤` 의 `arrived=98` 과 번호가 다르다. 이 크롬에서 `98 = VP9` 이므로
+  그 회차의 PT 배치를 **실패 회차 `sdpDump` 의 `m=video` 한 줄**로 확인할 것.
+  현재 가설: 그 회차엔 되살아난 목록에서 크롬이 VP9(98)를 골랐다. 기록의 `encoder=OpenH264`
+  병기와는 여전히 모순 — 둘 중 하나가 오기다.
 - **`_applyCodecPreferences` 가 `RTCRtpReceiver` 캡을 sendonly 에 건다**(`transport.ts:631`).
   디코더 목록이라 인코더가 우선하지 않는 등급이 1순위로 올라간다. §1.4 의 첫 단추.
   W2 로 답장이 offer echo 가 되면 무해해지지만, **송신 목록을 디코더 기준으로 만드는 것 자체는 별건.**
