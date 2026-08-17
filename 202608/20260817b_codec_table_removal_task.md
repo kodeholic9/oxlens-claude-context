@@ -2,6 +2,7 @@
 kind: task
 status: open
 opened: 20260817
+progress: "W2·W3·W5 구현 완료(sdk0.2 3커밋) · W1 미착수 · 3층 3회 연속 20통과"
 refs: [202608/20260817a_onepc_pt_mismatch_blackscreen_task.md, PROJECT_SERVER.md, PROJECT_WEB.md, guide/MEDIA_DEBUG_GUIDE_FOR_AI.md]
 ---
 # 서버 코덱 고정표 철거 + 재협상 재보고 — "어긋나면 그 자리에서 드러낸다"
@@ -283,6 +284,51 @@ PT 를 싣는다. `PublishTrackItem.pt` 주석도 *"클라 실사용 video PT"*.
 - **`_applyCodecPreferences` 가 `RTCRtpReceiver` 캡을 sendonly 에 건다**(`transport.ts:631`).
   디코더 목록이라 인코더가 우선하지 않는 등급이 1순위로 올라간다. §1.4 의 첫 단추.
   W2 로 답장이 offer echo 가 되면 무해해지지만, **송신 목록을 디코더 기준으로 만드는 것 자체는 별건.**
+
+## 6-1. 집행 결과 (20260817 당일)
+
+### 커밋 (oxlens-home, push 미결재)
+
+| 커밋 | 내용 | 작업 |
+|---|---|---|
+| `3f6de8c` | 되비출 원본을 협상 확정본으로. 코덱 줄 ← `remoteDescription`, extmap ← local 원본 ID 유지. 확정본 부재/mid 불일치는 local 폴백 | **W3 주** |
+| `0955498` | 보고값 출처를 브라우저(`sender.getParameters().codecs[0]`)로. 답장 SDP 값과 갈리면 **던진다**. `_applyCodecPreferences` try/catch 제거 | **W3 보강** |
+| `fa46d93` | `_mapCodecsToOfferPts` **삭제**. publish answer = offer echo + 허용목록. 허용 코덱 0 이면 **던진다**. rtcp-fb 만 서버 정책. `package.json` `"test"` 추가 | **W2 + W5 배선** |
+
+### 시험
+
+| 층 | 결과 |
+|---|---|
+| 1층 | `npm test` **30/30**. 신설 9종(mirror 원본 3 + publish answer 6). 갈래B 2회 — 수리를 되돌리면 각각 FAIL 1건 확인 |
+| 3층 | 전체 스위트 **3회 연속 20 통과 / 1 skip(DIAG) / 실패 0**. ONEPC 단독 5/5 |
+
+1층 픽스처는 상상이 아니라 **크롬 151 실측 형상**을 코퍼스로 썼다
+(H264 `102=42001f` / `108=42e01f` + VP9 + AV1 동시 제안, opus `111` + G722/PCMU/telephone-event).
+
+### ★ 방법론 사고 1건 — 내가 §0 원칙을 어겼다
+
+전체 스위트에서 `SIM-AUTO-01` 1건이 실패했다. 단독 3회에서 1/3 통과가 나오자
+**"제 변경으로 인한 회귀"라고 보고했다.** 틀렸다.
+
+`dist` 를 pre/post 두 벌로 만들어 **교대 실행 4쌍(8회)** 하니 **양쪽 다 8/8 통과**.
+원인은 코드가 아니라 **회차 간 서버 상태 누수**였다 — 실패 회차 baseline 로그에
+직전 회차의 `last_demote_ms` 와 `auto_cap:"l"` 이 그대로 남아 있었고, backoff 15s 창에
+걸리면 10s 폴링이 못 기다린다. `20260817a §H`(신원 공유 · 방/유저 고정 재사용)가 예고한 그것이다.
+
+n=3 순차 관찰로 인과를 단정했다 — **`feedback_coexistence_not_causation` 위반이고,
+바로 앞 세션에서 내가 지적한 항목이다.** A/B 는 교대여야 하고, 상태를 공유하는 스위트에서
+순차 비교는 증거가 아니다.
+
+## 6-2. 남은 작업
+
+- **W1 미착수** — 서버 `ServerConfig` 에서 코덱 표 축소(PT·fmtp·clockrate·channels 제거,
+  `rtcp_fb` 만 잔류). SDK 는 이미 표의 PT/fmtp 를 **안 읽으므로** 서버를 안 고쳐도 동작한다.
+  즉 이제 순수 정리 작업이고, wire 변경이라 서버 재빌드·2층·3층 재검증이 붙는다.
+  `_allowedCodecNames` 가 "서버가 이름을 주면 그것, 안 주면 SDK 상수"로 되어 있어
+  **표를 통째로 빼도 무중단**이다.
+- **오디오 PT 통보 신설** — W1 과 짝. 지금은 서버 표 `opus/111` 이 유일 출처이고
+  크롬도 111 이라 우연히 맞는다.
+- `3002` 에러 문구의 `VP9` 오기(§1.3) — 별건 한 줄.
 
 ## 7. 근거 기록
 
