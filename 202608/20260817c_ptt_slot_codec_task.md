@@ -1,6 +1,6 @@
 ---
 kind: task
-status: open
+status: done
 opened: 20260817
 refs: [202608/20260817b_codec_table_removal_task.md, PROJECT_SERVER.md, guide/MEDIA_DEBUG_GUIDE_FOR_AI.md]
 ---
@@ -137,6 +137,36 @@ W3 이후 `pt_for_video_codec` / `rtx_pt_for_video_codec` 의 소비처가 사�
   같은 묶음이다.
 - **방별 코덱 지정 wire** — 수요 시 `ROOM_CREATE` 필드 하나.
 - `config::is_rtx_pt` 하드코딩(97/103) — 선언 `rtx_pt` 를 안 쓰는 별건.
+
+## 6-1. 집행 결과 (20260817 당일 완료)
+
+**커밋**: `oxlens-sfu-server 74d8f04` (서버 + 봇/등식 일괄)
+
+| 작업 | 결과 |
+|---|---|
+| W1 `Slot.video_codec` | `Room::new` 이 `config::PTT_SLOT_VIDEO_CODEC`(VP8)로 확정. `Slot::video_pt()/video_rtx_pt()` |
+| W2 선언 파생 | `helpers.rs` slot entry 의 VP8 하드코딩 3줄 → slot 값 |
+| W3 재기록 대상 | `subscriber_stream.rs:480` 화자 코덱 추종 → **slot 값** |
+| W4 거절 | 불일치 half video publish **3004**(`track_ops`) + cross-room floor 결합 미결합(`floor_broadcast`, T3) |
+| W5 정리 | `config::pt_for_video_codec` / `rtx_pt_for_video_codec` **삭제**(소비처 소멸) |
+| W6 가드 전환 | `ptt_slot_codec_enforced` 등식 신설 · `ptt_video_h264` 판정 반전 · **SRV-0817 격리 해제** |
+
+**시험**: 서버 단위 **284/284** · 2층 `run-all` **49종 OK 49 / 격리 0** · 3층 2회 22통과/1skip/실패 0.
+**갈래B**: 거절 가드를 제거하면 `ptt_slot_codec_enforced` 가 빨강(+`leak_zero` 동반) — 확인.
+
+### ★W5 예측이 틀렸다 (자기 정정)
+
+지침 W5 는 *"`codec_registry` 의 `slot_pt`/`slot_rtx_pt` 도 함께 사라진다"* 고 봤다. **틀렸다.**
+slot m-line 은 **화자가 등장하기 전(ROOM_JOIN)** 에 선언되므로 협상값이 있을 수 없고 서버가
+골라야 한다. 그 필드는 "코덱별 정책표"가 아니라 **서버가 저작하는 m-line 의 번호**다.
+사라진 것은 `config::pt_for_video_codec` — *화자 코덱으로 egress 를 재기록하던* 소비처다.
+필드 주석에 정정 기록.
+
+### 부수 — 2층에 "거절이 정상"을 표현하는 수단이 생겼다
+
+`recorder.record_denied_expected` + `loader.denied_ssrcs`. 종전엔 거절 시나리오를 쓰면
+약속-송신(`send_honest`)·`track_id_returned` 가 "약속만 하고 안 보냈다"고 잡아 표현이 불가능했다
+(B2 무권 op 만 예외 처리돼 있었다). 이제 시나리오가 `expect_denied: true` 로 선언한다.
 
 ## 6. 검증
 
