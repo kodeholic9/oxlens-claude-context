@@ -432,6 +432,42 @@ pub struct VideoCodecCaps {
 **시험**: 서버 단위 **284/284**(codec_registry 4종 신설) · 1층 30/30 ·
 3층 **3회 연속 22통과/1skip/실패 0** · 2층 48종 OK 48.
 
+### 6-6. ★PTT slot 고정 코덱 — 실증 + 격리 (SRV-0817-ptt-slot-fixed-codec)
+
+부장님: *"PTT 를 위해 고정 코덱 제약이 서버에 있어야 되나? `slot_pt` 에서 냄새가 난다.
+full/half 에서 쓰는 코덱에 차이가 있어야 되니?"* → **냄새가 맞았다. 반증 탐침으로 확인.**
+
+**두 값의 출처가 다르다**
+
+| | 값 | 좌표 |
+|---|---|---|
+| 구독자 slot m-line **선언** | `pt 96 / VP8` **하드코딩** | `helpers.rs:411` `// video slot (VP8 고정)` |
+| egress PT **재기록** | `pt_for_video_codec(화자 코덱)` → H264 면 102 | `subscriber_stream.rs:480` |
+
+H264 화자가 무전 영상을 쏘면 **선언 96 / 실도착 102**. 가드 없음.
+
+**실측**: `codec_match [botB] ssrc=0xA8747803 수신 [102] != 약속 96`
+
+**왜 여태 안 드러났나** — 영상 무전 보류(20260624) + 봇 `publish_video_half` 기본이 VP8 이고
+half video 시나리오가 `conf_duplex` 하나뿐(전부 VP8). **우연히 안 밟고 있었다.**
+
+**답 (질문에 대한)**: full/half 에 코덱 차이가 필요한 게 **아니다.** 제약의 정체는 duplex 가
+아니라 **N:1 공용 m-line** 이다 — 화자가 바뀌어도 구독자 SDP 를 재협상하지 않으려면 그
+m-line 의 PT/코덱이 고정이어야 하고, 따라서 **그 방의 half 화자들끼리 같은 코덱**이어야 한다.
+"half 는 VP8" 은 그 제약의 결론이 아니라 **값을 정하기 귀찮아 박아둔 것**이다.
+
+**수리 방향 (미착수)**: slot 코덱을 **방 단위로 확정**(첫 half publish 또는 방 정책) → slot
+entry 가 그 값을 선언 → egress 재기록도 **화자 코덱이 아니라 slot 확정값**으로. 다른 코덱
+half publish 는 거절 또는 slot 재협상. 오디오도 같은 규칙(지금은 재기록 자체가 없다).
+이러면 `pt_for_video_codec` 과 §6-5 능력표의 `slot_pt`/`slot_rtx_pt` 필드가 **함께 사라진다** —
+그 필드는 처방이 아니라 증상을 옮겨 적은 것이었다(내 오판).
+
+**등재**: `scenarios/ptt_video_h264.yaml` 정규 편입 + `KNOWN_DEFECTS` 격리(`codec_match` 한 점만).
+서버 수리 시 XPASS 로 떠서 격리 해제를 알린다. run-all **49종 OK 49 / 이상 0(격리 1 노랑)**.
+
+**RoIP 연결**: 오디오 slot 은 egress 재기록이 아예 없어 같은 형상이 더 크게 남아 있다.
+G.711 화자가 무전에 들어오면 **여기서 먼저 깨진다** — §6-4 의 전제 2번이 이것이다.
+
 ### 남은 별건
 
 - **PTT slot 오디오는 여전히 PT 를 재기록하지 않는다.** video 는 `subscriber_stream.rs:480`
