@@ -340,6 +340,50 @@ n=3 순차 관찰로 인과를 단정했다 — **`feedback_coexistence_not_caus
 클라 표에만 있었다). slot 은 여러 화자가 돌려쓰는 공용 m-line 이라 **서버가 PT 를 정하는
 것이 맞는 유일한 자리**여서, 거기만 `OPUS_PAYLOAD_TYPE` 로 명시했다.
 
+### 6-3. 코덱 축 교차 (A) — 20260817 추가 집행
+
+부장님 지적: *"비디오 코덱 다양성도 같이 시험했니? h264만 시험한거 아니니?"* — **맞다.**
+
+**실측한 편식**
+
+| 층 | 실제로 탄 코덱 | 근거 |
+|---|---|---|
+| 2층 봇 | **VP8 only** | 시나리오 47종 중 `codec: VP8` 22종, `H264` **0종** |
+| 3층 브라우저 | **H264 only** | `local-endpoint.ts:137` `preferredCodec \|\| 'H264'`, qa.js·스펙에 override 없음 |
+
+층별로 하나씩 갈려 **교차가 0** 이었다. 20260817a §잔여3 의 *"항목은 충분한데 축이 없다"* 와
+같은 형태 — 코덱도 항목으로는 있는데 경로로는 한 줄씩만 탔다.
+
+**집행**
+
+| 커밋 | 내용 |
+|---|---|
+| `oxlens-home 7b0a14f` | `?codec=` 파라미터 → `mediaDefaults.preferredCodec`. `conf_codec_axis.spec.ts` (VP8/H264 각 1종). 판정은 **선언이 아니라 실제 협상 결과** — `inbound-rtp.codecId → codec.mimeType` + `framesDecoded Δ>0` |
+| `oxlens-sfu-server 98e1cb4` | `rtp_tx._h264_payload` 신설 + `VideoSender(codec=)`. `scenarios/conf_video_h264.yaml` |
+
+**봇은 payload 형상까지 바꾼다.** 선언만 H264 로 두고 VP8 바이트를 보내면 서버
+`is_vp8_keyframe` 이 먼저 매칭해 키프레임 판정이 엉뚱하게 붙는다(20260816 §0-I 규율 3 형상 우선).
+등식은 신설하지 않았다 — 기존 `codec_match` 가 그대로 잡는다. 20260817a 잔여 §부수의
+*"선언과 실송신을 어긋나게 만드는 형상을 주면 기존 등식이 잡는다"* 이행.
+
+**결과**: 3층 **3회 연속 22통과/1skip/실패 0**(VP8 Δ=30·33, H264 Δ=30·30) · 2층 **48종 OK 48**.
+codecId 는 첫 패킷 이후에야 붙어 단발 측정이 실패했고 `expect.poll` 로 바꿨다(§H 처방 동형).
+
+### 6-4. RoIP — 방향 확정 (부장님 20260817, 미착수)
+
+> *"오퍼스에 붙박혀 있으면 안 된다. G.711 을 추가 음성 코덱으로 지원." — 딱 그만큼.*
+
+크롬 151 audio offer 실측: `111 opus` · `63 red` · `9 G722` · **`0 PCMU`** · **`8 PCMA`** ·
+`13 CN` · `110/126 telephone-event`. 지금 SDK 허용목록은 `audio: ['OPUS']` 라 7개를 버린다.
+
+착수 시 필요한 것(조사 결과):
+1. **오디오 코덱 축 자체가 wire 에 없다** — `PublishTrackItem.codec` 은 주석부터 *"video intent"*,
+   서버엔 `VideoCodec` enum 만 있다. PT 는 통보받지만 "그 PT 가 뭔지"는 모른다.
+2. **★PTT slot 오디오 egress PT 재기록 부재가 차단 요인이 된다** — 아래 별건 1번.
+   full-duplex(화상회의) 경로는 SFU 가 payload 를 안 보므로 G.711 이 이미 흐를 수 있다.
+   막히는 건 slot(무전) 경로다.
+3. GW 장비 스펙 확인 후 축 확정(μ-law/A-law, DTMF 필요 여부).
+
 ### 남은 별건
 
 - **PTT slot 오디오는 여전히 PT 를 재기록하지 않는다.** video 는 `subscriber_stream.rs:480`
