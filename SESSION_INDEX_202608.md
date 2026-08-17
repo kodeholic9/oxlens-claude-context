@@ -16,3 +16,4 @@
 | 08-16 | 2층 병렬화(4.4배) + RTCP 값 축 + 시각 섭동 메타 시험 | `202608/20260816a_parallel_rtcp_perturb_task.md` | done |
 | 08-16 | 2층 축 분리(정합/회수) + 시각경계 부류 일괄 정리 + rejudge 신설 | `202608/20260816b_test_axis_split_task.md` | done |
 | 08-17 | 1PC 검은화면 근인(H264 profile→PT 매핑 붕괴) + 3층 진단 배선 | `202608/20260817a_onepc_pt_mismatch_blackscreen_task.md` | open |
+| 08-17 | 서버 코덱 고정표 철거 + 재협상 재보고 — 어긋나면 그 자리에서 드러낸다 | `202608/20260817b_codec_table_removal_task.md` | open |
