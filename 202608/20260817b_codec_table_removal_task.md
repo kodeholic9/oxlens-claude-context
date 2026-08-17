@@ -384,6 +384,54 @@ codecId 는 첫 패킷 이후에야 붙어 단발 측정이 실패했고 `expect
    막히는 건 slot(무전) 경로다.
 3. GW 장비 스펙 확인 후 축 확정(μ-law/A-law, DTMF 필요 여부).
 
+### 6-5. 코덱 능력표 단일 출처 (명문화) — 20260817 마지막 집행
+
+부장님: *"코덱 확장 요구를 시스템이 얼마나 유연하게 받아주느냐가 중요하고, 무엇을
+지원하는지 명확히 명문화되어 있어야 한다."*
+
+**문제였던 상태** — "무엇을 지원하는가"가 세 군데에 흩어져 서로 달랐다.
+
+| 출처 | 말하던 것 |
+|---|---|
+| `from_str_strict` (입구 거절) | VP8 · H264 · **VP9** |
+| `server_codec_policy` (클라 통보) | VP8 · H264 |
+| `SDK_ALLOWED_CODECS` (클라 허용목록) | VP8 · H264 |
+
+그래서 **VP9 는 입구만 열려 있고 하부가 비어 있었다** — 키프레임 판정기가 없어 PTT slot 의
+`pending_keyframe` 이 안 풀리고 simulcast 전환도 안 되는데 `pt_for_video_codec(Vp9)` 은
+VP8 PT(96)로 조용히 fallback 했다. 실제 차단은 서버가 아니라 **클라 허용목록**이 하고 있었다.
+게다가 §6-2 에서 표를 걷어내며 `server_codec_policy` 의 선언 기능까지 약화시켜, **명문화는
+오히려 나빠졌다**(내 실수).
+
+**집행** — `crates/oxsfud/src/domain/codec_registry.rs` 신설. `SUPPORTED_VIDEO` 한 표에서
+입구 거절·클라 통보·slot PT 정규화·키프레임 판정·3002 문구가 전부 파생된다.
+
+```rust
+pub struct VideoCodecCaps {
+    codec, name,
+    is_keyframe: fn(&[u8]) -> bool,   // ★없으면 표에 줄을 못 쓴다 = 지원 아님
+    slot_pt, slot_rtx_pt,             // N:1 공용 m-line 전용(서버가 PT 를 정하는 유일한 자리)
+    layer_model: LayerModel,          // None | SimulcastRid  ← SVC 축 부재가 여기서 드러남
+    rtcp_fb,
+}
+```
+
+| 파생된 곳 | 종전 |
+|---|---|
+| `VideoCodec::from_str_strict` | 하드코딩 match (VP9 통과) |
+| `pt_for_video_codec` / `rtx_pt_for_video_codec` | `Vp9 => VP8 PT` 조용한 fallback |
+| `publisher_track` 키프레임 2곳 | `is_vp8_keyframe() \|\| is_h264_keyframe()` — **코덱을 모른 채 둘 다 돌려** 먼저 매칭되는 쪽을 취했다. 선언과 실 payload 가 어긋나면 엉뚱하게 붙는다 |
+| 3002 문구 | 하드코딩 문자열(실력과 어긋날 수 있었다) |
+| `server_codec_policy` | 손으로 쓴 vec |
+
+`VideoCodec::Vp9` 변종 **삭제**. 이제 타입이 곧 "지원한다"는 뜻이다.
+
+**명문화**: `PROJECT_SERVER.md` 에 §지원 코덱 — 단일 출처 신설(현재 지원 표 · 미지원 사유 ·
+**코덱을 하나 늘릴 때 손대는 곳 5단계**). SDK 상수 주석도 서버 표를 단일 출처로 지목.
+
+**시험**: 서버 단위 **284/284**(codec_registry 4종 신설) · 1층 30/30 ·
+3층 **3회 연속 22통과/1skip/실패 0** · 2층 48종 OK 48.
+
 ### 남은 별건
 
 - **PTT slot 오디오는 여전히 PT 를 재기록하지 않는다.** video 는 `subscriber_stream.rs:480`

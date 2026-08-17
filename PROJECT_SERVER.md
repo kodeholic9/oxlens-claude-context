@@ -131,6 +131,50 @@ oxlens-sfu-server/
 
 ---
 
+## 지원 코덱 — 단일 출처 (20260817)
+
+> **명문화 원칙**: "무엇을 지원하는가"는 `crates/oxsfud/src/domain/codec_registry.rs`
+> 의 `SUPPORTED_VIDEO` 표 **하나**로 정한다. 입구 거절(3002)·클라 통보(`server_config.codecs`)·
+> slot PT 정규화·키프레임 판정이 전부 여기서 파생된다. 문서/코드가 갈라질 자리를 없앤 것.
+
+### 현재 지원
+
+| 코덱 | 키프레임 판정 | slot 정규화 PT | 레이어 모델 |
+|---|---|---|---|
+| VP8 | `is_vp8_keyframe` | 96 / rtx 97 | rid simulcast (h/l) |
+| H264 | `is_h264_keyframe` | 102 / rtx 103 | rid simulcast (h/l) |
+
+**오디오는 opus 단일이며 코덱 축이 아직 없다** — 클라가 오디오 코덱을 선언하지 않고
+(`PublishTrackItem.codec` 은 video 전용), 서버에도 오디오 코덱 타입이 없다. PT 만 통보받는다.
+
+### 미지원과 그 이유
+
+| | 사유 |
+|---|---|
+| VP9 · AV1 | 키프레임 판정기 없음. 그리고 두 코덱은 rid simulcast 가 아니라 **SVC(dependency descriptor)** 모델이라 `LayerModel` 축을 하나 더 만들어야 한다 |
+| H265 | 동일(판정기 없음) |
+| G.711 (PCMU/PCMA) · DTMF | **오디오 코덱 축 자체가 없다.** RoIP 게이트웨이 연동의 전제 — 20260817b §6-4 |
+
+★ 20260817 이전엔 `from_str_strict` 가 **VP9 를 통과시켰다.** 하부는 비어 있어
+(`pt_for_video_codec(Vp9)` 이 VP8 PT 96 으로 조용히 fallback) 입구와 실력이 어긋난
+상태였고, 실제 차단은 서버가 아니라 클라 허용목록이 하고 있었다. 표 도입으로 정리.
+
+### 코덱을 하나 늘릴 때 손대는 곳
+
+1. `codec_registry::SUPPORTED_VIDEO` 에 한 줄 — **키프레임 판정기 없이는 줄을 못 쓴다**(필수 필드).
+2. 그 코덱의 `is_keyframe` 구현(`ptt_rewriter.rs` 동거).
+3. `LayerModel` 이 `SimulcastRid` 가 아니면 **레이어 선택 축 신설**(SVC 는 여기가 본체).
+4. slot 정규화 PT 상수(`config.rs`) — N:1 공용 m-line 전용.
+5. 클라: `sdk0.2` 는 서버가 준 이름 목록을 그대로 쓰므로 **무변경**(허용목록 폴백 상수만 참고).
+
+PT·등급·clockrate 는 **어디에도 박지 않는다** — 전부 협상/통보값이다(20260817 표 철거).
+
+### 아직 표를 안 따르는 잔여
+
+- `config::is_rtx_pt(pt)` 가 `97 || 103` 하드코딩. publisher 가 선언한 `rtx_pt` 를 쓰지 않는다.
+- PTT slot **오디오**는 egress PT 재기록이 없다(video 만 `pt_for_video_codec` 정규화).
+  현재는 모든 화자가 opus 111 이라 안 드러난다 — G.711 을 붙이면 여기가 먼저 깨진다.
+
 ## 미디어 아키텍처
 
 ### Hyb 연결 모드 — ConnMode 1PC/2PC 선택형 (2026-07-09)
