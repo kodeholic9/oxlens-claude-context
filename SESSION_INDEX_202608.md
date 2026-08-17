@@ -17,3 +17,4 @@
 | 08-16 | 2층 축 분리(정합/회수) + 시각경계 부류 일괄 정리 + rejudge 신설 | `202608/20260816b_test_axis_split_task.md` | done |
 | 08-17 | 1PC 검은화면 근인(H264 profile→PT 매핑 붕괴) + 3층 진단 배선 | `202608/20260817a_onepc_pt_mismatch_blackscreen_task.md` | open |
 | 08-17 | 서버 코덱 고정표 철거 + 되비추기 원본 수리 — 어긋나면 그 자리에서 드러낸다 | `202608/20260817b_codec_table_removal_task.md` | done |
+| 08-17 | PTT slot 코덱 — 선언/재기록 단일 출처 + 불일치 거절 | `202608/20260817c_ptt_slot_codec_task.md` | open |
