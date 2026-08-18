@@ -276,6 +276,54 @@ run-all 49종 OK 49 · 3층 22 passed/1 skipped. 라이브도 층 이동 후 재
 
 ---
 
+## 7-7. 축 완성 — 생성 통보 + 현황 복원 (2026-08-19, 커밋 `f6599d6`)
+
+§7-6-1 에서 "축이 절반"이라 적은 나머지를 붙였다. 이제 hub 는 **자기가 안 만든 방**의
+위치를 안다 = cross-hub join 의 전제가 선다.
+
+| 방향 | 기전 |
+|---|---|
+| 방이 생겼다 | `ROOM_CREATED` → hub `learn_room(room_id, sfu_id)` |
+| 방이 사라졌다 | `ROOM_DESTROYED` → hub `unbind_room` |
+| **hub 가 늦게/다시 떴다** | 구독 직후 `reconcile_sfu` — 그 sfu 에 ROOM_LIST 를 물어 채운다 |
+
+- 새 op 없음. `ROOM_EVENT` 의 `event_type` 확장이고 조립은 `emit_room_lifecycle` 하나로
+  합쳤다(프레임이 갈라지면 hub 가 한쪽만 알아본다).
+- hub 는 이벤트가 **어느 sfu 소비자에서 왔는지**로 위치를 안다 — `dispatch_event` 에
+  `sfu_id` 를 흘렸다.
+- **충돌은 옛 값 유지 + error 로그.** 한 방이 두 sfu 에 잡히면 미디어 치명이라 조용히
+  덮으면 안 되고, 덮어도 안 된다(라우팅이 흔들린다).
+- 복원은 **구독 직후**다. Zenoh liveliness 의 `history(true)` 와 같은 자리이고 재연결마다
+  돌아 자가치유된다.
+
+### 7-7-1. 오진 1건 (기록)
+
+복원 조회가 실패했을 때 **타이밍(연결 미성립)으로 오진**해 재시도를 넣었다. 1초 재시도가
+전부 실패하고 **sfud 로그에 `ROOM_LIST` 자체가 안 남는 것**을 보고서야 인증 문제로 좁혔다.
+`grpc/sfu_service.rs` 는 envelope `user_id` 가 비면 `ctx.user_id=None` → **1001 거절**이다.
+admin 평면이 쓰는 신원 `"admin"` 으로 바꾸니 해소. 재시도는 걷어냈다.
+→ 같은 뿌리: REST `create_room` 의 1001(§8 이월)도 이것이다.
+
+### 7-7-2. M1 실측 답 (설계서 미결 해소)
+
+hub 를 **SIGTERM 이든 SIGKILL 이든** 죽이면 자식 sfud 가 lifeline 으로 **동반 종료**한다.
+→ 설계서 §9 M1 "hub 재시작 시 자식 생사"의 답은 **경우1(동반 사망)**. 따라서 현황 복원이
+실제로 필요한 대상은 **원격 sfu**(hub 재기동에 안 죽는 노드)다. 그 형상(수동 기동 sfud)으로
+실증했다: 방 2개 생성 → hub 만 SIGKILL → 재기동 → `sfu-1 2 rooms / sfu-2 1 rooms learned`.
+
+### 7-7-3. 시험
+
+생성 2경로(자동 uuid `create` · 명시 id `create_with_id`) × sfud 발신 / hub 수신 —
+**네 갈래 전부 실증**. 첫 실증에서 `create`(자동 uuid) 경로가 시험에 안 걸려 있던 구멍이
+드러나(emit 을 빼도 초록) 메웠다.
+
+게이트 5/5: `cargo test --workspace` **465/0** · pytest 202 · npm test 30 ·
+run-all 49종 OK 49 · 3층 22 passed/1 skipped.
+run-all 1회차에 `adv_loss` 가 104개 중 1개 결손으로 이상 1 — 단독 3/3 통과, 스위트
+재실행 49/49. **재현 안 됨.**
+
+---
+
 ## 8. 이월
 
 | # | 항목 |
@@ -285,9 +333,10 @@ run-all 49종 OK 49 · 3층 22 passed/1 skipped. 라이브도 층 이동 후 재
 | — | REST `create_room` 의 `active_speaker` 누락 |
 | — | 봇(oxe2epy)에 TTL 을 태울지 — 태우면 시험 방 누적(현재 56개)이 풀린다. 2층 의미 변화라 별도 판단 |
 | — | 클라 대면 방 삭제 op — 지금은 admin 평면뿐. "누가 지울 수 있나"는 제품 결정 |
-| — | **방 생성 통보 = (ii)안의 나머지 절반**(§7-6-1). 붙이면 cross-hub join 이 열린다. **부장님 판단** |
 | — | TTL 소멸 ↔ join 경합 시험 · `Arc<Room>` 지연 회수 실측(§7-6-4) |
-| — | **방→SFU cross-hub 전면 복제((ii)안 완성)** — 본 작업은 선행 조건만 만들었다. M0 여전히 미결
+| — | **cross-hub join 실증** — 기전은 섰으나(§7-7) hub 가 1대뿐이라 "남이 만든 방에 join" 을 못 밟았다. hub 다중화 형상 필요 |
+| — | REST `create_room` 1001 — §7-7-1 과 같은 뿌리(신원 `""`). 고치면 REST 로 방 생성이 열린다 |
+| — | M0 최종 처분 — 기전은 (ii) 전노드 복제로 섰다. "저장소0+다중결정자+중복금지"의 CAP 대가는 그대로 남는다
 
 ---
 
