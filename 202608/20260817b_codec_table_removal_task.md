@@ -477,6 +477,36 @@ G.711 화자가 무전에 들어오면 **여기서 먼저 깨진다** — §6-4 
 - `is_rtx_pt()` 가 하드코딩 표(97/103)로 판정한다. 선언값(`rtx_pt`)을 안 쓴다.
 - `rtx_pt_for(media_pt)` 추측 표(`102=>103, _=>97`).
 
+### 6-7. ★게이트를 부분만 돌려 두 곳이 샜다 (사후 정리 `67b6d97`)
+
+`cc5de77`(§6-2) 에서 `TrackEntry.video_pt → pt` 개명과 `codec_match` 등식 변경을 하며
+**부분 게이트만** 돌렸다. 돌린 것: `cargo test -p oxsfud` · `npm test` · `run-all` · 3층.
+**안 돌린 것: `cargo test --workspace` 와 `oxe2epy pytest`.** 다른 세션이 잡았다.
+
+| 샌 곳 | 왜 내 게이트로는 못 봤나 |
+|---|---|
+| `oxsig` 시험 모듈 개명 잔재 | **lib 빌드는 통과하고 test 타겟만 깨진다.** `-p oxsfud` 도 `cargo build --release` 도 원리적으로 못 본다. 갈래B: 되돌리면 `E0560` |
+| `oxe2epy/tests/` codec_match 2건 | 등식을 고치면서 **그 등식의 단위시험**을 안 돌렸다 |
+
+**단위시험 2건은 개명이 아니라 뜻을 다시 정했다.** `cc5de77` 이 *"약속 없으면 audio 니까 111"*
+가정을 의도적으로 없앴는데(그 111 의 근거가 곧 철거 대상인 서버 코덱 고정표였다), 옛 시험은
+**삭제된 규칙**을 검사하고 있었다.
+
+| 옛 | 새 | 박는 계약 |
+|---|---|---|
+| `fail_on_wrong_pt` | `skip_when_no_promise` | 약속 없으면 **판정하지 않는다**(111 가정 폐기). pt 96/111/102 어느 것이 와도 침묵 |
+| `pass_opus` | `pass_audio_promise` + `fail_audio_pt_mismatch` | 약속 `pt:111` 을 실어 audio 경로를 **실제로** 검사 + 갈래B |
+
+옛 `pass_opus` 는 약속이 없어 `continue` 로 빠져 **수신 pt 가 뭐든 초록**이었다 —
+실측으로 기대값을 `111→96` 으로 바꿔도 통과했다. **갈래B 없는 칸.**
+
+★부수 사실: 그 `continue` 분기는 지금 **도달 불가에 가깝다.** `cc5de77` 이후 서버는 audio 에도
+pt 를 싣고(`actual_pt = t.pt.unwrap_or(111)`) PTT slot audio 도 `OPUS_PAYLOAD_TYPE` 을 단다.
+`run-all` 이 49/49 초록이었던 건 덮여서가 아니라 **아무도 그 분기를 안 밟아서**다.
+
+**게이트 다섯 개**를 memory `feedback_full_gate_not_partial` 로 박았다 —
+`cargo test --workspace`(436) · `oxe2epy pytest`(202) · `npm test`(30) · `run-all`(49) · 3층(22).
+
 ## 7. 근거 기록
 
 - 크롬 실측 3종(§1.4·1.5·1.6)은 Chrome 151 / Playwright. 코드 변경 없이 브라우저에서만 수행.
