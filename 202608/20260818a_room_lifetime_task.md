@@ -1,7 +1,8 @@
 ---
 kind: task
-status: open
+status: done
 opened: 20260818
+closed: 20260818
 refs: [202607/20260730_zenoh_discovery_design.md, 202608/20260814a_sfu_placement_hrw_task.md, guide/RUN_GUIDE_FOR_AI.md]
 ---
 # 방 수명 — 소멸 시점 정의와 집행 (TTL 2종 + 명시 삭제)
@@ -144,9 +145,77 @@ departure_ttl_secs  : 마지막 참가자가 나간 뒤 유지할 시간 (기준
 
 ---
 
-## 7. 진행 기록
+## 7. 완료 · 20260818
 
-*(집행하며 아래에 append)*
+커밋 3건. Phase 1·2 전부 집행. **push 미결재.**
+
+| 커밋 | 무엇 |
+|---|---|
+| `16a5970` | 자원 회수 — `remove_room` → `destroy_room` |
+| `445c7e4` | TTL 2종 — 시계는 둘, 기본은 영구 |
+| `d6c9bb8` | 명시 삭제 op + SFU→hub 통보 |
+
+### 7-1. 결정대로 된 것
+
+- 손잡이 = `unused_ttl_secs` / `departure_ttl_secs` 두 숫자. 모드 enum 없음.
+- 기본 = 영구 → 기존 클라·봇·SDK 무변경(새 필드 `Option` + `serde(default)`). 회귀 0.
+- 판정 권위 = SFU, hub 는 통보 수신. 시계는 기존 reaper 5초 순회 편승(새 인프라 0).
+- 새 op 은 `ADMIN_ROOM_DESTROY` 하나뿐. 통보는 `ROOM_EVENT` 의 `event_type` 재사용
+  (문자열은 `oxsig::message::ROOM_DESTROYED` 상수 — 발신·수신이 같은 값을 본다).
+
+### 7-2. 실측으로 드러난 것 (설계 시점에 몰랐던 것)
+
+- **`by_room_subscriber` 누수** — `RoomId` 키를 지우는 경로가 없어 빈 shard 가 방마다
+  영구 잔존했다. `PeerMap::forget_room` 으로 같이 잡음.
+- **REST `create_room` 이 별도 조립기** — `ROOM_CREATE` body 를 따로 만들며 새 필드를
+  버렸다. 정합함. `active_speaker` 도 원래 누락 상태 — **범위 밖으로 남김**(§8 이월).
+- **`empty_since` 의 0 이 "미관측" 센티넬과 겹침** — 시험을 `now=0` 으로 짜다 실제로
+  충돌. `stamp = now.max(1)` 로 봉쇄.
+- **통보를 호출자 몫으로 두면 빠뜨린다** — sweep 에만 달았다가 명시 삭제 경로에서 바로
+  빠뜨렸고 라이브에서 hub 통보가 안 갔다. `destroy_room` 안으로 넣어 한 쌍으로 묶음.
+
+### 7-3. 라이브 실증 (끝에서 끝까지)
+
+```
+TTL 만료   [ROOM:DESTROY]   room=ttl_dies            22:45:21.891 (sfud)
+           [ROOM:DESTROYED] room=ttl_dies  sfu-2     22:45:21.892 (hub, 1ms)
+명시 삭제  oxadmin room-destroy ttl_lives → destroyed=true
+           [ROOM:DESTROYED] room=ttl_lives sfu-1     22:47:27.651 (hub)
+```
+
+### 7-4. 게이트 5/5
+
+`cargo test --workspace` **454/0** · `pytest` 202 · `npm test` 30 ·
+`run-all` 49종 OK 49 · 3층 22 passed/1 skipped.
+
+### 7-5. ★3층 별건 — `SIM-AUTO-01` (제 변경 아님)
+
+3층을 run-all 직후에 돌리면 `sim_auto_layer.spec.ts` `SIM-AUTO-01`(실REMB demote)이
+`auto_cap → l` 에서 깨진다. 처음엔 TTL 탓으로 볼 뻔했는데 **조건이 비대칭**이었다.
+
+| 코드 | run-all 선행 | 3층 | n |
+|---|---|---|---|
+| TTL 있음 | 있음 | 1 failed | 2 |
+| **기준선 `16a5970`** | **있음** | **1 failed (동일 사유)** | 1 |
+| 기준선 | 없음 | 22 passed | 2 |
+| TTL 있음 | 없음 | 22 passed | 1 |
+
+가르는 변수는 TTL 이 아니라 **같은 서버 수명 안에서 run-all 을 먼저 돌렸나**다.
+단독 재실행은 통과하므로 순수 플레이크도 아니다(스위트 문맥에서 재현). **별건.**
+방 배치도 확인 — `qa_test_01→sfu-2 / 02→sfu-2 / 03→sfu-1` 로 20260816b 기록값과 일치.
+
+---
+
+## 8. 이월
+
+| # | 항목 |
+|---|---|
+| **§7-5** | 3층 `SIM-AUTO-01` — run-all 선행 시 실패. 별도 조사 |
+| R1~R4 | §5 미결 그대로(재기동 생존·기본값·예약 신호·삭제 시 참가자 통보) |
+| — | REST `create_room` 의 `active_speaker` 누락 |
+| — | 봇(oxe2epy)에 TTL 을 태울지 — 태우면 시험 방 누적(현재 56개)이 풀린다. 2층 의미 변화라 별도 판단 |
+| — | 클라 대면 방 삭제 op — 지금은 admin 평면뿐. "누가 지울 수 있나"는 제품 결정 |
+| — | **방→SFU cross-hub 전면 복제((ii)안 완성)** — 본 작업은 선행 조건만 만들었다. M0 여전히 미결
 
 ---
 

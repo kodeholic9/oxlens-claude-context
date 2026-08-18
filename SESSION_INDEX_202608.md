@@ -18,4 +18,4 @@
 | 08-17 | 1PC 검은화면 근인(H264 profile→PT 매핑 붕괴) + 3층 진단 배선 | `202608/20260817a_onepc_pt_mismatch_blackscreen_task.md` | open |
 | 08-17 | 서버 코덱 고정표 철거 + 되비추기 원본 수리 — 어긋나면 그 자리에서 드러낸다 | `202608/20260817b_codec_table_removal_task.md` | done |
 | 08-17 | PTT slot 코덱 — 선언/재기록 단일 출처 + 불일치 거절 | `202608/20260817c_ptt_slot_codec_task.md` | done |
-| 08-18 | 방 수명 — 소멸 시점 정의(TTL 2종+명시 삭제), (ii)안 선행 조건 | `202608/20260818a_room_lifetime_task.md` | open |
+| 08-18 | 방 수명 — TTL 2종·명시 삭제·SFU→hub 통보. 자원회수 누수 2건 동반 수리 | `202608/20260818a_room_lifetime_task.md` | done |
