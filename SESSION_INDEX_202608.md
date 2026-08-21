@@ -20,3 +20,4 @@
 | 08-17 | PTT slot 코덱 — 선언/재기록 단일 출처 + 불일치 거절 | `202608/20260817c_ptt_slot_codec_task.md` | done |
 | 08-18 | 방 수명 — TTL 2종·명시 삭제·SFU→hub 통보. 자원회수 누수 2건 동반 수리 | `202608/20260818a_room_lifetime_task.md` | done |
 | 08-19 | 3층 SIM-AUTO-01 공허한 초록 제거 + 진짜 결함 노출(baseline h→3/3 실패, 15회) | `202608/20260819a_sim_auto_vacuous_green_task.md` | open |
+| 08-19 | MVS/MVML 훑기 — 2008 자동검증 체계(부장님 작), 2층 시그널링 일반화 선례 | `202608/20260819b_mvs_mvml_survey.md` | done |
